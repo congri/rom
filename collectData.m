@@ -44,6 +44,7 @@ if saveW
     clear rowW colW valW WArray;
 end
 
+
 %theta
 filename = './data/theta';
 theta = theta_c.theta';
