@@ -4,12 +4,12 @@
 nf = 128;
 loCond = 1;
 upCond = 100;
-nSamples = 4;
+nSamples = 1024;
 corrlength = '5';
 volfrac = '0.3';  %high conducting phase volume fraction
 sigma_f2 = '1';
 cond_distribution = 'correlated_binary';
-bc = '[-5 3 0 0]';
+bc = '[-50 164 112 -30]';
 
 
 %Folder where finescale data is saved

@@ -2,7 +2,7 @@
 %CHANGE JOBFILE IF YOU CHANGE LINE NUMBERS!
 %Number of training data samples
 nStart = 1; %start training sample in training data file
-nTrain = 4;
+nTrain = 1024;
 
 %% Initialize coarse domain
 genCoarseDomain;

@@ -67,7 +67,7 @@ classdef DesignMatrix
             parPoolInit(length(nTrain));
             PhiCell{1} = zeros(nElc, nFeatureFunctions);
             PhiCell = repmat(PhiCell, nTrain, 1);
-            for s = 1:nTrain
+            parfor s = 1:nTrain
                 %inputs belonging to same coarse element are in the same column of xk. They are ordered in
                 %x-direction.
                 PhiCell{s} = zeros(nElc, nFeatureFunctions);

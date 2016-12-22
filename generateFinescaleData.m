@@ -23,7 +23,7 @@ toc
 disp('Setting up finescale data parameters...')
 FD = FinescaleData(1, 100);
 FD.nSets = 2;
-FD.nSamples = [4 2];
+FD.nSamples = [1024 128];
 FD.distributionType = 'correlated_binary';
 FD.distributionParams = {.3 [5 5] 1};
 
