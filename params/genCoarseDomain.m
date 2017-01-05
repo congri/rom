@@ -1,5 +1,5 @@
 %Generate coarse domain
-nc = 2;
+nc = 4;
 domainc = Domain(nc, nc);
 domainc = setBoundaries(domainc, [2:(4*nc)], Tb, qb);           %ATTENTION: natural nodes have to be set manually
                                                                 %and consistently in domainc and domainf

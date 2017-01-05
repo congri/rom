@@ -199,6 +199,7 @@ for k = 2:(maxIterations + 1)
                     Tc = FEMout.Tff';
                     Tc_samples(:, s, i) = Tc(:);
                 end
+%                 infErr = std(Tc_samples, 0, 2)/sqrt(VIparams.inferenceSamples)
                 p_cf_exponent(:, i) = mean((repmat(Tf_i_minus_mu, 1, VIparams.inferenceSamples)...
                         - theta_cf.W*Tc_samples(:, :, i)).^2, 2);
             else
@@ -217,7 +218,7 @@ for k = 2:(maxIterations + 1)
     lowerBoundS = 1e-10;
     theta_cf.S = (1 - mix_S)*mean(p_cf_exponent, 2)...
         + mix_S*theta_cf.S + lowerBoundS*ones(domainf.nNodes, 1);
-    clear p_cf_exponent;
+%     clear p_cf_exponent;
     theta_cf.Sinv = sparse(1:domainf.nNodes, 1:domainf.nNodes, 1./theta_cf.S);
     theta_cf.WTSinv = theta_cf.W'*theta_cf.Sinv;        %Precomputation for efficiency
 

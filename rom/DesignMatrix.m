@@ -86,7 +86,10 @@ classdef DesignMatrix
             
             Phi.designMatrices = PhiCell;
             for i = 1:nTrain
-                assert(all(all(isfinite(Phi.designMatrices{i}))), 'Error: non-finite design matrix Phi')
+                if(~all(all(all(isfinite(Phi.designMatrices{i})))))
+                    warning('Non-finite design matrix Phi. Setting non-finite component to 0.')
+                    Phi.designMatrices{i}(~isfinite(Phi.designMatrices{i})) = 0;
+                end
             end
             disp('done')
             Phi_computation_time = toc
@@ -115,7 +118,10 @@ classdef DesignMatrix
                 end
             end
             for i = 1:numel(Phi.designMatrices)
-                assert(all(all(all(isfinite(Phi.designMatrices{i})))), 'Error: non-finite design matrix Phi')
+                if(~all(all(all(isfinite(Phi.designMatrices{i})))))
+                    warning('Non-finite design matrix Phi. Setting non-finite component to 0.')
+                    Phi.designMatrices{i}(~isfinite(Phi.designMatrices{i})) = 0;
+                end
             end
         end
         

@@ -3,7 +3,7 @@
 %Which data to load? We will get error if data doesn't exist
 nf = 128;
 loCond = 1;
-upCond = 100;
+upCond = 10;
 nSamples = 1024;
 corrlength = '5';
 volfrac = '0.3';  %high conducting phase volume fraction

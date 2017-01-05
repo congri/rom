@@ -1,4 +1,4 @@
-function [Tf_meanArray, Tf_varArray, Tf_mean_tot, Tf_sq_mean_tot, meanMahaErr, meanSqDist, sqDist] =...
+function [Tf_meanArray, Tf_varArray, Tf_mean_tot, Tf_sq_mean_tot, meanMahaErr, meanSqDist, sqDist, meanEffCond] =...
     predictOutput(nSamples_p_c, testSample_lo, testSample_up, testFilePath, modelParamsFolder)
 %Function to predict finescale output from generative model
 
@@ -23,12 +23,12 @@ disp('Sampling from p_c...')
 nTest = testSample_up - testSample_lo + 1;
 Xsamples = zeros(domainc.nEl, nSamples_p_c, nTest);
 LambdaSamples = Xsamples;
+meanEffCond = zeros(domainc.nEl, nTest);
 for i = 1:nTest
+    meanEffCond(:, i) = exp(Phi.designMatrices{i}*theta_c.theta + .5*theta_c.sigma^2);
     Xsamples(:, :, i) = mvnrnd(Phi.designMatrices{i}*theta_c.theta, (theta_c.sigma^2)*eye(domainc.nEl), nSamples_p_c)';
     LambdaSamples(:, :, i) = exp(Xsamples(:, :, i));
 end
-LambdaSamples(LambdaSamples < 1) = 1;
-LambdaSamples(LambdaSamples > 100) = 100;
 disp('done')
 
 %% Run coarse model and sample from p_cf
@@ -72,7 +72,7 @@ for j = 1:nTest
     
     if nargout > 4
         meanMahaErrTemp = mean(sqrt((.5./(Tf_var)).*(Tf(:, j) - Tf_mean).^2));
-        meanSqDistTemp = mean(((Tf(:, j) - Tf_mean)./Tf(:, j)).^2);
+        meanSqDistTemp = mean((Tf(:, j) - Tf_mean).^2);
         sqDistTemp = (Tf(:, j) - Tf_mean).^2;
         meanMahaErr = ((j- 1)/j)*meanMahaErr + (1/j)*meanMahaErrTemp;
         meanSqDist = ((j - 1)/j)*meanSqDist + (1/j)*meanSqDistTemp;

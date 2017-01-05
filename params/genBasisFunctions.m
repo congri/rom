@@ -2,9 +2,9 @@
 
 conductivities = [loCond upCond];
 %generalized means
-min_z = 1;
+min_z = -1;
 max_z = 1;
-z_incr = .5;
+z_incr = .1;
 z = min_z:z_incr:max_z;
 i = 1;
 for zz = z
@@ -17,7 +17,7 @@ for zz = z
     i = i + 1;
 end
 
-dLinPathMax = 30;
+dLinPathMax = 25;
 dLinPathMin = 0;
 dLinPathIncr = 1;
 nElc = [domainc.nElX domainc.nElY];
@@ -29,7 +29,7 @@ for d = dLinPathMin:dLinPathIncr:dLinPathMax
     phi{end + 1} = @(lambda) linealPath(lambda, d, 'y', 2, conductivities, nElc, nElf);
 end
 
-d2pointCorrMax = 30;
+d2pointCorrMax = 25;
 d2pointCorrMin = 2;
 d2pointCorrIncr = 1;
 for d = d2pointCorrMin:d2pointCorrIncr:d2pointCorrMax
@@ -41,9 +41,9 @@ for d = d2pointCorrMin:d2pointCorrIncr:d2pointCorrMax
     phi{end + 1} = @(lambda) twoPointCorrelation(lambda, d, 'y', 2, conductivities, nElc, nElf);
 end
 
-pathLengths = (0:1:30)';
+% pathLengths = (0:1:30)';
 % lpa = @(lambda) linPathParams(lambda, pathLengths, conductivities, domainc, domainf, 'a');
-lpb = @(lambda) abs(linPathParams(lambda, pathLengths, conductivities, domainc, domainf, 'b'));
+% lpb = @(lambda) abs(linPathParams(lambda, pathLengths, conductivities, domainc, domainf, 'b'));
 
 mps = @(lambda) meanPoreSize(lambda, 2, conductivities, nElc, nElf, 'mean')/(nElf(1)/2);
 vps = @(lambda) sqrt(meanPoreSize(lambda, 2, conductivities, nElc, nElf, 'var'))/(nElf(1)/2);
@@ -51,7 +51,7 @@ vps = @(lambda) sqrt(meanPoreSize(lambda, 2, conductivities, nElc, nElf, 'var'))
 phi{end + 1} = mps;
 phi{end + 1} = vps;
 phi{end + 1} = @(lambda) specificSurface(lambda, 2, conductivities, nElc, nElf);
-phi{end + 1} = lpb;
+% phi{end + 1} = lpb;
 %This gives mean euclidean distance to nearest high conducting pixel
 phi{end + 1} = @(lambda) mean(mean(bwdist(reshape(lambda > loCond, sqrt(length(lambda)), sqrt(length(lambda))))));
 %This gives mean euclidean distance to nearest low conducting pixel
@@ -286,13 +286,6 @@ phi{end + 1} = @(lambda) meanExtent(reshape(lambda, sqrt(length(lambda)), sqrt(l
 
 %Energy of conductivity field if it were Ising model
 phi{end + 1} = @(lambda) isingEnergy(reshape(lambda, sqrt(length(lambda)), sqrt(length(lambda))));
-%constant
-phi{end + 1} = @(lambda) 1;
-
-%max/min
-phi{end + 1} = @(lambda) max(lambda);
-phi{end + 1} = @(lambda) min(lambda);
-
 
 nBasis = numel(phi);
 

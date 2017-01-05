@@ -2,7 +2,7 @@
 %CHANGE JOBFILE IF YOU CHANGE LINE NUMBERS!
 %Number of training data samples
 nStart = 1; %start training sample in training data file
-nTrain = 1024;
+nTrain = 80;
 
 %% Initialize coarse domain
 genCoarseDomain;
@@ -20,7 +20,7 @@ maxIterations = (basisFunctionUpdates + 1)*basisUpdateGap - 1;
 theta_cf.W = shapeInterp(domainc, domainf);
 %shrink finescale domain object to save memory
 domainf = domainf.shrink();
-theta_cf.S = (1e-3)*ones(domainf.nNodes, 1);
+theta_cf.S = 100*ones(domainf.nNodes, 1);
 theta_cf.Sinv = sparse(1:domainf.nNodes, 1:domainf.nNodes, 1./theta_cf.S);
 %precomputation to save resources
 theta_cf.WTSinv = theta_cf.W'*theta_cf.Sinv;
@@ -36,11 +36,12 @@ theta_c.sigma = 1e-2;
 
 
 %what kind of prior for theta_c
-theta_prior_type = 'spikeAndSlab';                  %hierarchical_gamma, hierarchical_laplace, laplace, gaussian, spikeAndSlab or none
+theta_prior_type = 'hierarchical_laplace';                  %hierarchical_gamma, hierarchical_laplace, laplace, gaussian, spikeAndSlab or none
 sigma_prior_type = 'none';
 %prior hyperparams; obsolete for no prior
 % theta_prior_hyperparam = [0, 1e-10];                   %a and b params for Gamma hyperprior
-theta_prior_hyperparam = [.7 1e-6 1e4];
+% theta_prior_hyperparam = [.7 1e-6 1e4];
+theta_prior_hyperparam = 1;
 sigma_prior_hyperparam = 1e3;
 
 %% MCMC options
@@ -76,14 +77,14 @@ VIparams.family = 'diagonalGaussian';
 initialParamsArray{1} = [log(.5*loCond + .5*upCond)*ones(1, domainc.nEl) 15*ones(1, domainc.nEl)];
 initialParamsArray = repmat(initialParamsArray, nTrain, 1);
 VIparams.nSamples = 10;    %Gradient samples per iteration
-VIparams.inferenceSamples = 100;
+VIparams.inferenceSamples = 1000;
 VIparams.optParams.optType = 'adam';
 VIparams.optParams.dim = domainc.nEl;
-VIparams.optParams.stepWidth = .05;
+VIparams.optParams.stepWidth = .08;
 VIparams.optParams.XWindow = 20;    %Averages dependent variable over last iterations
 VIparams.optParams.offset = 10000;  %Robbins-Monro offset
 VIparams.optParams.relXtol = 1e-12;
-VIparams.optParams.maxIterations = 100;
+VIparams.optParams.maxIterations = 300;
 VIparams.optParams.meanGradNormTol = 30;    %Converged if norm of mean of grad over last k iterations is smaller
 VIparams.optParams.gradNormTol = 30;    %Converged if average norm of gradient in last gradNormWindow iterations is below
 VIparams.optParams.gradNormWindow = 30;  %gradNormTol
