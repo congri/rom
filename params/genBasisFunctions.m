@@ -17,7 +17,7 @@ for zz = z
     i = i + 1;
 end
 
-dLinPathMax = 25;
+dLinPathMax = 60;
 dLinPathMin = 0;
 dLinPathIncr = 1;
 nElc = [domainc.nElX domainc.nElY];
@@ -29,7 +29,7 @@ for d = dLinPathMin:dLinPathIncr:dLinPathMax
     phi{end + 1} = @(lambda) linealPath(lambda, d, 'y', 2, conductivities, nElc, nElf);
 end
 
-d2pointCorrMax = 25;
+d2pointCorrMax = 60;
 d2pointCorrMin = 2;
 d2pointCorrIncr = 1;
 for d = d2pointCorrMin:d2pointCorrIncr:d2pointCorrMax

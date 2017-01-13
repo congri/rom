@@ -27,7 +27,7 @@ params;
 parPoolInit(nTrain);
 ppool = gcp;    %parallel pool properties
 pend = 0;       %for sequential qi-updates
-%initializations
+%prealloc
 XMean = zeros(domainc.nEl, nTrain);
 XNormSqMean = zeros(1, nTrain);
 
@@ -54,7 +54,7 @@ for k = 2:(maxIterations + 1)
     for i = 1:nTrain
         Tf_i_minus_mu = Tf(:, i) - theta_cf.mu;
         log_qi{i} = @(Xi) log_q_i(Xi, Tf_i_minus_mu, theta_cf, theta_c,...
-            Phi.designMatrices{i}, domainc);
+            Phi.designMatrices{i}, domainc, condTransOpts);
     end
     
     MonteCarlo = false;
@@ -188,7 +188,12 @@ for k = 2:(maxIterations + 1)
                 VImean = optVarDist{i}.params(1:domainc.nEl);
                 VIsigma = exp(-.5*optVarDist{i}.params((domainc.nEl + 1):end));
                 %Samples of conductivity
-                samples = logCond2Cond(mvnrnd(VImean, VIsigma, VIparams.inferenceSamples), 1e-10, 1e10);
+                if condTransOpts.limEffCond
+                    samples = conductivityBackTransform(mvnrnd(VImean, VIsigma, VIparams.inferenceSamples),...
+                        condTransOpts);
+                else
+                    samples = logCond2Cond(mvnrnd(VImean, VIsigma, VIparams.inferenceSamples), 1e-10, 1e10);
+                end
                 
                 for s = 1:VIparams.inferenceSamples
                     for j = 1:domainc.nEl
@@ -239,7 +244,12 @@ for k = 2:(maxIterations + 1)
     curr_theta = [theta_c.theta (1:length(theta_c.theta))']
     curr_sigma = theta_c.sigma
     mean_S = mean(theta_cf.S)
-    Lambda_eff1_mode = exp(Phi.designMatrices{1}*theta_c.theta)
+    if condTransOpts.limEffCond
+        Lambda_eff1_mode = conductivityBackTransform(Phi.designMatrices{1}*theta_c.theta,...
+            condTransOpts)
+    else
+        Lambda_eff1_mode = exp(Phi.designMatrices{1}*theta_c.theta)
+    end
 
     %collect data and write it to disk periodically to save memory
     collectData;

@@ -1,11 +1,15 @@
-function [log_q, d_log_q, Tc] = log_q_i(Xi, Tf_i_minus_mu, theta_cf, theta_c, Phi,  domainc)
+function [log_q, d_log_q, Tc] = log_q_i(Xi, Tf_i_minus_mu, theta_cf, theta_c, Phi,  domainc, condTransOpts)
 
 %Xi must be a column vector
 if size(Xi, 2) > 1
     Xi = Xi';
 end
 
-conductivity = logCond2Cond(Xi, 1e-10, 1e10);
+if condTransOpts.limEffCond
+    conductivity = conductivityBackTransform(Xi, condTransOpts);
+else
+    conductivity = logCond2Cond(Xi, 1e-10, 1e10);
+end
 
 [lg_p_c, d_lg_p_c] = log_p_c(Xi, Phi, theta_c.theta, theta_c.sigma);
 [lg_p_cf, d_lg_p_cf, Tc] = log_p_cf(Tf_i_minus_mu, domainc, conductivity, theta_cf);

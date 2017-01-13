@@ -10,12 +10,15 @@ end
 [theta_c, theta_cf, domainc, domainf, phi, featureFunctionAbsMean] = loadTrainedParams(modelParamsFolder);
 
 addpath('./rom')
+addpath('./aux')
 
 %% Compute design matrices
 Phi = DesignMatrix([domainf.nElX domainf.nElY], [domainc.nElX domainc.nElY], phi, Tffile, testSample_lo:testSample_up);
 Phi = Phi.computeDesignMatrix(domainc.nEl, domainf.nEl);
 %Normalize design matrices
 Phi = Phi.normalizeDesignMatrix(featureFunctionAbsMean);
+
+load('./data/conductivityTransformation.mat');
 
 tic;
 %% Sample from p_c
@@ -25,9 +28,14 @@ Xsamples = zeros(domainc.nEl, nSamples_p_c, nTest);
 LambdaSamples = Xsamples;
 meanEffCond = zeros(domainc.nEl, nTest);
 for i = 1:nTest
-    meanEffCond(:, i) = exp(Phi.designMatrices{i}*theta_c.theta + .5*theta_c.sigma^2);
     Xsamples(:, :, i) = mvnrnd(Phi.designMatrices{i}*theta_c.theta, (theta_c.sigma^2)*eye(domainc.nEl), nSamples_p_c)';
-    LambdaSamples(:, :, i) = exp(Xsamples(:, :, i));
+    if condTransOpts.limEffCond
+        LambdaSamples(:, :, i) = conductivityBackTransform(Xsamples(:, :, i), condTransOpts);
+        meanEffCond(:, i) = mean(LambdaSamples(:, :, i), 2);
+    else
+        meanEffCond(:, i) = exp(Phi.designMatrices{i}*theta_c.theta + .5*theta_c.sigma^2);
+        LambdaSamples(:, :, i) = exp(Xsamples(:, :, i));
+    end
 end
 disp('done')
 

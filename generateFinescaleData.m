@@ -12,7 +12,7 @@ addpath('./computation')
 boundaryConditions;
 
 %% Generate finescale domain
-nf = 128;       %Finescale mesh size, should be 2^n
+nf = 256;       %Finescale mesh size, should be 2^n
 disp('Generate finescale domain...')
 domainf = Domain(nf, nf);
 domainf = setBoundaries(domainf, 2:(4*nf), Tb, qb);       %Only fix lower left corner as essential node

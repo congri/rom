@@ -64,7 +64,8 @@ classdef DesignMatrix
             coarseElement = Phi.E;
             
             %Open parallel pool
-            parPoolInit(length(nTrain));
+            addpath('./computation')
+            parPoolInit(nTrain);
             PhiCell{1} = zeros(nElc, nFeatureFunctions);
             PhiCell = repmat(PhiCell, nTrain, 1);
             parfor s = 1:nTrain

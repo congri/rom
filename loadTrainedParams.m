@@ -14,6 +14,7 @@ theta_c.sigma = dlmread(strcat('./data/', datafolder, '/sigma'));
 theta_c.sigma = theta_c.sigma(end);
 theta_cf.S = dlmread(strcat('./data/', datafolder, '/S'))';
 W = dlmread(strcat('./data/', datafolder, '/Wmat'));
+W = reshape(W, length(W)/3, 3)';
 theta_cf.W = sparse(W(1, :), W(2, :), W(3, :));
 theta_cf.mu = dlmread(strcat('./data/', datafolder, '/mu'))';
 disp('done')

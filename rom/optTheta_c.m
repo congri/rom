@@ -6,7 +6,8 @@ function [theta_c] = optTheta_c(theta_c, nTrain, nCoarse, XNormSqMean,...
 %levenberg-marquardt seems to be most stable
 fsolve_options_theta = optimoptions('fsolve', 'SpecifyObjectiveGradient', true, 'Algorithm', 'levenberg-marquardt',...
     'Display', 'off', 'FunctionTolerance', 1e-10, 'StepTOlerance', 1e-10);
-fsolve_options_sigma = optimoptions('fsolve', 'SpecifyObjectiveGradient', true, 'Display', 'off', 'Algorithm', 'levenberg-marquardt');
+fsolve_options_sigma = optimoptions('fsolve', 'SpecifyObjectiveGradient', true,...
+    'Display', 'off', 'Algorithm', 'levenberg-marquardt');
 
 %Solve self-consistently: compute optimal sigma2, then theta, then sigma2 again and so on
 theta = theta_c.theta;

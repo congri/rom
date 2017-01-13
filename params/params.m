@@ -4,6 +4,19 @@
 nStart = 1; %start training sample in training data file
 nTrain = 80;
 
+%Limitation of effective conductivity
+condTransOpts.limEffCond = false;
+if condTransOpts.limEffCond
+    %Upper and lower limit on effective conductivity
+    condTransOpts.upperCondLim = upCond;
+    condTransOpts.lowerCondLim = loCond;
+    condTransOpts.transform = 'logit'; 
+end
+if ~exist('./data/', 'dir')
+    mkdir('./data/');
+end
+save('./data/conductivityTransformation', 'condTransOpts');
+
 %% Initialize coarse domain
 genCoarseDomain;
                                                                 
@@ -12,7 +25,7 @@ genBasisFunctions;
 
 %% EM params
 basisFunctionUpdates = 0;
-basisUpdateGap = 80*ceil(nTrain/16);
+basisUpdateGap = 120*ceil(nTrain/16);
 maxIterations = (basisFunctionUpdates + 1)*basisUpdateGap - 1;
 
 %% Start value of model parameters
@@ -20,7 +33,7 @@ maxIterations = (basisFunctionUpdates + 1)*basisUpdateGap - 1;
 theta_cf.W = shapeInterp(domainc, domainf);
 %shrink finescale domain object to save memory
 domainf = domainf.shrink();
-theta_cf.S = 100*ones(domainf.nNodes, 1);
+theta_cf.S = 1*ones(domainf.nNodes, 1);
 theta_cf.Sinv = sparse(1:domainf.nNodes, 1:domainf.nNodes, 1./theta_cf.S);
 %precomputation to save resources
 theta_cf.WTSinv = theta_cf.W'*theta_cf.Sinv;
@@ -51,7 +64,13 @@ MCMC.nThermalization = 0;                            %thermalization steps
 nSamplesBeginning = [40];
 MCMC.nSamples = 40;                                 %number of samples
 MCMC.nGap = 40;                                     %decorrelation gap
-MCMC.Xi_start = log(.5*loCond + .5*upCond)*ones(domainc.nEl, 1);
+
+if condTransOpts.limEffCond
+    MCMC.Xi_start = conductivityTransform(.5*condTransOpts.upperCondLim +...
+        .5*condTransOpts.lowerCondLim, condTransOpts)*ones(domainc.nEl, 1);
+else
+    MCMC.Xi_start = log(.5*loCond + .5*upCond)*ones(domainc.nEl, 1);
+end
 %only for random walk
 MCMC.MALA.stepWidth = .01;
 stepWidth = 2e-0;
@@ -74,17 +93,21 @@ mix_theta = 0;
 %% Variational inference params
 dim = domainc.nEl;
 VIparams.family = 'diagonalGaussian';
-initialParamsArray{1} = [log(.5*loCond + .5*upCond)*ones(1, domainc.nEl) 15*ones(1, domainc.nEl)];
+if condTransOpts.limEffCond
+    initialParamsArray{1} = [0*ones(1, domainc.nEl) .1*ones(1, domainc.nEl)];
+else
+    initialParamsArray{1} = [log(.5*loCond + .5*upCond)*ones(1, domainc.nEl) 15*ones(1, domainc.nEl)];
+end
 initialParamsArray = repmat(initialParamsArray, nTrain, 1);
 VIparams.nSamples = 10;    %Gradient samples per iteration
 VIparams.inferenceSamples = 1000;
 VIparams.optParams.optType = 'adam';
 VIparams.optParams.dim = domainc.nEl;
-VIparams.optParams.stepWidth = .08;
+VIparams.optParams.stepWidth = .01;
 VIparams.optParams.XWindow = 20;    %Averages dependent variable over last iterations
 VIparams.optParams.offset = 10000;  %Robbins-Monro offset
 VIparams.optParams.relXtol = 1e-12;
-VIparams.optParams.maxIterations = 300;
+VIparams.optParams.maxIterations = 50;
 VIparams.optParams.meanGradNormTol = 30;    %Converged if norm of mean of grad over last k iterations is smaller
 VIparams.optParams.gradNormTol = 30;    %Converged if average norm of gradient in last gradNormWindow iterations is below
 VIparams.optParams.gradNormWindow = 30;  %gradNormTol
