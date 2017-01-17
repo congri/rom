@@ -4,8 +4,8 @@ function [theta_c] = optTheta_c(theta_c, nTrain, nCoarse, XNormSqMean,...
 %% Find optimal theta_c and sigma
 
 %levenberg-marquardt seems to be most stable
-fsolve_options_theta = optimoptions('fsolve', 'SpecifyObjectiveGradient', true, 'Algorithm', 'levenberg-marquardt',...
-    'Display', 'off', 'FunctionTolerance', 1e-10, 'StepTOlerance', 1e-10);
+fsolve_options_theta = optimoptions('fsolve', 'SpecifyObjectiveGradient', true, 'Algorithm', 'trust-region-dogleg',...
+    'Display', 'off', 'FunctionTolerance', 1e-10, 'StepTolerance', 1e-10, 'MaxIterations', 50);
 fsolve_options_sigma = optimoptions('fsolve', 'SpecifyObjectiveGradient', true,...
     'Display', 'off', 'Algorithm', 'levenberg-marquardt');
 
@@ -25,7 +25,8 @@ while(~converged)
     debugNRmax = false;
     theta_old_old = theta;  %to check for iterative convergence
     ndiff = Inf;
-    while(ndiff > 1e-20)
+    i = 1;
+    while(ndiff > 1e-20 || i > 50)
         gradHessTheta = @(theta) dF_dtheta(theta, sigma2, theta_old, theta_prior_type, theta_prior_hyperparam, nTrain,...
             sumPhiTXmean, sumPhiSq);
         theta_old = theta;
@@ -34,7 +35,9 @@ while(~converged)
 %             normGradientTol, provide_objective, stepSizeTheta, debugNRmax);
         diff = theta - theta_old;
         ndiff = norm(diff);
-        theta = fsolve(gradHessTheta, startValueTheta, fsolve_options_theta);
+        
+        theta = fsolve(gradHessTheta, theta, fsolve_options_theta);
+        i = i + 1;
     end
         
     %     theta = .5*theta + .5*theta_old;    %for stability

@@ -9,7 +9,9 @@ classdef DesignMatrix
         dataSamples             %vector with data sample indices
         
         featureFunctions        %Cell array of handles to feature functions
-        featureFunctionAbsMean  %mean absolute output of feature function over training set BEFORE normalization
+        featureFunctionMean  %mean absolute output of feature function over training set BEFORE normalization
+        featureFunctionSqMean
+        featureFunctionStd
         
         E                       %gives the coarse element a fine element belongs to
         sumPhiTPhi
@@ -97,14 +99,61 @@ classdef DesignMatrix
             
         end
         
-        function Phi = computeFeatureFunctionAbsMean(Phi)
+        function Phi = computeFeatureFunctionMean(Phi)
             %We normalize every feature function phi s.t. the mean output is 1 over the training set
-            Phi.featureFunctionAbsMean = 0;
+            Phi.featureFunctionMean = 0;
             for i = 1:numel(Phi.designMatrices)
-                Phi.featureFunctionAbsMean = Phi.featureFunctionAbsMean + mean(abs(Phi.designMatrices{i}), 1);
+                Phi.featureFunctionMean = Phi.featureFunctionMean + mean(abs(Phi.designMatrices{i}), 1);
             end
-            Phi.featureFunctionAbsMean = Phi.featureFunctionAbsMean/numel(Phi.designMatrices);
+            Phi.featureFunctionMean = Phi.featureFunctionMean/numel(Phi.designMatrices);
         end
+        
+        function Phi = computeFeatureFunctionSqMean(Phi)
+            %We normalize every feature function phi s.t. the squares phi(x_k) for every macro-cell
+            %k sum to 1
+            featureFunctionSqSum = 0;
+            for i = 1:numel(Phi.designMatrices)
+                featureFunctionSqSum = featureFunctionSqSum + sum(Phi.designMatrices{i}.^2, 1);
+            end
+            Phi.featureFunctionSqMean = featureFunctionSqSum/...
+                (numel(Phi.designMatrices)*size(Phi.designMatrices{1}, 1));
+        end
+        
+        function Phi = standardizeDesignMatrix(Phi, featFuncMean, featFuncSqMean)
+            %Standardize covariates to have 0 mean and unit variance
+            
+            %Compute std
+            if(nargin > 1)
+                Phi.featureFunctionStd = sqrt(featFuncSqMean - featFuncMean.^2);
+            else
+                Phi.featureFunctionStd = sqrt(Phi.featureFunctionSqMean - Phi.featureFunctionMean.^2);
+            end
+            
+            %centralize
+            if(nargin > 1)
+                for i = 1:numel(Phi.designMatrices)
+                    Phi.designMatrices{i} = Phi.designMatrices{i} - featFuncMean;
+                end
+            else
+                for i = 1:numel(Phi.designMatrices)
+                    Phi.designMatrices{i} = Phi.designMatrices{i} - Phi.featureFunctionMean;
+                end
+            end
+            
+            %normalize
+            for i = 1:numel(Phi.designMatrices)
+                Phi.designMatrices{i} = Phi.designMatrices{i}./Phi.featureFunctionStd;
+            end
+            
+            %Check for finiteness
+            for i = 1:numel(Phi.designMatrices)
+                if(~all(all(all(isfinite(Phi.designMatrices{i})))))
+                    warning('Non-finite design matrix Phi. Setting non-finite component to 0.')
+                    Phi.designMatrices{i}(~isfinite(Phi.designMatrices{i})) = 0;
+                end
+            end
+        end
+        
         
         function Phi = normalizeDesignMatrix(Phi, normalizationFactors)
             %Normalize feature functions s.t. they lead to outputs of same magnitude.
@@ -127,11 +176,16 @@ classdef DesignMatrix
         end
         
         function Phi = saveNormalization(Phi)
-            if(numel(Phi.featureFunctionAbsMean) == 0)
-                Phi = Phi.computeFeatureFunctionAbsMean;
+            if(numel(Phi.featureFunctionMean) == 0)
+                Phi = Phi.computeFeatureFunctionMean;
             end
-            featureFunctionAbsMean = Phi.featureFunctionAbsMean;
-            save('./data/featureFunctionAbsMean', 'featureFunctionAbsMean', '-ascii');
+            if(numel(Phi.featureFunctionSqMean) == 0)
+                Phi = Phi.computeFeatureFunctionSqMean;
+            end
+            featureFunctionMean = Phi.featureFunctionMean;
+            featureFunctionSqMean = Phi.featureFunctionSqMean;
+            save('./data/featureFunctionMean', 'featureFunctionMean', '-ascii');
+            save('./data/featureFunctionSqMean', 'featureFunctionSqMean', '-ascii');
         end
         
         function Phi = computeSumPhiTPhi(Phi)

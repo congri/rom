@@ -1,5 +1,5 @@
 function [x] = conductivityTransform(conductivity, opts)
-%Backtransformation from X to conductivity lambda
+%Transformation from conductivity lambda to x
 
 if strcmp(opts.transform, 'logit')
     %Logistic sigmoid transformation

@@ -37,8 +37,9 @@ Tf = Tffile.Tf(:, nStart:(nStart + nTrain - 1));        %Finescale temperatures 
 Phi = DesignMatrix([domainf.nElX domainf.nElY], [domainc.nElX domainc.nElY], phi, Tffile, nStart:(nStart + nTrain - 1));
 Phi = Phi.computeDesignMatrix(domainc.nEl, domainf.nEl);
 %Normalize design matrices
-Phi = Phi.computeFeatureFunctionAbsMean;
-Phi = Phi.normalizeDesignMatrix;
+Phi = Phi.computeFeatureFunctionMean;
+Phi = Phi.computeFeatureFunctionSqMean;
+Phi = Phi.standardizeDesignMatrix;
 Phi.saveNormalization;
 %Compute sum_i Phi^T(x_i)^Phi(x_i)
 Phi = Phi.computeSumPhiTPhi;
@@ -235,6 +236,10 @@ for k = 2:(maxIterations + 1)
     end
 
     sigma_old = theta_c.sigma;
+    %Adjust hyperprior to not get stuck at 0
+    if(k - 1 <= size(theta_prior_hyperparamArray, 1))
+        theta_prior_hyperparam = theta_prior_hyperparamArray(k - 1, :)
+    end
     theta_c = optTheta_c(theta_c, nTrain, domainc.nEl, XNormSqMean,...
         sumPhiTXmean, Phi.sumPhiTPhi, theta_prior_type, theta_prior_hyperparam,...
         sigma_prior_type, sigma_prior_hyperparam);

@@ -2,7 +2,7 @@
 %CHANGE JOBFILE IF YOU CHANGE LINE NUMBERS!
 %Number of training data samples
 nStart = 1; %start training sample in training data file
-nTrain = 80;
+nTrain = 16;
 
 %Limitation of effective conductivity
 condTransOpts.limEffCond = false;
@@ -52,9 +52,9 @@ theta_c.sigma = 1e-2;
 theta_prior_type = 'hierarchical_laplace';                  %hierarchical_gamma, hierarchical_laplace, laplace, gaussian, spikeAndSlab or none
 sigma_prior_type = 'none';
 %prior hyperparams; obsolete for no prior
-% theta_prior_hyperparam = [0, 1e-10];                   %a and b params for Gamma hyperprior
+theta_prior_hyperparamArray = 7;                   %a and b params for Gamma hyperprior
 % theta_prior_hyperparam = [.7 1e-6 1e4];
-theta_prior_hyperparam = 1;
+% theta_prior_hyperparam = 10;
 sigma_prior_hyperparam = 1e3;
 
 %% MCMC options
@@ -99,11 +99,11 @@ else
     initialParamsArray{1} = [log(.5*loCond + .5*upCond)*ones(1, domainc.nEl) 15*ones(1, domainc.nEl)];
 end
 initialParamsArray = repmat(initialParamsArray, nTrain, 1);
-VIparams.nSamples = 10;    %Gradient samples per iteration
+VIparams.nSamples = 20;    %Gradient samples per iteration
 VIparams.inferenceSamples = 1000;
 VIparams.optParams.optType = 'adam';
 VIparams.optParams.dim = domainc.nEl;
-VIparams.optParams.stepWidth = .01;
+VIparams.optParams.stepWidth = .03;
 VIparams.optParams.XWindow = 20;    %Averages dependent variable over last iterations
 VIparams.optParams.offset = 10000;  %Robbins-Monro offset
 VIparams.optParams.relXtol = 1e-12;

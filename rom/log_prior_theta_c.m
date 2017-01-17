@@ -4,7 +4,7 @@ function [log_p, d_log_p, d2_log_p] = log_prior_theta_c(theta_c, theta_c_old, pr
 % mode gives the functional form of the prior
 
 dim = size(theta_c, 1);
-offset = 1e-10;
+offset = 1e-30;
 if strcmp(prior_type, 'gaussian')
     
     %Gaussian prior

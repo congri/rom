@@ -2,8 +2,8 @@
 
 conductivities = [loCond upCond];
 %generalized means
-min_z = -1;
-max_z = 1;
+min_z = -2;
+max_z = 2;
 z_incr = .1;
 z = min_z:z_incr:max_z;
 i = 1;
@@ -52,10 +52,96 @@ phi{end + 1} = mps;
 phi{end + 1} = vps;
 phi{end + 1} = @(lambda) specificSurface(lambda, 2, conductivities, nElc, nElf);
 % phi{end + 1} = lpb;
-%This gives mean euclidean distance to nearest high conducting pixel
-phi{end + 1} = @(lambda) mean(mean(bwdist(reshape(lambda > loCond, sqrt(length(lambda)), sqrt(length(lambda))))));
-%This gives mean euclidean distance to nearest low conducting pixel
-phi{end + 1} = @(lambda) mean(mean(bwdist(reshape(lambda < upCond, sqrt(length(lambda)), sqrt(length(lambda))))));
+
+% %This gives mean euclidean distance to nearest high conducting pixel
+% phi{end + 1} = @(lambda) mean(mean(bwdist(reshape(lambda > loCond, sqrt(length(lambda)), sqrt(length(lambda))))));
+% %This gives mean euclidean distance to nearest low conducting pixel
+% phi{end + 1} = @(lambda) mean(mean(bwdist(reshape(lambda < upCond, sqrt(length(lambda)), sqrt(length(lambda))))));
+
+%high conducting phase
+%chessboard distance
+phi{end + 1} = @(lambda) distanceProps(reshape(lambda, sqrt(length(lambda)), sqrt(length(lambda))),...
+    conductivities, 'hi', 'chessboard', 'mean');
+phi{end + 1} = @(lambda) distanceProps(reshape(lambda, sqrt(length(lambda)), sqrt(length(lambda))),...
+    conductivities, 'hi', 'chessboard', 'var');
+phi{end + 1} = @(lambda) sqrt(distanceProps(reshape(lambda, sqrt(length(lambda)), sqrt(length(lambda))),...
+    conductivities, 'hi', 'chessboard', 'var')); %std
+phi{end + 1} = @(lambda) distanceProps(reshape(lambda, sqrt(length(lambda)), sqrt(length(lambda))),...
+    conductivities, 'hi', 'chessboard', 'max');
+
+%cityblock distance
+phi{end + 1} = @(lambda) distanceProps(reshape(lambda, sqrt(length(lambda)), sqrt(length(lambda))),...
+    conductivities, 'hi', 'cityblock', 'mean');
+phi{end + 1} = @(lambda) distanceProps(reshape(lambda, sqrt(length(lambda)), sqrt(length(lambda))),...
+    conductivities, 'hi', 'cityblock', 'var');
+phi{end + 1} = @(lambda) sqrt(distanceProps(reshape(lambda, sqrt(length(lambda)), sqrt(length(lambda))),...
+    conductivities, 'hi', 'cityblock', 'var')); %std
+phi{end + 1} = @(lambda) distanceProps(reshape(lambda, sqrt(length(lambda)), sqrt(length(lambda))),...
+    conductivities, 'hi', 'cityblock', 'max');
+
+%euclidean distance
+phi{end + 1} = @(lambda) distanceProps(reshape(lambda, sqrt(length(lambda)), sqrt(length(lambda))),...
+    conductivities, 'hi', 'euclidean', 'mean');
+phi{end + 1} = @(lambda) distanceProps(reshape(lambda, sqrt(length(lambda)), sqrt(length(lambda))),...
+    conductivities, 'hi', 'euclidean', 'var');
+phi{end + 1} = @(lambda) sqrt(distanceProps(reshape(lambda, sqrt(length(lambda)), sqrt(length(lambda))),...
+    conductivities, 'hi', 'euclidean', 'var')); %std
+phi{end + 1} = @(lambda) distanceProps(reshape(lambda, sqrt(length(lambda)), sqrt(length(lambda))),...
+    conductivities, 'hi', 'euclidean', 'max');
+
+%quasi-euclidean distance
+phi{end + 1} = @(lambda) distanceProps(reshape(lambda, sqrt(length(lambda)), sqrt(length(lambda))),...
+    conductivities, 'hi', 'quasi-euclidean', 'mean');
+phi{end + 1} = @(lambda) distanceProps(reshape(lambda, sqrt(length(lambda)), sqrt(length(lambda))),...
+    conductivities, 'hi', 'quasi-euclidean', 'var');
+phi{end + 1} = @(lambda) sqrt(distanceProps(reshape(lambda, sqrt(length(lambda)), sqrt(length(lambda))),...
+    conductivities, 'hi', 'quasi-euclidean', 'var')); %std
+phi{end + 1} = @(lambda) distanceProps(reshape(lambda, sqrt(length(lambda)), sqrt(length(lambda))),...
+    conductivities, 'hi', 'quasi-euclidean', 'max');
+
+%low conducting phase
+%chessboard distance
+phi{end + 1} = @(lambda) distanceProps(reshape(lambda, sqrt(length(lambda)), sqrt(length(lambda))),...
+    conductivities, 'lo', 'chessboard', 'mean');
+phi{end + 1} = @(lambda) distanceProps(reshape(lambda, sqrt(length(lambda)), sqrt(length(lambda))),...
+    conductivities, 'lo', 'chessboard', 'var');
+phi{end + 1} = @(lambda) sqrt(distanceProps(reshape(lambda, sqrt(length(lambda)), sqrt(length(lambda))),...
+    conductivities, 'lo', 'chessboard', 'var')); %std
+phi{end + 1} = @(lambda) distanceProps(reshape(lambda, sqrt(length(lambda)), sqrt(length(lambda))),...
+    conductivities, 'lo', 'chessboard', 'max');
+
+%cityblock distance
+phi{end + 1} = @(lambda) distanceProps(reshape(lambda, sqrt(length(lambda)), sqrt(length(lambda))),...
+    conductivities, 'lo', 'cityblock', 'mean');
+phi{end + 1} = @(lambda) distanceProps(reshape(lambda, sqrt(length(lambda)), sqrt(length(lambda))),...
+    conductivities, 'lo', 'cityblock', 'var');
+phi{end + 1} = @(lambda) sqrt(distanceProps(reshape(lambda, sqrt(length(lambda)), sqrt(length(lambda))),...
+    conductivities, 'lo', 'cityblock', 'var')); %std
+phi{end + 1} = @(lambda) distanceProps(reshape(lambda, sqrt(length(lambda)), sqrt(length(lambda))),...
+    conductivities, 'lo', 'cityblock', 'max');
+
+%euclidean distance
+phi{end + 1} = @(lambda) distanceProps(reshape(lambda, sqrt(length(lambda)), sqrt(length(lambda))),...
+    conductivities, 'lo', 'euclidean', 'mean');
+phi{end + 1} = @(lambda) distanceProps(reshape(lambda, sqrt(length(lambda)), sqrt(length(lambda))),...
+    conductivities, 'lo', 'euclidean', 'var');
+phi{end + 1} = @(lambda) sqrt(distanceProps(reshape(lambda, sqrt(length(lambda)), sqrt(length(lambda))),...
+    conductivities, 'lo', 'euclidean', 'var')); %std
+phi{end + 1} = @(lambda) distanceProps(reshape(lambda, sqrt(length(lambda)), sqrt(length(lambda))),...
+    conductivities, 'lo', 'euclidean', 'max');
+
+%quasi-euclidean distance
+phi{end + 1} = @(lambda) distanceProps(reshape(lambda, sqrt(length(lambda)), sqrt(length(lambda))),...
+    conductivities, 'lo', 'quasi-euclidean', 'mean');
+phi{end + 1} = @(lambda) distanceProps(reshape(lambda, sqrt(length(lambda)), sqrt(length(lambda))),...
+    conductivities, 'lo', 'quasi-euclidean', 'var');
+phi{end + 1} = @(lambda) sqrt(distanceProps(reshape(lambda, sqrt(length(lambda)), sqrt(length(lambda))),...
+    conductivities, 'lo', 'quasi-euclidean', 'var')); %std
+phi{end + 1} = @(lambda) distanceProps(reshape(lambda, sqrt(length(lambda)), sqrt(length(lambda))),...
+    conductivities, 'lo', 'quasi-euclidean', 'max');
+
+
+
 %Counts the number of separate high conducting blobs
 phi{end + 1} = @(lambda) numberOfObjects(reshape(lambda, sqrt(length(lambda)), sqrt(length(lambda))), conductivities, 'hi');
 %Counts the number of separate low conducting blobs
@@ -286,6 +372,38 @@ phi{end + 1} = @(lambda) meanExtent(reshape(lambda, sqrt(length(lambda)), sqrt(l
 
 %Energy of conductivity field if it were Ising model
 phi{end + 1} = @(lambda) isingEnergy(reshape(lambda, sqrt(length(lambda)), sqrt(length(lambda))));
+
+
+%Maxwell-Garnett effective conductivity
+phi{end + 1} = @(lambda) maxwellGarnett(lambda, conductivities, 'plain', 'hi');
+phi{end + 1} = @(lambda) maxwellGarnett(lambda, conductivities, 'log', 'hi');
+phi{end + 1} = @(lambda) maxwellGarnett(lambda, conductivities, 'logit', 'hi');
+phi{end + 1} = @(lambda) maxwellGarnett(lambda, conductivities, 'plain', 'lo');
+phi{end + 1} = @(lambda) maxwellGarnett(lambda, conductivities, 'log', 'lo');
+phi{end + 1} = @(lambda) maxwellGarnett(lambda, conductivities, 'logit', 'lo');
+
+
+%Self-consistent approximation
+phi{end + 1} = @(lambda) SCA(lambda, conductivities, 'plain');
+phi{end + 1} = @(lambda) SCA(lambda, conductivities, 'log');
+phi{end + 1} = @(lambda) SCA(lambda, conductivities, 'logit');
+
+
+%Weak contrast expansion Torquato 20.77, only use for |lambda_1 - lambda_2| < 1
+% phi{end + 1} = @(lambda) weakContrastExpansion(lambda, conductivities, 'plain', 'lo');
+% phi{end + 1} = @(lambda) weakContrastExpansion(lambda, conductivities, 'log', 'lo');
+% phi{end + 1} = @(lambda) weakContrastExpansion(lambda, conductivities, 'logit', 'lo');
+% phi{end + 1} = @(lambda) weakContrastExpansion(lambda, conductivities, 'plain', 'hi');
+% phi{end + 1} = @(lambda) weakContrastExpansion(lambda, conductivities, 'log', 'hi');
+% phi{end + 1} = @(lambda) weakContrastExpansion(lambda, conductivities, 'logit', 'hi');
+
+%Differential effective medium, Torquato 18.23
+phi{end + 1} = @(lambda) differentialEffectiveMedium(lambda, conductivities, 'plain', 'lo');
+phi{end + 1} = @(lambda) differentialEffectiveMedium(lambda, conductivities, 'log', 'lo');
+phi{end + 1} = @(lambda) differentialEffectiveMedium(lambda, conductivities, 'logit', 'lo');
+phi{end + 1} = @(lambda) differentialEffectiveMedium(lambda, conductivities, 'plain', 'hi');
+phi{end + 1} = @(lambda) differentialEffectiveMedium(lambda, conductivities, 'log', 'hi');
+phi{end + 1} = @(lambda) differentialEffectiveMedium(lambda, conductivities, 'logit', 'hi');
 
 nBasis = numel(phi);
 

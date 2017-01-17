@@ -7,7 +7,8 @@ Tffile = matfile(testFilePath);
 if nargout > 4
     Tf = Tffile.Tf(:, testSample_lo:testSample_up);
 end
-[theta_c, theta_cf, domainc, domainf, phi, featureFunctionAbsMean] = loadTrainedParams(modelParamsFolder);
+[theta_c, theta_cf, domainc, domainf, phi, featureFunctionMean, featureFunctionSqMean] =...
+    loadTrainedParams(modelParamsFolder);
 
 addpath('./rom')
 addpath('./aux')
@@ -16,7 +17,7 @@ addpath('./aux')
 Phi = DesignMatrix([domainf.nElX domainf.nElY], [domainc.nElX domainc.nElY], phi, Tffile, testSample_lo:testSample_up);
 Phi = Phi.computeDesignMatrix(domainc.nEl, domainf.nEl);
 %Normalize design matrices
-Phi = Phi.normalizeDesignMatrix(featureFunctionAbsMean);
+Phi = Phi.standardizeDesignMatrix(featureFunctionMean, featureFunctionSqMean);
 
 load('./data/conductivityTransformation.mat');
 
