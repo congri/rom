@@ -23,20 +23,21 @@ while(~converged)
     normGradientTol = 1e-5;
     provide_objective = false;
     debugNRmax = false;
+    RMMode = true;
     theta_old_old = theta;  %to check for iterative convergence
     ndiff = Inf;
     i = 1;
-    while(ndiff > 1e-20 || i > 50)
+    while(ndiff > 1e-20 && i < 2)
         gradHessTheta = @(theta) dF_dtheta(theta, sigma2, theta_old, theta_prior_type, theta_prior_hyperparam, nTrain,...
             sumPhiTXmean, sumPhiSq);
         theta_old = theta;
-%         stepSizeTheta = .5;
-%         theta = newtonRaphsonMaximization(gradHessTheta, startValueTheta,...
-%             normGradientTol, provide_objective, stepSizeTheta, debugNRmax);
+        stepSizeTheta = .7;
+        theta = newtonRaphsonMaximization(gradHessTheta, startValueTheta,...
+            normGradientTol, provide_objective, stepSizeTheta, RMMode, debugNRmax);
         diff = theta - theta_old;
         ndiff = norm(diff);
         
-        theta = fsolve(gradHessTheta, theta, fsolve_options_theta);
+%         theta = fsolve(gradHessTheta, theta, fsolve_options_theta);
         i = i + 1;
     end
         
@@ -53,7 +54,7 @@ while(~converged)
     
     sigmaMinus2 = exp(logSigmaMinus2);
     sigma2_old = sigma2;
-    sigma2 = 1/sigmaMinus2;
+    sigma2 = 1/sigmaMinus2
     
     
     if sigma2 == 0
@@ -63,7 +64,8 @@ while(~converged)
 %     sigma2 = .5*sigma2 + .5*sigma2_old %for stability
     
     iter = iter + 1;
-    if(iter > 100 || norm(theta_old_old - theta)/norm(theta) < 1e-8)
+    thetaDiffRel = norm(theta_old_old - theta)/(norm(theta)*numel(theta));
+    if(iter > 10 || thetaDiffRel < 1e-8)
         converged = true;
     end
     

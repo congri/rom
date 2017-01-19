@@ -1,4 +1,5 @@
-function [curr_x, grad, Hess, nIter] = newtonRaphsonMaximization(objective, startValue, normGradient, provide_objective, stepSize, debug)
+function [curr_x, grad, Hess, nIter] = newtonRaphsonMaximization(objective, startValue,...
+    normGradient, provide_objective, stepSize, RMMode, debug)
 %Maximization based on the well-known Newton-Raphson method
 %%Input:
 %   objective:              func. handle with [grad., Hess., obj.] as output
@@ -17,6 +18,7 @@ else
     [grad, Hess] = objective(curr_x);
 end
 if(debug)
+    disp('Called Newton-Raphson')
     gradArray = grad;
 end
 if(~all(all(isfinite(Hess))) || any(eig(Hess) >= 0))
@@ -73,15 +75,18 @@ while(~converged)
     end
     
     %check for convergence
-    if(norm(grad)/length(grad) < normGradient || nIter > 10000)
+    if(norm(grad)/length(grad) < normGradient || nIter > 100)
         converged = true;
     else    %if not converged, compute next step
         if(~provide_objective)
             grad_old = grad;
             [grad, Hess] = objective(curr_x);
             %check for negative definiteness
-            if(~all(all(isfinite(Hess))) || any(eig(Hess) >= 0))
-%                 warning('Hessian not finite/negative definite, do Robbins-Monro instead')
+            [~, p] = chol(-Hess);
+            if(p || ~all(all(isfinite(Hess))) || rcond(Hess) < eps)
+%                 warning('Hessian not finite/negative definite or badly conditioned, do Robbins-Monro instead')
+%                 disp('Hessian not finite/negative definite or badly conditioned, do Robbins-Monro instead')
+%                 nIter
                 RMoff = 100;
                 RMfac1 = RMoff/(RMoff + nIter);
                 signChange = grad_old.*grad;
@@ -97,13 +102,22 @@ while(~converged)
                 end
                 RMstep = RMfac1*RMfac2;
                 step = - norm(curr_x)*(RMstep.*(grad/norm(grad)));
-            elseif(rcond(Hess) < eps)
-                %Find least squares solution
-%                 warning('Hessian badly conditioned')
-                [step, ~] = linsolve(Hess, grad);
+%             elseif(rcond(Hess) < eps)
+%                 %Find least squares solution
+% %                 warning('Hessian badly conditioned')
+%                 linsolve_opts.SYM = true;
+%                 linsolve_opts.POSDEF = true;
+%                 [step, ~] = linsolve(-Hess, -grad);
             else
                 %Regular Hessian, no problem
                 step = Hess\grad;
+                if RMMode
+                    %Stabilization for non-differentiable problems. Might lead to suboptimal
+                    %solutions!!!
+                    RMoff = 5;
+                    RMfac1 = RMoff/(RMoff + nIter);
+                    step = RMfac1*step;
+                end
             end
             if(~all(isfinite(step)))
                 step = ones(size(grad));
@@ -111,12 +125,12 @@ while(~converged)
             nIter = nIter + 1;
         end
         if(debug)
-            curr_x
-            grad
-            Hess
-            invHess = inv(Hess)
-            step
-            
+%             curr_x
+%             grad
+%             Hess
+%             invHess = inv(Hess)
+%             step
+            ng = norm(grad)/length(grad)
             if(mod(nIter, 20) == 0)
                 gradArray = [gradArray, grad];
                 plot(gradArray')
@@ -128,8 +142,8 @@ while(~converged)
             end
         end
         
-        if mod(nIter, 100) == 0
-            stepSize = .99*stepSize;
+        if (mod(nIter, 10) == 0 && ~RMMode)
+            stepSize = .8*stepSize;
         end
     end
 end

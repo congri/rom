@@ -28,15 +28,52 @@ elseif strcmp(prior_type, 'spikeAndSlab')
     spikeVar = prior_hyperparam(2); %typically very small for sparsity
     slabVar = prior_hyperparam(3);  %slabVar >> spikeVar
     
-    q1 = spikeWeight*normpdf(theta_c_old, 0, sqrt(spikeVar));
-    q2 = (1 - spikeWeight)*normpdf(theta_c_old, 0, sqrt(slabVar));
-    Zq = q1 + q2;
-    q1 = q1./Zq;
-    q2 = q2./Zq;
+    %     q1 = spikeWeight*normpdf(theta_c_old, 0, sqrt(spikeVar));
+    %     q2 = (1 - spikeWeight)*normpdf(theta_c_old, 0, sqrt(slabVar));
+%     q1 = spikeWeight*prod(normpdf(theta_c, 0, sqrt(spikeVar)))
+%     q2 = (1 - spikeWeight)*prod(normpdf(theta_c, 0, sqrt(slabVar)))
+    
+    %Catch numerical instability
+    log_q1Byq2 = .5*dim*log(slabVar) - .5*dim*log(spikeVar) - .5*(theta_c'*theta_c)*(1/spikeVar - 1/slabVar) + ...
+        log(spikeWeight) - log(1 - spikeWeight);
+    stableExponent = 20;
+    if(log_q1Byq2 > stableExponent)
+        %q1 >> q2; Normalization q1 = q1/(q1 + q2) = 1, q2 = q2/(q1 + q2) = 0
+        q1 = 1;
+        q2 = 0;
+    elseif(log_q1Byq2 < -stableExponent)
+        %q1 << q2; Normalization q1 = q1/(q1 + q2) = 1, q2 = q2/(q1 + q2) = 0
+        q1 = 0;
+        q2 = 1;
+    else
+        %Stable case
+        q1Byq2 = exp(log_q1Byq2);
+        q1 = q1Byq2/(q1Byq2 + 1);
+        q2 = 1/(q1Byq2 + 1);
+    end
+%old, unstable normalization
+%     Zq = q1 + q2;
+%     q1 = q1/Zq;
+%     q2 = q2/Zq;
+        
     log_p = NaN;    %We do not implement this as it is not needed for max posterior
-    d_log_p = -(q1/spikeVar + q2/slabVar).*theta_c;
+    q1_tilde = q1/spikeVar;
+    q2_tilde = q2/slabVar;
+    d_log_p = -(q1_tilde + q2_tilde).*theta_c;
     if nargout > 2
-        d2_log_p = - diag(q1/spikeVar + q2/slabVar);
+        d2_log_p = (q1_tilde/spikeVar + q2_tilde/slabVar - (q1_tilde + q2_tilde)^2)*(theta_c*theta_c') - ...
+            (q1_tilde + q2_tilde)*eye(dim);
+        if(any(any(~isfinite(d2_log_p))))
+            warning('d2_log_p not finite')
+            d_log_p
+            q1
+            q2
+            q1_tilde
+            q2_tilde
+            spikeVar
+            slabVar
+            pause
+        end
     end
     
 elseif strcmp(prior_type, 'laplace')
@@ -50,10 +87,10 @@ elseif strcmp(prior_type, 'laplace')
     
 elseif strcmp(prior_type, 'hierarchical_laplace')
     
-    log_p = - prior_hyperparam(1)*sum((theta_c.^2)./(abs(theta_c_old) + offset));
-    d_log_p = - 2*prior_hyperparam(1)*theta_c./(abs(theta_c_old) + offset);
+    log_p = - prior_hyperparam(1)*sum((theta_c.^2)./(abs(theta_c_old) + offset*(theta_c_old == 0)));
+    d_log_p = - 2*prior_hyperparam(1)*theta_c./(abs(theta_c_old) + offset*(theta_c_old == 0));
     if nargout > 2
-       d2_log_p = - 2*prior_hyperparam(1)*diag(1./(abs(theta_c_old) + offset));
+       d2_log_p = - 2*prior_hyperparam(1)*diag(1./(abs(theta_c_old) + offset*(theta_c_old == 0)));
     end
     
 elseif strcmp(prior_type, 'hierarchical_gamma')

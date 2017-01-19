@@ -1,13 +1,13 @@
-NF=128
-CORRLENGTH=5
-NSET1=4
-NSET2=2
-VOLFRAC=0.3	#Theoretical volume fraction
+NF=256
+CORRLENGTH=20
+NSET1=1024
+NSET2=128
+VOLFRAC=0.1	#Theoretical volume fraction
 LOCOND=1
-HICOND=100
+HICOND=10
 
 #Set up file paths
-PROJECTDIR="/home/constantin/matlab/projects/cgrom2d"
+PROJECTDIR="/home/constantin/matlab/projects/rom"
 JOBNAME="genDataNf${NF}contrast${LOCOND}-${HICOND}corrlength${CORRLENGTH}volfrac${VOLFRAC}"
 JOBDIR="/home/constantin/matlab/data/$JOBNAME"
 
@@ -43,5 +43,6 @@ chmod +x job_file.sh
 #directly submit job file
 qsub job_file.sh
 #./job_file.sh
+
 
 

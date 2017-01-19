@@ -236,6 +236,7 @@ for k = 2:(maxIterations + 1)
     end
 
     sigma_old = theta_c.sigma;
+    theta_old = theta_c.theta;
     %Adjust hyperprior to not get stuck at 0
     if(k - 1 <= size(theta_prior_hyperparamArray, 1))
         theta_prior_hyperparam = theta_prior_hyperparamArray(k - 1, :)
@@ -244,6 +245,7 @@ for k = 2:(maxIterations + 1)
         sumPhiTXmean, Phi.sumPhiTPhi, theta_prior_type, theta_prior_hyperparam,...
         sigma_prior_type, sigma_prior_hyperparam);
     theta_c.sigma = (1 - mix_sigma)*theta_c.sigma + mix_sigma*sigma_old;
+    theta_c.theta = (1 - mix_theta)*theta_c.theta + mix_theta*theta_old;
     disp('M-step done, current params:')
     k
     curr_theta = [theta_c.theta (1:length(theta_c.theta))']

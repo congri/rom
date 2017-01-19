@@ -16,7 +16,7 @@ else
     error('DEM for high or low conducting phase as inclusion/matrix?')
 end
 
-lambdaEff = fzero(f, .5*(conductivities(1) + conductivities(2)));
+lambdaEff = fzero(f, [conductivities(1) conductivities(2)]);
 
 
 if strcmp(transform, 'log')

@@ -8,7 +8,7 @@ if strcmp(prior_type, 'none')
     dprior_dthetac = 0;
     d2prior_d2thetac = 0;
 else
-[~, dprior_dthetac, d2prior_d2thetac] = log_prior_theta_c(theta, theta_old, prior_type, prior_hyperparam);
+    [~, dprior_dthetac, d2prior_d2thetac] = log_prior_theta_c(theta, theta_old, prior_type, prior_hyperparam);
 end
 
 sigmaMinus2 = 1/sigma2;

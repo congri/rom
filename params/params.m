@@ -2,7 +2,7 @@
 %CHANGE JOBFILE IF YOU CHANGE LINE NUMBERS!
 %Number of training data samples
 nStart = 1; %start training sample in training data file
-nTrain = 16;
+nTrain = 64;
 
 %Limitation of effective conductivity
 condTransOpts.limEffCond = false;
@@ -25,7 +25,7 @@ genBasisFunctions;
 
 %% EM params
 basisFunctionUpdates = 0;
-basisUpdateGap = 120*ceil(nTrain/16);
+basisUpdateGap = 200*ceil(nTrain/16);
 maxIterations = (basisFunctionUpdates + 1)*basisUpdateGap - 1;
 
 %% Start value of model parameters
@@ -39,8 +39,8 @@ theta_cf.Sinv = sparse(1:domainf.nNodes, 1:domainf.nNodes, 1./theta_cf.S);
 theta_cf.WTSinv = theta_cf.W'*theta_cf.Sinv;
 theta_cf.mu = zeros(domainf.nNodes, 1);
 % theta_c.theta = (1/size(phi, 1))*ones(size(phi, 1), 1);
-theta_c.theta = 0*ones(nBasis, 1);
-% theta_c.theta = 0.5*cos(pi*(1:nBasis)');
+% theta_c.theta = 1*ones(nBasis, 1);
+theta_c.theta = (1e-4)*cos(pi*(1:nBasis)');
 d = 10;
 % theta_c.theta = 2*d*rand(nBasis, 1) - d;
 % theta_c.theta(end) = 1;
@@ -49,11 +49,11 @@ theta_c.sigma = 1e-2;
 
 
 %what kind of prior for theta_c
-theta_prior_type = 'hierarchical_laplace';                  %hierarchical_gamma, hierarchical_laplace, laplace, gaussian, spikeAndSlab or none
+theta_prior_type = 'hierarchical_gamma';                  %hierarchical_gamma, hierarchical_laplace, laplace, gaussian, spikeAndSlab or none
 sigma_prior_type = 'none';
 %prior hyperparams; obsolete for no prior
-theta_prior_hyperparamArray = 7;                   %a and b params for Gamma hyperprior
-% theta_prior_hyperparam = [.7 1e-6 1e4];
+theta_prior_hyperparamArray = [0 1e-20];                   %a and b params for Gamma hyperprior
+% theta_prior_hyperparamArray = [30];
 % theta_prior_hyperparam = 10;
 sigma_prior_hyperparam = 1e3;
 
@@ -100,7 +100,7 @@ else
 end
 initialParamsArray = repmat(initialParamsArray, nTrain, 1);
 VIparams.nSamples = 20;    %Gradient samples per iteration
-VIparams.inferenceSamples = 1000;
+VIparams.inferenceSamples = 100;
 VIparams.optParams.optType = 'adam';
 VIparams.optParams.dim = domainc.nEl;
 VIparams.optParams.stepWidth = .03;
