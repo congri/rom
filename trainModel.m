@@ -45,6 +45,7 @@ Phi.saveNormalization;
 Phi = Phi.computeSumPhiTPhi;
 
 
+
 %% EM optimization - main body
 k = 1;          %EM iteration index
 collectData;    %Write initial parametrizations to disk
@@ -221,7 +222,7 @@ for k = 2:(maxIterations + 1)
     %% M-step: determine optimal parameters given the sample set
     disp('M-step: find optimal params')
     %Optimal S (decelerated convergence)
-    lowerBoundS = 1e-10;
+    lowerBoundS = eps;
     theta_cf.S = (1 - mix_S)*mean(p_cf_exponent, 2)...
         + mix_S*theta_cf.S + lowerBoundS*ones(domainf.nNodes, 1);
 %     clear p_cf_exponent;
@@ -248,7 +249,19 @@ for k = 2:(maxIterations + 1)
     theta_c.theta = (1 - mix_theta)*theta_c.theta + mix_theta*theta_old;
     disp('M-step done, current params:')
     k
-    curr_theta = [theta_c.theta (1:length(theta_c.theta))']
+    [~, index] = sort(abs(theta_c.theta));
+    curr_theta = [theta_c.theta(index) index]
+    plotTheta = true;
+    if plotTheta
+       if ~exist('thetaArray')
+           thetaArray = theta_c.theta';
+       else
+           thetaArray = [thetaArray; theta_c.theta'];
+       end
+       plot(thetaArray, 'linewidth', 2)
+       drawnow
+    end
+       
     curr_sigma = theta_c.sigma
     mean_S = mean(theta_cf.S)
     if condTransOpts.limEffCond

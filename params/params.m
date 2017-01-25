@@ -2,7 +2,7 @@
 %CHANGE JOBFILE IF YOU CHANGE LINE NUMBERS!
 %Number of training data samples
 nStart = 1; %start training sample in training data file
-nTrain = 64;
+nTrain = 32;
 
 %Limitation of effective conductivity
 condTransOpts.limEffCond = false;
@@ -40,20 +40,20 @@ theta_cf.WTSinv = theta_cf.W'*theta_cf.Sinv;
 theta_cf.mu = zeros(domainf.nNodes, 1);
 % theta_c.theta = (1/size(phi, 1))*ones(size(phi, 1), 1);
 % theta_c.theta = 1*ones(nBasis, 1);
-theta_c.theta = (1e-4)*cos(pi*(1:nBasis)');
-d = 10;
+theta_c.theta = 0.1*cos(pi*(1:nBasis)');
+% d = .01;
 % theta_c.theta = 2*d*rand(nBasis, 1) - d;
 % theta_c.theta(end) = 1;
 % theta_c.theta = 0;
-theta_c.sigma = 1e-2;
+theta_c.sigma = 1e0;
 
 
 %what kind of prior for theta_c
-theta_prior_type = 'hierarchical_gamma';                  %hierarchical_gamma, hierarchical_laplace, laplace, gaussian, spikeAndSlab or none
+theta_prior_type = 'hierarchical_laplace';                  %hierarchical_gamma, hierarchical_laplace, laplace, gaussian, spikeAndSlab or none
 sigma_prior_type = 'none';
 %prior hyperparams; obsolete for no prior
-theta_prior_hyperparamArray = [0 1e-20];                   %a and b params for Gamma hyperprior
-% theta_prior_hyperparamArray = [30];
+% theta_prior_hyperparamArray = [0 1e-20];                   %a and b params for Gamma hyperprior
+theta_prior_hyperparamArray = [1];
 % theta_prior_hyperparam = 10;
 sigma_prior_hyperparam = 1e3;
 
@@ -96,14 +96,14 @@ VIparams.family = 'diagonalGaussian';
 if condTransOpts.limEffCond
     initialParamsArray{1} = [0*ones(1, domainc.nEl) .1*ones(1, domainc.nEl)];
 else
-    initialParamsArray{1} = [log(.5*loCond + .5*upCond)*ones(1, domainc.nEl) 15*ones(1, domainc.nEl)];
+    initialParamsArray{1} = [log(.6*loCond + .4*upCond)*ones(1, domainc.nEl) 5*ones(1, domainc.nEl)];
 end
 initialParamsArray = repmat(initialParamsArray, nTrain, 1);
 VIparams.nSamples = 20;    %Gradient samples per iteration
 VIparams.inferenceSamples = 100;
 VIparams.optParams.optType = 'adam';
 VIparams.optParams.dim = domainc.nEl;
-VIparams.optParams.stepWidth = .03;
+VIparams.optParams.stepWidth = .1;
 VIparams.optParams.XWindow = 20;    %Averages dependent variable over last iterations
 VIparams.optParams.offset = 10000;  %Robbins-Monro offset
 VIparams.optParams.relXtol = 1e-12;

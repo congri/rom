@@ -1,10 +1,10 @@
 NF=256
-CORRLENGTH=20
-NTRAIN=256
+CORRLENGTH=5
+NTRAIN=128
 VOLFRAC=0.5	#Theoretical volume fraction
 LOCOND=1
-HICOND=100
-NC=4
+HICOND=10
+NC=8
 BC="[-50 164 112 -30]"
 
 DATESTR=`date +%m-%d-%H-%M-%S`	#datestring for jobfolder name

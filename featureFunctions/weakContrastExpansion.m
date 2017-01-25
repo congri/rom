@@ -28,27 +28,26 @@ elseif strcmp(hilo, 'lo')
     
     %Torquato 20.77
     condDiff = conductivities(2) - conductivities(1);
-    l1 = conductivities(1) + a1*condDiff
-    l2 = conductivities(1) + a1*condDiff + a2*((condDiff^2)/(conductivities(1)))
-    l3 = conductivities(1) + a1*condDiff + a2*((condDiff^2)/(conductivities(1))) + ...
-        a3*((condDiff^3)/conductivities(1)^2)
+%     l1 = conductivities(1) + a1*condDiff
+%     l2 = conductivities(1) + a1*condDiff + a2*((condDiff^2)/(conductivities(1)))
+%     l3 = conductivities(1) + a1*condDiff + a2*((condDiff^2)/(conductivities(1))) + ...
+%         a3*((condDiff^3)/conductivities(1)^2)
     lambdaEff = conductivities(1) + a1*condDiff + a2*((condDiff^2)/(conductivities(1))) + ...
-        a3*((condDiff^3)/conductivities(1)^2) + a4*((condDiff^4)/conductivities(1)^3)
+        a3*((condDiff^3)/conductivities(1)^2) + a4*((condDiff^4)/conductivities(1)^3);
 else
     error('Phase assignment in weakContrastExpansion')
 end
 
-if(lambdaEff <= 0)
-%     lambdaEff
-%     hilo
-    warning('lambdaEff <= 0');
-end
-
-
 if strcmp(transform, 'log')
+    if lambdaEff <= 0
+        error('You cannot use log-transform for lambdaEff <= 0')
+    end
     out = log(lambdaEff);
 elseif strcmp(transform, 'logit')
     %Limitation of effective conductivity
+    if lambdaEff <= 0
+        error('You cannot use logit-transform for lambdaEff <= 0')
+    end
     condTransOpts.limEffCond = true;
     if condTransOpts.limEffCond
         %Upper and lower limit on effective conductivity

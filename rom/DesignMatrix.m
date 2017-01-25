@@ -92,7 +92,7 @@ classdef DesignMatrix
                 if(~all(all(all(isfinite(Phi.designMatrices{i})))))
                     warning('Non-finite design matrix Phi. Setting non-finite component to 0.')
                     Phi.designMatrices{i}(~isfinite(Phi.designMatrices{i})) = 0;
-                elseif(~all(all(isreal(Phi.designMatrices{i}))))
+                elseif(~all(all(all(isreal(Phi.designMatrices{i})))))
                     warning('Complex feature function output:')
                     dataPoint = i
                     [coarseElement, featureFunction] = ind2sub(size(Phi.designMatrices{i}),...
@@ -134,6 +134,10 @@ classdef DesignMatrix
                 Phi.featureFunctionStd = sqrt(featFuncSqMean - featFuncMean.^2);
             else
                 Phi.featureFunctionStd = sqrt(Phi.featureFunctionSqMean - Phi.featureFunctionMean.^2);
+                if(any(~isreal(Phi.featureFunctionStd)))
+                    warning('Imaginary standard deviation. Setting it to 0.')
+                    Phi.featureFunctionStd = real(Phi.featureFunctionStd);
+                end
             end
             
             %centralize
@@ -157,6 +161,13 @@ classdef DesignMatrix
                 if(~all(all(all(isfinite(Phi.designMatrices{i})))))
                     warning('Non-finite design matrix Phi. Setting non-finite component to 0.')
                     Phi.designMatrices{i}(~isfinite(Phi.designMatrices{i})) = 0;
+                elseif(~all(all(all(isreal(Phi.designMatrices{i})))))
+                    warning('Complex feature function output:')
+                    dataPoint = i
+                    [coarseElement, featureFunction] = ind2sub(size(Phi.designMatrices{i}),...
+                        find(imag(Phi.designMatrices{i})))
+                    disp('Ignoring imaginary part...')
+                    Phi.designMatrices{i} = real(Phi.designMatrices{i});
                 end
             end
         end
@@ -178,6 +189,13 @@ classdef DesignMatrix
                 if(~all(all(all(isfinite(Phi.designMatrices{i})))))
                     warning('Non-finite design matrix Phi. Setting non-finite component to 0.')
                     Phi.designMatrices{i}(~isfinite(Phi.designMatrices{i})) = 0;
+                elseif(~all(all(all(isreal(Phi.designMatrices{i})))))
+                    warning('Complex feature function output:')
+                    dataPoint = i
+                    [coarseElement, featureFunction] = ind2sub(size(Phi.designMatrices{i}),...
+                        find(imag(Phi.designMatrices{i})))
+                    disp('Ignoring imaginary part...')
+                    Phi.designMatrices{i} = real(Phi.designMatrices{i});
                 end
             end
         end
