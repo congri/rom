@@ -21,9 +21,9 @@ conductivities = [loCond upCond];
 % end
 
 %% Lineal path
-dLinPathMax = 30;
+dLinPathMax = 120;
 dLinPathMin = 0;
-dLinPathIncr = 1;
+dLinPathIncr = 4;
 nElc = [domainc.nElX domainc.nElY];
 nElf = [domainf.nElX domainf.nElY];
 %Phase 1
@@ -38,9 +38,9 @@ for d = dLinPathMin:dLinPathIncr:dLinPathMax
     phi{end + 1} = @(lambda) log(linealPath(lambda, d, 'x', 1, conductivities, nElc, nElf));
 end
 
-dLinPathMax = 30;
+dLinPathMax = 120;
 dLinPathMin = 2;
-dLinPathIncr = 1;
+dLinPathIncr = 4;
 for d = dLinPathMin:dLinPathIncr:dLinPathMax
     phi{end + 1} = @(lambda) log(linealPath(lambda, d, 'y', 1, conductivities, nElc, nElf));
 end
@@ -53,23 +53,23 @@ end
 %     phi{end + 1} = @(lambda) linealPath(lambda, d, 'y', 2, conductivities, nElc, nElf);
 % end
 %log
-dLinPathMax = 30;
+dLinPathMax = 120;
 dLinPathMin = 0;
-dLinPathIncr = 1;
+dLinPathIncr = 4;
 for d = dLinPathMin:dLinPathIncr:dLinPathMax
     phi{end + 1} = @(lambda) log(linealPath(lambda, d, 'x', 2, conductivities, nElc, nElf));
 end
-dLinPathMax = 30;
+dLinPathMax = 120;
 dLinPathMin = 2;
-dLinPathIncr = 1;
+dLinPathIncr = 4;
 for d = dLinPathMin:dLinPathIncr:dLinPathMax
     phi{end + 1} = @(lambda) log(linealPath(lambda, d, 'y', 2, conductivities, nElc, nElf));
 end
 
 %% 2-point corr
-% d2pointCorrMax = 62;
-% d2pointCorrMin = 2;
-% d2pointCorrIncr = 2;
+d2pointCorrMax = 120;
+d2pointCorrMin = 2;
+d2pointCorrIncr = 4;
 %Phase 1
 % for d = d2pointCorrMin:d2pointCorrIncr:d2pointCorrMax
 %     %distinct in x and y direction
@@ -80,14 +80,14 @@ end
 %     phi{end + 1} = @(lambda) twoPointCorrelation(lambda, d, 'y', 1, conductivities, nElc, nElf);
 % end
 %log
-% for d = d2pointCorrMin:d2pointCorrIncr:d2pointCorrMax
-%     %distinct in x and y direction
-%     phi{end + 1} = @(lambda) log(twoPointCorrelation(lambda, d, 'x', 1, conductivities, nElc, nElf));
-% end
-% for d = d2pointCorrMin:d2pointCorrIncr:d2pointCorrMax
-%     %distinct in x and y direction
-%     phi{end + 1} = @(lambda) log(twoPointCorrelation(lambda, d, 'y', 1, conductivities, nElc, nElf));
-% end
+for d = d2pointCorrMin:d2pointCorrIncr:d2pointCorrMax
+    %distinct in x and y direction
+    phi{end + 1} = @(lambda) log(twoPointCorrelation(lambda, d, 'x', 1, conductivities, nElc, nElf));
+end
+for d = d2pointCorrMin:d2pointCorrIncr:d2pointCorrMax
+    %distinct in x and y direction
+    phi{end + 1} = @(lambda) log(twoPointCorrelation(lambda, d, 'y', 1, conductivities, nElc, nElf));
+end
 
 %Phase 2
 % for d = d2pointCorrMin:d2pointCorrIncr:d2pointCorrMax
@@ -99,14 +99,14 @@ end
 %     phi{end + 1} = @(lambda) twoPointCorrelation(lambda, d, 'y', 2, conductivities, nElc, nElf);
 % end
 %log
-% for d = d2pointCorrMin:d2pointCorrIncr:d2pointCorrMax
-%     %distinct in x and y direction
-%     phi{end + 1} = @(lambda) log(twoPointCorrelation(lambda, d, 'x', 2, conductivities, nElc, nElf));
-% end
-% for d = d2pointCorrMin:d2pointCorrIncr:d2pointCorrMax
-%     %distinct in x and y direction
-%     phi{end + 1} = @(lambda) log(twoPointCorrelation(lambda, d, 'y', 2, conductivities, nElc, nElf));
-% end
+for d = d2pointCorrMin:d2pointCorrIncr:d2pointCorrMax
+    %distinct in x and y direction
+    phi{end + 1} = @(lambda) log(twoPointCorrelation(lambda, d, 'x', 2, conductivities, nElc, nElf));
+end
+for d = d2pointCorrMin:d2pointCorrIncr:d2pointCorrMax
+    %distinct in x and y direction
+    phi{end + 1} = @(lambda) log(twoPointCorrelation(lambda, d, 'y', 2, conductivities, nElc, nElf));
+end
 
 % pathLengths = (0:1:30)';
 % lpa = @(lambda) linPathParams(lambda, pathLengths, conductivities, domainc, domainf, 'a');
@@ -119,7 +119,7 @@ end
 % phi{end + 1} = @(lambda) log(meanPoreSize(lambda, 2, conductivities, nElc, nElf, 'mean'));
 % phi{end + 1} = @(lambda) log(meanPoreSize(lambda, 2, conductivities, nElc, nElf, 'var'));
 
-% phi{end + 1} = @(lambda) specificSurface(lambda, 2, conductivities, nElc, nElf);
+phi{end + 1} = @(lambda) specificSurface(lambda, 2, conductivities, nElc, nElf);
 phi{end + 1} = @(lambda) log(specificSurface(lambda, 2, conductivities, nElc, nElf));
 
 %high conducting phase

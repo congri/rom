@@ -206,7 +206,7 @@ for k = 2:(maxIterations + 1)
                     Tc = FEMout.Tff';
                     Tc_samples(:, s, i) = Tc(:);
                 end
-%                 infErr = std(Tc_samples, 0, 2)/sqrt(VIparams.inferenceSamples)
+%                 infRelErr = (std(Tc_samples, 0, 2)/sqrt(VIparams.inferenceSamples))./mean(Tc_samples, 2)
                 p_cf_exponent(:, i) = mean((repmat(Tf_i_minus_mu, 1, VIparams.inferenceSamples)...
                         - theta_cf.W*Tc_samples(:, :, i)).^2, 2);
             else

@@ -66,7 +66,7 @@ for j = 1:nTest
         mu_cf = theta_cf.mu + theta_cf.W*Tctemp(:);
         %only for diagonal S!!
         %Sequentially compute mean and <Tf^2> to save memory
-        Tf_temp = normrnd(mu_cf, theta_cf.S);
+        Tf_temp = normrnd(mu_cf, sqrt(theta_cf.S));
         Tf_mean = ((i - 1)/i)*Tf_mean + (1/i)*Tf_temp;
         Tf_mean_tot = ((i - 1)/i)*Tf_mean_tot + (1/i)*Tf_temp;
         Tf_sq_mean = ((i - 1)/i)*Tf_sq_mean + (1/i)*(Tf_temp.^2);

@@ -53,7 +53,7 @@ theta_prior_type = 'hierarchical_laplace';                  %hierarchical_gamma,
 sigma_prior_type = 'none';
 %prior hyperparams; obsolete for no prior
 % theta_prior_hyperparamArray = [0 1e-20];                   %a and b params for Gamma hyperprior
-theta_prior_hyperparamArray = [1];
+theta_prior_hyperparamArray = [200];
 % theta_prior_hyperparam = 10;
 sigma_prior_hyperparam = 1e3;
 
@@ -100,7 +100,7 @@ else
 end
 initialParamsArray = repmat(initialParamsArray, nTrain, 1);
 VIparams.nSamples = 20;    %Gradient samples per iteration
-VIparams.inferenceSamples = 100;
+VIparams.inferenceSamples = 1000;
 VIparams.optParams.optType = 'adam';
 VIparams.optParams.dim = domainc.nEl;
 VIparams.optParams.stepWidth = .1;
