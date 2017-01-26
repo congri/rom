@@ -21,11 +21,30 @@ conductivities = [loCond upCond];
 % end
 
 %% Lineal path
-dLinPathMax = 30;
+dLinPathMax = 35;
 dLinPathMin = 0;
-dLinPathIncr = 2;
+dLinPathIncr = 1;
 nElc = [domainc.nElX domainc.nElY];
 nElf = [domainf.nElX domainf.nElY];
+for d = dLinPathMin:dLinPathIncr:dLinPathMax
+    phi{end + 1} = @(lambda) log(linealPath(lambda, d, 'x', 1, conductivities, nElc, nElf) +...
+        linealPath(lambda, d, 'y', 1, conductivities, nElc, nElf));
+end
+dLinPathMax = 25;
+dLinPathMin = 0;
+dLinPathIncr = 1;
+for d = dLinPathMin:dLinPathIncr:dLinPathMax
+    phi{end + 1} = @(lambda) log(linealPath(lambda, d, 'x', 2, conductivities, nElc, nElf) +...
+        linealPath(lambda, d, 'y', 2, conductivities, nElc, nElf));
+end
+
+
+
+
+
+
+
+
 %Phase 1
 % for d = dLinPathMin:dLinPathIncr:dLinPathMax
 %     phi{end + 1} = @(lambda) linealPath(lambda, d, 'x', 1, conductivities, nElc, nElf);
@@ -34,16 +53,16 @@ nElf = [domainf.nElX domainf.nElY];
 %     phi{end + 1} = @(lambda) linealPath(lambda, d, 'y', 1, conductivities, nElc, nElf);
 % end
 %log
-for d = dLinPathMin:dLinPathIncr:dLinPathMax
-    phi{end + 1} = @(lambda) log(linealPath(lambda, d, 'x', 1, conductivities, nElc, nElf));
-end
+% for d = dLinPathMin:dLinPathIncr:dLinPathMax
+%     phi{end + 1} = @(lambda) log(linealPath(lambda, d, 'x', 1, conductivities, nElc, nElf));
+% end
 
-dLinPathMax = 30;
-dLinPathMin = 2;
-dLinPathIncr = 2;
-for d = dLinPathMin:dLinPathIncr:dLinPathMax
-    phi{end + 1} = @(lambda) log(linealPath(lambda, d, 'y', 1, conductivities, nElc, nElf));
-end
+% dLinPathMax = 4;
+% dLinPathMin = 1;
+% dLinPathIncr = 1;
+% for d = dLinPathMin:dLinPathIncr:dLinPathMax
+%     phi{end + 1} = @(lambda) log(linealPath(lambda, d, 'y', 1, conductivities, nElc, nElf));
+% end
 
 %Phase 2
 % for d = dLinPathMin:dLinPathIncr:dLinPathMax
@@ -53,23 +72,23 @@ end
 %     phi{end + 1} = @(lambda) linealPath(lambda, d, 'y', 2, conductivities, nElc, nElf);
 % end
 %log
-dLinPathMax = 30;
-dLinPathMin = 0;
-dLinPathIncr = 2;
-for d = dLinPathMin:dLinPathIncr:dLinPathMax
-    phi{end + 1} = @(lambda) log(linealPath(lambda, d, 'x', 2, conductivities, nElc, nElf));
-end
-dLinPathMax = 30;
-dLinPathMin = 2;
-dLinPathIncr = 2;
-for d = dLinPathMin:dLinPathIncr:dLinPathMax
-    phi{end + 1} = @(lambda) log(linealPath(lambda, d, 'y', 2, conductivities, nElc, nElf));
-end
+% dLinPathMax = 4;
+% dLinPathMin = 0;
+% dLinPathIncr = 1;
+% for d = dLinPathMin:dLinPathIncr:dLinPathMax
+%     phi{end + 1} = @(lambda) log(linealPath(lambda, d, 'x', 2, conductivities, nElc, nElf));
+% end
+% dLinPathMax = 4;
+% dLinPathMin = 1;
+% dLinPathIncr = 1;
+% for d = dLinPathMin:dLinPathIncr:dLinPathMax
+%     phi{end + 1} = @(lambda) log(linealPath(lambda, d, 'y', 2, conductivities, nElc, nElf));
+% end
 
 %% 2-point corr
-% d2pointCorrMax = 62;
+% d2pointCorrMax = 4;
 % d2pointCorrMin = 2;
-% d2pointCorrIncr = 2;
+% d2pointCorrIncr = 1;
 %Phase 1
 % for d = d2pointCorrMin:d2pointCorrIncr:d2pointCorrMax
 %     %distinct in x and y direction
@@ -120,7 +139,7 @@ end
 % phi{end + 1} = @(lambda) log(meanPoreSize(lambda, 2, conductivities, nElc, nElf, 'var'));
 
 % phi{end + 1} = @(lambda) specificSurface(lambda, 2, conductivities, nElc, nElf);
-phi{end + 1} = @(lambda) log(specificSurface(lambda, 2, conductivities, nElc, nElf));
+% phi{end + 1} = @(lambda) log(specificSurface(lambda, 2, conductivities, nElc, nElf));
 
 %high conducting phase
 %chessboard distance
@@ -226,15 +245,15 @@ phi{end + 1} = @(lambda) log(specificSurface(lambda, 2, conductivities, nElc, nE
 % phi{end + 1} = @(lambda) log(distanceProps(reshape(lambda, sqrt(length(lambda)), sqrt(length(lambda))),...
 %     conductivities, 'hi', 'cityblock', 'max'));
 % 
-% %euclidean distance
-phi{end + 1} = @(lambda) log(distanceProps(reshape(lambda, sqrt(length(lambda)), sqrt(length(lambda))),...
-    conductivities, 'hi', 'euclidean', 'mean'));
+% % %euclidean distance
+% phi{end + 1} = @(lambda) log(distanceProps(reshape(lambda, sqrt(length(lambda)), sqrt(length(lambda))),...
+%     conductivities, 'hi', 'euclidean', 'mean'));
 % phi{end + 1} = @(lambda) log(distanceProps(reshape(lambda, sqrt(length(lambda)), sqrt(length(lambda))),...
 %     conductivities, 'hi', 'euclidean', 'var'));
 % phi{end + 1} = @(lambda) log(sqrt(distanceProps(reshape(lambda, sqrt(length(lambda)), sqrt(length(lambda))),...
 %     conductivities, 'hi', 'euclidean', 'var'))); %std
-phi{end + 1} = @(lambda) log(distanceProps(reshape(lambda, sqrt(length(lambda)), sqrt(length(lambda))),...
-    conductivities, 'hi', 'euclidean', 'max'));
+% phi{end + 1} = @(lambda) log(distanceProps(reshape(lambda, sqrt(length(lambda)), sqrt(length(lambda))),...
+%     conductivities, 'hi', 'euclidean', 'max'));
 % 
 % %quasi-euclidean distance
 % phi{end + 1} = @(lambda) log(distanceProps(reshape(lambda, sqrt(length(lambda)), sqrt(length(lambda))),...
@@ -268,14 +287,14 @@ phi{end + 1} = @(lambda) log(distanceProps(reshape(lambda, sqrt(length(lambda)),
 %     conductivities, 'lo', 'cityblock', 'max'));
 % 
 % %euclidean distance
-phi{end + 1} = @(lambda) log(distanceProps(reshape(lambda, sqrt(length(lambda)), sqrt(length(lambda))),...
-    conductivities, 'lo', 'euclidean', 'mean'));
+% phi{end + 1} = @(lambda) log(distanceProps(reshape(lambda, sqrt(length(lambda)), sqrt(length(lambda))),...
+%     conductivities, 'lo', 'euclidean', 'mean'));
 % phi{end + 1} = @(lambda) log(distanceProps(reshape(lambda, sqrt(length(lambda)), sqrt(length(lambda))),...
 %     conductivities, 'lo', 'euclidean', 'var'));
 % phi{end + 1} = @(lambda) log(sqrt(distanceProps(reshape(lambda, sqrt(length(lambda)), sqrt(length(lambda))),...
 %     conductivities, 'lo', 'euclidean', 'var'))); %std
-phi{end + 1} = @(lambda) log(distanceProps(reshape(lambda, sqrt(length(lambda)), sqrt(length(lambda))),...
-    conductivities, 'lo', 'euclidean', 'max'));
+% phi{end + 1} = @(lambda) log(distanceProps(reshape(lambda, sqrt(length(lambda)), sqrt(length(lambda))),...
+%     conductivities, 'lo', 'euclidean', 'max'));
 % 
 % %quasi-euclidean distance
 % phi{end + 1} = @(lambda) log(distanceProps(reshape(lambda, sqrt(length(lambda)), sqrt(length(lambda))),...
@@ -571,8 +590,8 @@ phi{end + 1} = @(lambda) log(distanceProps(reshape(lambda, sqrt(length(lambda)),
 % %means
 % phi{end + 1} = @(lambda) log(meanImageProps(reshape(lambda, sqrt(length(lambda)), sqrt(length(lambda))),...
 %     conductivities, 'hi', 'Area', 'mean'));
-phi{end + 1} = @(lambda) log(meanImageProps(reshape(lambda, sqrt(length(lambda)), sqrt(length(lambda))),...
-    conductivities, 'hi', 'ConvexArea', 'mean'));
+% phi{end + 1} = @(lambda) log(meanImageProps(reshape(lambda, sqrt(length(lambda)), sqrt(length(lambda))),...
+%     conductivities, 'hi', 'ConvexArea', 'mean'));
 % phi{end + 1} = @(lambda) log(meanImageProps(reshape(lambda, sqrt(length(lambda)), sqrt(length(lambda))),...
 %     conductivities, 'hi', 'Eccentricity', 'mean'));
 % phi{end + 1} = @(lambda) log(meanImageProps(reshape(lambda, sqrt(length(lambda)), sqrt(length(lambda))),...
@@ -617,8 +636,8 @@ phi{end + 1} = @(lambda) log(meanImageProps(reshape(lambda, sqrt(length(lambda))
 % %Maxima
 % phi{end + 1} = @(lambda) log(meanImageProps(reshape(lambda, sqrt(length(lambda)), sqrt(length(lambda))),...
 %     conductivities, 'hi', 'Area', 'max'));
-phi{end + 1} = @(lambda) log(meanImageProps(reshape(lambda, sqrt(length(lambda)), sqrt(length(lambda))),...
-    conductivities, 'hi', 'ConvexArea', 'max'));
+% phi{end + 1} = @(lambda) log(meanImageProps(reshape(lambda, sqrt(length(lambda)), sqrt(length(lambda))),...
+%     conductivities, 'hi', 'ConvexArea', 'max'));
 % phi{end + 1} = @(lambda) log(meanImageProps(reshape(lambda, sqrt(length(lambda)), sqrt(length(lambda))),...
 %     conductivities, 'hi', 'Eccentricity', 'max'));
 % phi{end + 1} = @(lambda) log(meanImageProps(reshape(lambda, sqrt(length(lambda)), sqrt(length(lambda))),...
@@ -680,8 +699,8 @@ phi{end + 1} = @(lambda) log(meanImageProps(reshape(lambda, sqrt(length(lambda))
 % %means
 % phi{end + 1} = @(lambda) log(meanImageProps(reshape(lambda, sqrt(length(lambda)), sqrt(length(lambda))),...
 %     conductivities, 'lo', 'Area', 'mean'));
-phi{end + 1} = @(lambda) log(meanImageProps(reshape(lambda, sqrt(length(lambda)), sqrt(length(lambda))),...
-    conductivities, 'lo', 'ConvexArea', 'mean'));
+% phi{end + 1} = @(lambda) log(meanImageProps(reshape(lambda, sqrt(length(lambda)), sqrt(length(lambda))),...
+%     conductivities, 'lo', 'ConvexArea', 'mean'));
 % phi{end + 1} = @(lambda) log(meanImageProps(reshape(lambda, sqrt(length(lambda)), sqrt(length(lambda))),...
 %     conductivities, 'lo', 'Eccentricity', 'mean'));
 % phi{end + 1} = @(lambda) log(meanImageProps(reshape(lambda, sqrt(length(lambda)), sqrt(length(lambda))),...
@@ -726,8 +745,8 @@ phi{end + 1} = @(lambda) log(meanImageProps(reshape(lambda, sqrt(length(lambda))
 % %Maxima
 % phi{end + 1} = @(lambda) log(meanImageProps(reshape(lambda, sqrt(length(lambda)), sqrt(length(lambda))),...
 %     conductivities, 'lo', 'Area', 'max'));
-phi{end + 1} = @(lambda) log(meanImageProps(reshape(lambda, sqrt(length(lambda)), sqrt(length(lambda))),...
-    conductivities, 'lo', 'ConvexArea', 'max'));
+% phi{end + 1} = @(lambda) log(meanImageProps(reshape(lambda, sqrt(length(lambda)), sqrt(length(lambda))),...
+%     conductivities, 'lo', 'ConvexArea', 'max'));
 % phi{end + 1} = @(lambda) log(meanImageProps(reshape(lambda, sqrt(length(lambda)), sqrt(length(lambda))),...
 %     conductivities, 'lo', 'Eccentricity', 'max'));
 % phi{end + 1} = @(lambda) log(meanImageProps(reshape(lambda, sqrt(length(lambda)), sqrt(length(lambda))),...
