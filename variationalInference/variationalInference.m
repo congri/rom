@@ -56,7 +56,8 @@ if strcmp(params.family, 'isotropicGaussian')
         mlog_varVariance = mlog_varVariance + rhoVar*varGrad;
         varVariance = 1/(exp(mlog_varVariance));
         %converged?
-        if (norm(oldParams - [variationalGaussMean varVariance])/norm([variationalGaussMean varVariance]) < params.robbinsMonro.relXtol)
+        if (norm(oldParams - [variationalGaussMean varVariance])/norm([variationalGaussMean varVariance])...
+                < params.robbinsMonro.relXtol)
             converged = true;
         end
         steps = steps + 1;
@@ -73,12 +74,13 @@ elseif strcmp(params.family, 'diagonalGaussian')
     
     gradFunc = @(samp, varParam) ELBOgrad(samp, varParam, logTrueCondDist, params);
     sampleFunc = @(varParam) normrnd(0, 1, params.nSamples, length(varParam)/2);
-    [variationalParameters, steps] = stochasticOptimization(variationalParameters, gradFunc, sampleFunc, params.optParams);
+    [variationalParameters, steps] = ...
+        stochasticOptimization(variationalParameters, gradFunc, sampleFunc, params.optParams);
     
     %Construct function handle to optimal variational distribution
     variationalGaussSigma = exp(-.5*variationalParameters((params.optParams.dim + 1):end));
     optVarDist.dist = @(x) normpdf(x, variationalParameters(1:params.optParams.dim), sqrt(variationalGaussSigma));
-    %variationalParameters = [mean, log(sigma^-2)]
+%     variationalParameters = [mean, log(sigma^-2)]
     optVarDist.params = variationalParameters;
     
 elseif strcmp(params.family, 'fullRankGaussian')

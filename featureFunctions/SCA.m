@@ -14,13 +14,10 @@ if strcmp(transform, 'log')
     out = log(lambdaEff);
 elseif strcmp(transform, 'logit')
     %Limitation of effective conductivity
-    condTransOpts.limEffCond = true;
-    if condTransOpts.limEffCond
-        %Upper and lower limit on effective conductivity
-        condTransOpts.upperCondLim = conductivities(2);
-        condTransOpts.lowerCondLim = conductivities(1);
-        condTransOpts.transform = 'logit';
-    end
+    %Upper and lower limit on effective conductivity
+    condTransOpts.upperCondLim = conductivities(2);
+    condTransOpts.lowerCondLim = conductivities(1);
+    condTransOpts.transform = 'logit';
     out = conductivityTransform(lambdaEff, condTransOpts);
 elseif strcmp(transform, 'plain')
     out = lambdaEff;

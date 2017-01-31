@@ -7,19 +7,21 @@ Tffile = matfile(testFilePath);
 if nargout > 4
     Tf = Tffile.Tf(:, testSample_lo:testSample_up);
 end
-[theta_c, theta_cf, domainc, domainf, phi, featureFunctionMean, featureFunctionSqMean] =...
-    loadTrainedParams(modelParamsFolder);
+[theta_c, theta_cf, domainc, domainf, phi, featureFunctionMean, featureFunctionSqMean,...
+    featureFunctionMin, featureFunctionMax] = loadTrainedParams(modelParamsFolder);
 
 addpath('./rom')
 addpath('./aux')
 
 %% Compute design matrices
 Phi = DesignMatrix([domainf.nElX domainf.nElY], [domainc.nElX domainc.nElY], phi, Tffile, testSample_lo:testSample_up);
-Phi = Phi.computeDesignMatrix(domainc.nEl, domainf.nEl);
-%Normalize design matrices
-Phi = Phi.standardizeDesignMatrix(featureFunctionMean, featureFunctionSqMean);
-
 load('./data/conductivityTransformation.mat');
+%change here for anisotropy!
+condTransOpts.anisotropy = false;
+Phi = Phi.computeDesignMatrix(domainc.nEl, domainf.nEl, condTransOpts);
+%Normalize design matrices
+% Phi = Phi.standardizeDesignMatrix(featureFunctionMean, featureFunctionSqMean);
+Phi = Phi.rescaleDesignMatrix(featureFunctionMin, featureFunctionMax);
 
 tic;
 %% Sample from p_c
@@ -30,12 +32,11 @@ LambdaSamples = Xsamples;
 meanEffCond = zeros(domainc.nEl, nTest);
 for i = 1:nTest
     Xsamples(:, :, i) = mvnrnd(Phi.designMatrices{i}*theta_c.theta, (theta_c.sigma^2)*eye(domainc.nEl), nSamples_p_c)';
-    if condTransOpts.limEffCond
-        LambdaSamples(:, :, i) = conductivityBackTransform(Xsamples(:, :, i), condTransOpts);
-        meanEffCond(:, i) = mean(LambdaSamples(:, :, i), 2);
-    else
+    LambdaSamples(:, :, i) = conductivityBackTransform(Xsamples(:, :, i), condTransOpts);
+    if strcmp(condTransOpts.transform, 'log')
         meanEffCond(:, i) = exp(Phi.designMatrices{i}*theta_c.theta + .5*theta_c.sigma^2);
-        LambdaSamples(:, :, i) = exp(Xsamples(:, :, i));
+    else
+        meanEffCond(:, i) = mean(LambdaSamples(:, :, i), 2);
     end
 end
 disp('done')
@@ -81,7 +82,7 @@ for j = 1:nTest
     
     if nargout > 4
         meanMahaErrTemp = mean(sqrt((.5./(Tf_var)).*(Tf(:, j) - Tf_mean).^2));
-        meanSqDistTemp = mean((Tf(:, j) - Tf_mean).^2);
+        meanSqDistTemp = mean((Tf(:, j) - Tf_mean).^2)
         sqDistTemp = (Tf(:, j) - Tf_mean).^2;
         meanMahaErr = ((j- 1)/j)*meanMahaErr + (1/j)*meanMahaErrTemp;
         meanSqDist = ((j - 1)/j)*meanSqDist + (1/j)*meanSqDistTemp;

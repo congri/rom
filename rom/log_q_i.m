@@ -5,14 +5,16 @@ if size(Xi, 2) > 1
     Xi = Xi';
 end
 
-if condTransOpts.limEffCond
-    conductivity = conductivityBackTransform(Xi, condTransOpts);
+if condTransOpts.anisotropy
+    XiTemp = reshape(Xi, 3, domainc.nEl);
+    %conductivity is now a 2x2 tensor
+    conductivity = conductivityBackTransform(XiTemp, condTransOpts);
 else
-    conductivity = logCond2Cond(Xi, 1e-10, 1e10);
+    conductivity = conductivityBackTransform(Xi, condTransOpts);
 end
 
 [lg_p_c, d_lg_p_c] = log_p_c(Xi, Phi, theta_c.theta, theta_c.sigma);
-[lg_p_cf, d_lg_p_cf, Tc] = log_p_cf(Tf_i_minus_mu, domainc, conductivity, theta_cf);
+[lg_p_cf, d_lg_p_cf, Tc] = log_p_cf(Tf_i_minus_mu, domainc, conductivity, theta_cf, condTransOpts);
 
 log_q = lg_p_cf + lg_p_c;
 

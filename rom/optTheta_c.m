@@ -20,14 +20,19 @@ while(~converged)
     theta_old_old = theta;  %to check for iterative convergence
     ndiff = Inf;
     i = 1;
+    %Inner EM-loop - obsolete?
     while(ndiff > 1e-20 && i < 2)
         theta_old = theta;
         gradHessTheta = @(theta) dF_dtheta(theta, sigma2, theta_old, theta_prior_type, theta_prior_hyperparam, nTrain,...
             sumPhiTXmean, sumPhiSq);
-
+        
         if strcmp(theta_prior_type, 'hierarchical_laplace')
+            %Matrix M is pos. def., invertible even if badly conditioned
+            warning('off', 'MATLAB:nearlySingularMatrix');
             M = sumPhiSq + theta_prior_hyperparam(1)*diag((2*sigma2)./(abs(theta_old) + 1e-80));
         elseif strcmp(theta_prior_type, 'hierarchical_gamma')
+            %Matrix M is pos. def., invertible even if badly conditioned
+            warning('off', 'MATLAB:nearlySingularMatrix');
             M = sumPhiSq + sigma2*diag((theta_prior_hyperparam(1) + .5)./(.5*abs(theta_old).^2 + theta_prior_hyperparam(2)));
         elseif strcmp(theta_prior_type, 'none')
             M = sumPhiSq;
@@ -36,10 +41,7 @@ while(~converged)
         end
         theta_temp = M\sumPhiTXmean;
         
-        
-        diff = theta - theta_old;
-        ndiff = norm(diff);
-        
+                
         if(norm(theta_temp)/length(theta_temp) > 1e1)
             warning('theta_c is assuming unusually large values. Using Newton-Raphson instead of mldivide.')
             %theta = fsolve(gradHessTheta, theta, fsolve_options_theta);
@@ -56,13 +58,15 @@ while(~converged)
         else
             theta = theta_temp;
         end
+        diff = theta - theta_old;
+        ndiff = norm(diff);
         i = i + 1;
     end
         
     %     theta = .5*theta + .5*theta_old;    %for stability
     
     if strcmp(sigma_prior_type, 'none')
-        sigma2 = (1/(nTrain*nCoarse))*(sum(XNormSqMean) - 2*theta'*sumPhiTXmean + theta'*sumPhiSq*theta)
+        sigma2 = (1/(nTrain*nCoarse))*(sum(XNormSqMean) - 2*theta'*sumPhiTXmean + theta'*sumPhiSq*theta);
     else
         gradHessLogSigmaMinus2 = @(lSigmaMinus2) dF_dlogSigmaMinus2(lSigmaMinus2, theta, nCoarse, nTrain, XNormSqMean,...
             sumPhiTXmean, sumPhiSq, sigma_prior_type, sigma_prior_hyperparam);
@@ -81,11 +85,10 @@ while(~converged)
         warning('sigma2 == 0. Set it to small finite value')
         sigma2 = 1e-60;
     end
-%     sigma2 = .5*sigma2 + .5*sigma2_old %for stability
     
     iter = iter + 1;
     thetaDiffRel = norm(theta_old_old - theta)/(norm(theta)*numel(theta));
-    if(iter > 10 || thetaDiffRel < 1e-8)
+    if(iter > 20 && thetaDiffRel < 1e-8)
         converged = true;
     end
     

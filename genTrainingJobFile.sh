@@ -1,15 +1,15 @@
 NF=256
-CORRLENGTH=5
+CORRLENGTH=25
 NTRAIN=32
-VOLFRAC=0.5	#Theoretical volume fraction
+VOLFRAC=0.3	#Theoretical volume fraction
 LOCOND=1
 HICOND=10
-NC=4
+NC=8
 BC="[-50 164 112 -30]"
 
 DATESTR=`date +%m-%d-%H-%M-%S`	#datestring for jobfolder name
 PROJECTDIR="/home/constantin/matlab/projects/rom"
-JOBNAME="trainModel_nTrain=${NTRAIN}_volfrac${VOLFRAC}_locond=${LOCOND}_hicond=${HICOND}_Nc=${NC}"
+JOBNAME="TrainModel_nTrain=${NTRAIN}_volfrac${VOLFRAC}_locond=${LOCOND}_hicond=${HICOND}_Nc=${NC}"
 JOBDIR="/home/constantin/matlab/data/$DATESTR$JOBNAME"
 
 #Create job directory and copy source code

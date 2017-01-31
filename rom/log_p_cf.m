@@ -1,4 +1,4 @@
-function [log_p, d_log_p, Tc] = log_p_cf(Tf_i_minus_mu, domainc, conductivity, theta_cf)
+function [log_p, d_log_p, Tc] = log_p_cf(Tf_i_minus_mu, domainc, conductivity, theta_cf, condTransOpts)
 %Coarse-to-fine map
 %ignore constant prefactor
 %log_p = -.5*logdet(S, 'chol') - .5*(Tf - mu)'*(S\(Tf - mu));
@@ -9,12 +9,16 @@ W = theta_cf.W;
 S = theta_cf.S;
 Sinv = theta_cf.Sinv;
 
-D = zeros(2, 2, domainc.nEl);
-%Conductivity matrix D, only consider isotropic materials here
-for j = 1:domainc.nEl
-    D(:, :, j) =  conductivity(j)*eye(2);
+if condTransOpts.anisotropy
+    FEMout = heat2d(domainc, conductivity);
+else
+    D = zeros(2, 2, domainc.nEl);
+    %Conductivity matrix D, only consider isotropic materials here
+    for j = 1:domainc.nEl
+        D(:, :, j) =  conductivity(j)*eye(2);
+    end
+    FEMout = heat2d(domainc, D);
 end
-FEMout = heat2d(domainc, D);
 
 Tc = FEMout.Tff';
 Tc = Tc(:);
@@ -25,6 +29,11 @@ log_p = -.5*sum(log(S)) - .5*(Tf_i_minus_mu_minus_WTc)'*(Sinv*(Tf_i_minus_mu_min
 
 if nargout > 1
     %Gradient of FEM equation system w.r.t. conductivities
+    
+    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    %TO BE DONE: DERIVATIVE W.R.T. MATRIX COMPONENTS FOR ANISOTROPY
+    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    
     d_r = FEMgrad(FEMout, domainc, conductivity);
     %We need gradient of r w.r.t. log conductivities X, multiply each row with resp. conductivity
     d_rx = diag(conductivity)*d_r;

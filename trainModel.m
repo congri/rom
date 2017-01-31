@@ -35,12 +35,11 @@ Tf = Tffile.Tf(:, nStart:(nStart + nTrain - 1));        %Finescale temperatures 
 
 %% Compute design matrices
 Phi = DesignMatrix([domainf.nElX domainf.nElY], [domainc.nElX domainc.nElY], phi, Tffile, nStart:(nStart + nTrain - 1));
-Phi = Phi.computeDesignMatrix(domainc.nEl, domainf.nEl);
+Phi = Phi.computeDesignMatrix(domainc.nEl, domainf.nEl, condTransOpts);
 %Normalize design matrices
-Phi = Phi.computeFeatureFunctionMean;
-Phi = Phi.computeFeatureFunctionSqMean;
-Phi = Phi.standardizeDesignMatrix;
-Phi.saveNormalization;
+% Phi = Phi.standardizeDesignMatrix;
+Phi = Phi.rescaleDesignMatrix;
+Phi.saveNormalization('rescaling'); %'rescaling' if rescaleDesignMatrix is used, 'standardization' if standardizeDesignMatrix is used
 %Compute sum_i Phi^T(x_i)^Phi(x_i)
 Phi = Phi.computeSumPhiTPhi;
 
@@ -172,8 +171,9 @@ for k = 2:(maxIterations + 1)
             [optVarDist{i}, RMsteps{i}] = variationalInference(log_qi{i}, VIparams, initialParamsArray{i});
             initialParamsArray{i} = optVarDist{i}.params;
             if(strcmp(VIparams.family, 'diagonalGaussian'))
-                XMean(:, i) = optVarDist{i}.params(1:domainc.nEl);
-                XNormSqMean(i) = sum([optVarDist{i}.params(1:domainc.nEl).^2 exp(-optVarDist{i}.params((domainc.nEl + 1):end))]);
+                VIdim = length(optVarDist{i}.params);
+                XMean(:, i) = optVarDist{i}.params(1:(VIdim/2));
+                XNormSqMean(i) = sum([optVarDist{i}.params(1:(VIdim/2)).^2 exp(-optVarDist{i}.params(((VIdim/2) + 1):end))]);
             else
                 error('VI not implemented for this family of functions')
             end
@@ -187,19 +187,28 @@ for k = 2:(maxIterations + 1)
         for i = pstart:pend
             Tf_i_minus_mu = Tf(:, i) - theta_cf.mu;
             if(strcmp(VIparams.family, 'diagonalGaussian'))
-                VImean = optVarDist{i}.params(1:domainc.nEl);
-                VIsigma = exp(-.5*optVarDist{i}.params((domainc.nEl + 1):end));
+                VIdim = length(optVarDist{1}.params);
+                VImean = optVarDist{i}.params(1:(VIdim/2));
+                VIsigma = exp(-.5*optVarDist{i}.params(((VIdim/2) + 1):end));
                 %Samples of conductivity
-                if condTransOpts.limEffCond
-                    samples = conductivityBackTransform(mvnrnd(VImean, VIsigma, VIparams.inferenceSamples),...
-                        condTransOpts);
+                samples = conductivityBackTransform(mvnrnd(VImean, VIsigma, VIparams.inferenceSamples),...
+                    condTransOpts);
+                if condTransOpts.anisotropy
+                    for j = 1:domainc.nEl
+                        VIsamples{j} = mvnrnd(VImean((1 + (j - 1)*3):(j*3)),...
+                            VIsigma((1 + (j - 1)*3):(j*3)), VIparams.inferenceSamples);
+                    end
                 else
-                    samples = logCond2Cond(mvnrnd(VImean, VIsigma, VIparams.inferenceSamples), 1e-10, 1e10);
+                    % samples = logCond2Cond(mvnrnd(VImean, VIsigma, VIparams.inferenceSamples), 1e-10, 1e10);
                 end
                 
                 for s = 1:VIparams.inferenceSamples
                     for j = 1:domainc.nEl
-                        D(:, :, j) =  samples(s, j)*eye(2);
+                        if condTransOpts.anisotropy
+                            D(:, :, j) = conductivityBackTransform(VIsamples{j}(s, :)', condTransOpts);
+                        else
+                            D(:, :, j) =  samples(s, j)*eye(2);
+                        end
                     end
                     FEMout = heat2d(domainc, D);
                     
@@ -264,11 +273,9 @@ for k = 2:(maxIterations + 1)
        
     curr_sigma = theta_c.sigma
     mean_S = mean(theta_cf.S)
-    if condTransOpts.limEffCond
+    if(~condTransOpts.anisotropy)
         Lambda_eff1_mode = conductivityBackTransform(Phi.designMatrices{1}*theta_c.theta,...
             condTransOpts)
-    else
-        Lambda_eff1_mode = exp(Phi.designMatrices{1}*theta_c.theta)
     end
 
     %collect data and write it to disk periodically to save memory

@@ -1,5 +1,5 @@
-function [theta_c, theta_cf, domainc, domainf, phi, featureFunctionMean, featureFunctionSqMean] =...
-    loadTrainedParams(datafolder)
+function [theta_c, theta_cf, domainc, domainf, phi, featureFunctionMean, featureFunctionSqMean,...
+    featureFunctionMin, featureFunctionMax] = loadTrainedParams(datafolder)
 %Load trained model parameters to workspace
 %   Input:
 %           datafolder:     folder of optimal training params
@@ -20,9 +20,11 @@ theta_cf.W = sparse(W(1, :), W(2, :), W(3, :));
 theta_cf.mu = dlmread(strcat('./data/', datafolder, '/mu'))';
 disp('done')
 
-disp('Loading column norms of Phi of training data...')
+disp('Loading data normalization data...')
 featureFunctionMean = dlmread(strcat('./data/', datafolder, '/featureFunctionMean'));
 featureFunctionSqMean = dlmread(strcat('./data/', datafolder, '/featureFunctionSqMean'));
+featureFunctionMin = dlmread(strcat('./data/', datafolder, '/featureFunctionMin'));
+featureFunctionMax = dlmread(strcat('./data/', datafolder, '/featureFunctionMax'));
 disp('done')
 
 disp('Loading fine and coarse domain objects...')

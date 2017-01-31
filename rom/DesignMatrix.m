@@ -12,6 +12,8 @@ classdef DesignMatrix
         featureFunctionMean  %mean absolute output of feature function over training set BEFORE normalization
         featureFunctionSqMean
         featureFunctionStd
+        featureFunctionMin
+        featureFunctionMax
         
         E                       %gives the coarse element a fine element belongs to
         sumPhiTPhi
@@ -52,7 +54,7 @@ classdef DesignMatrix
             
         end
         
-        function Phi = computeDesignMatrix(Phi, nElc, nElf)
+        function Phi = computeDesignMatrix(Phi, nElc, nElf, condTransOpts)
             %Actual computation of design matrix
             tic
             disp('Compute design matrices Phi...')
@@ -68,12 +70,20 @@ classdef DesignMatrix
             %Open parallel pool
             addpath('./computation')
             parPoolInit(nTrain);
-            PhiCell{1} = zeros(nElc, nFeatureFunctions);
+            if condTransOpts.anisotropy
+                PhiCell{1} = zeros(3*nElc, nFeatureFunctions);
+            else
+                PhiCell{1} = zeros(nElc, nFeatureFunctions);
+            end
             PhiCell = repmat(PhiCell, nTrain, 1);
             parfor s = 1:nTrain
                 %inputs belonging to same coarse element are in the same column of xk. They are ordered in
                 %x-direction.
-                PhiCell{s} = zeros(nElc, nFeatureFunctions);
+                if condTransOpts.anisotropy
+                    PhiCell{s} = zeros(3*nElc, nFeatureFunctions);
+                else
+                    PhiCell{s} = zeros(nElc, nFeatureFunctions);
+                end
                 lambdak = zeros(nElf/nElc, nElc);
                 for i = 1:nElc
                     lambdak(:, i) = conductivity{s}(coarseElement == i);
@@ -82,7 +92,11 @@ classdef DesignMatrix
                 %construct design matrix Phi
                 for i = 1:nElc
                     for j = 1:nFeatureFunctions
-                        PhiCell{s}(i, j) = phi{j}(lambdak(:, i));
+                        if condTransOpts.anisotropy
+                            PhiCell{s}((1 + (i - 1)*3):(i*3), j) = phi{j}(lambdak(:, i));
+                        else
+                            PhiCell{s}(i, j) = phi{j}(lambdak(:, i));
+                        end
                     end
                 end
             end
@@ -106,24 +120,50 @@ classdef DesignMatrix
             
         end
         
+        function Phi = computeFeatureFunctionMinMax(Phi)
+            %Computes min/max of feature function outputs over training data
+            Phi.featureFunctionMin = min(Phi.designMatrices{1});
+            Phi.featureFunctionMax = max(Phi.designMatrices{1});
+            for i = 1:numel(Phi.designMatrices)
+                min_i = min(Phi.designMatrices{i});
+                max_i = max(Phi.designMatrices{i});
+                Phi.featureFunctionMin(Phi.featureFunctionMin > min_i) = min_i(Phi.featureFunctionMin > min_i);
+                Phi.featureFunctionMax(Phi.featureFunctionMax < max_i) = max_i(Phi.featureFunctionMax < max_i);
+            end
+        end
+        
         function Phi = computeFeatureFunctionMean(Phi)
-            %We normalize every feature function phi s.t. the mean output is 1 over the training set
             Phi.featureFunctionMean = 0;
             for i = 1:numel(Phi.designMatrices)
-                Phi.featureFunctionMean = Phi.featureFunctionMean + mean(abs(Phi.designMatrices{i}), 1);
+%                 Phi.featureFunctionMean = Phi.featureFunctionMean + mean(abs(Phi.designMatrices{i}), 1);
+                Phi.featureFunctionMean = Phi.featureFunctionMean + mean(Phi.designMatrices{i}, 1);
             end
             Phi.featureFunctionMean = Phi.featureFunctionMean/numel(Phi.designMatrices);
         end
-        
+                
         function Phi = computeFeatureFunctionSqMean(Phi)
-            %We normalize every feature function phi s.t. the squares phi(x_k) for every macro-cell
-            %k sum to 1
             featureFunctionSqSum = 0;
             for i = 1:numel(Phi.designMatrices)
                 featureFunctionSqSum = featureFunctionSqSum + sum(Phi.designMatrices{i}.^2, 1);
             end
             Phi.featureFunctionSqMean = featureFunctionSqSum/...
                 (numel(Phi.designMatrices)*size(Phi.designMatrices{1}, 1));
+        end
+        
+        function Phi = rescaleDesignMatrix(Phi, featFuncMin, featFuncMax)
+            %Rescale design matrix s.t. outputs are between 0 and 1
+            if(nargin > 1)
+                for i = 1:numel(Phi.designMatrices)
+                    Phi.designMatrices{i} = (Phi.designMatrices{i} - featFuncMin)./...
+                        (featFuncMax - featFuncMin);
+                end
+            else
+                Phi = Phi.computeFeatureFunctionMinMax;
+                for i = 1:numel(Phi.designMatrices)
+                    Phi.designMatrices{i} = (Phi.designMatrices{i} - Phi.featureFunctionMin)./...
+                        (Phi.featureFunctionMax - Phi.featureFunctionMin);
+                end
+            end
         end
         
         function Phi = standardizeDesignMatrix(Phi, featFuncMean, featFuncSqMean)
@@ -133,6 +173,8 @@ classdef DesignMatrix
             if(nargin > 1)
                 Phi.featureFunctionStd = sqrt(featFuncSqMean - featFuncMean.^2);
             else
+                Phi = Phi.computeFeatureFunctionMean;
+                Phi = Phi.computeFeatureFunctionSqMean;
                 Phi.featureFunctionStd = sqrt(Phi.featureFunctionSqMean - Phi.featureFunctionMean.^2);
                 if(any(~isreal(Phi.featureFunctionStd)))
                     warning('Imaginary standard deviation. Setting it to 0.')
@@ -200,17 +242,27 @@ classdef DesignMatrix
             end
         end
         
-        function Phi = saveNormalization(Phi)
+        function Phi = saveNormalization(Phi, type)
             if(numel(Phi.featureFunctionMean) == 0)
                 Phi = Phi.computeFeatureFunctionMean;
             end
             if(numel(Phi.featureFunctionSqMean) == 0)
                 Phi = Phi.computeFeatureFunctionSqMean;
             end
-            featureFunctionMean = Phi.featureFunctionMean;
-            featureFunctionSqMean = Phi.featureFunctionSqMean;
-            save('./data/featureFunctionMean', 'featureFunctionMean', '-ascii');
-            save('./data/featureFunctionSqMean', 'featureFunctionSqMean', '-ascii');
+            if strcmp(type, 'standardization')
+                featureFunctionMean = Phi.featureFunctionMean;
+                featureFunctionSqMean = Phi.featureFunctionSqMean;
+                save('./data/featureFunctionMean', 'featureFunctionMean', '-ascii');
+                save('./data/featureFunctionSqMean', 'featureFunctionSqMean', '-ascii');
+            elseif strcmp(type, 'rescaling')
+                featureFunctionMin = Phi.featureFunctionMin;
+                featureFunctionMax = Phi.featureFunctionMax;
+                save('./data/featureFunctionMin', 'featureFunctionMin', '-ascii');
+                save('./data/featureFunctionMax', 'featureFunctionMax', '-ascii');
+            else
+                error('Which type of data normalization?')
+            end          
+            
         end
         
         function Phi = computeSumPhiTPhi(Phi)

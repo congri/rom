@@ -2,16 +2,22 @@
 %CHANGE JOBFILE IF YOU CHANGE LINE NUMBERS!
 %Number of training data samples
 nStart = 1; %start training sample in training data file
-nTrain = 4;
+nTrain = 16;
 
-%Limitation of effective conductivity
-condTransOpts.limEffCond = false;
-if condTransOpts.limEffCond
-    %Upper and lower limit on effective conductivity
-    condTransOpts.upperCondLim = upCond;
-    condTransOpts.lowerCondLim = loCond;
-    condTransOpts.transform = 'logit'; 
-end
+%Anisotropy; do NOT use together with limEffCond
+condTransOpts.anisotropy = false;
+%Upper and lower limit on effective conductivity
+% condTransOpts.upperCondLim = upCond;
+% condTransOpts.lowerCondLim = loCond;
+% condTransOpts.shift = 4;    %controls eff. cond. for all theta_c = 0
+condTransOpts.upperCondLim = 1e10;
+condTransOpts.lowerCondLim = 1e-10;
+%options:
+%log: x = log lambda
+%log_lower_bound: x = log(lambda - lower_bound), i.e. lambda > lower_bound
+%logit: lambda = logit(x), s.t. lowerCondLim < lambda < upperCondLim
+%log_cholesky: unique cholesky decomposition for anisotropy
+condTransOpts.transform = 'log';
 if ~exist('./data/', 'dir')
     mkdir('./data/');
 end
@@ -25,7 +31,7 @@ genBasisFunctions;
 
 %% EM params
 basisFunctionUpdates = 0;
-basisUpdateGap = 200*ceil(nTrain/16);
+basisUpdateGap = 300*ceil(nTrain/16);
 maxIterations = (basisFunctionUpdates + 1)*basisUpdateGap - 1;
 
 %% Start value of model parameters
@@ -39,7 +45,7 @@ theta_cf.Sinv = sparse(1:domainf.nNodes, 1:domainf.nNodes, 1./theta_cf.S);
 theta_cf.WTSinv = theta_cf.W'*theta_cf.Sinv;
 theta_cf.mu = zeros(domainf.nNodes, 1);
 % theta_c.theta = (1/size(phi, 1))*ones(size(phi, 1), 1);
-% theta_c.theta = 1*ones(nBasis, 1);
+% theta_c.theta = -10*ones(nBasis, 1);
 theta_c.theta = 0*cos(pi*(1:nBasis)');
 % d = .01;
 % theta_c.theta = 2*d*rand(nBasis, 1) - d;
@@ -53,7 +59,7 @@ theta_prior_type = 'hierarchical_laplace';                  %hierarchical_gamma,
 sigma_prior_type = 'none';
 %prior hyperparams; obsolete for no prior
 % theta_prior_hyperparamArray = [0 1e-20];                   %a and b params for Gamma hyperprior
-theta_prior_hyperparamArray = [150];
+theta_prior_hyperparamArray = [10];
 % theta_prior_hyperparam = 10;
 sigma_prior_hyperparam = 1e3;
 
@@ -65,11 +71,10 @@ nSamplesBeginning = [40];
 MCMC.nSamples = 40;                                 %number of samples
 MCMC.nGap = 40;                                     %decorrelation gap
 
-if condTransOpts.limEffCond
-    MCMC.Xi_start = conductivityTransform(.5*condTransOpts.upperCondLim +...
-        .5*condTransOpts.lowerCondLim, condTransOpts)*ones(domainc.nEl, 1);
-else
-    MCMC.Xi_start = log(.5*loCond + .5*upCond)*ones(domainc.nEl, 1);
+MCMC.Xi_start = conductivityTransform(.5*condTransOpts.upperCondLim +...
+    .5*condTransOpts.lowerCondLim, condTransOpts)*ones(domainc.nEl, 1);
+if condTransOpts.anisotropy
+    MCMC.Xi_start = ones(3*domainc.nEl, 1);
 end
 %only for random walk
 MCMC.MALA.stepWidth = .01;
@@ -88,22 +93,29 @@ end
 mix_sigma = 0;
 mix_S = 0;
 mix_W = 0;
-mix_theta = 0;
+mix_theta = 0;    %to damp oscillations?
 
 %% Variational inference params
 dim = domainc.nEl;
 VIparams.family = 'diagonalGaussian';
-if condTransOpts.limEffCond
+if strcmp(condTransOpts.transform, 'logit')
     initialParamsArray{1} = [0*ones(1, domainc.nEl) .1*ones(1, domainc.nEl)];
+elseif condTransOpts.anisotropy
+    initialParamsArray{1} = [0*ones(1, 3*domainc.nEl) .1*ones(1, 3*domainc.nEl)];
+elseif strcmp(condTransOpts.transform, 'log')
+    initialParamsArray{1} = [log(.5*loCond + .5*upCond)*ones(1, domainc.nEl) 1*ones(1, domainc.nEl)];
+elseif strcmp(condTransOpts.transform, 'log_lower_bound')
+    initialParamsArray{1} = [log(.6*loCond + .4*upCond - condTransOpts.lowerCondLim)*ones(1, domainc.nEl)...
+        5*ones(1, domainc.nEl)];
 else
-    initialParamsArray{1} = [log(.6*loCond + .4*upCond)*ones(1, domainc.nEl) 5*ones(1, domainc.nEl)];
+    error('Which conductivity transformation?');
 end
 initialParamsArray = repmat(initialParamsArray, nTrain, 1);
 VIparams.nSamples = 20;    %Gradient samples per iteration
 VIparams.inferenceSamples = 200;
 VIparams.optParams.optType = 'adam';
 VIparams.optParams.dim = domainc.nEl;
-VIparams.optParams.stepWidth = .1;
+VIparams.optParams.stepWidth = .08;
 VIparams.optParams.XWindow = 20;    %Averages dependent variable over last iterations
 VIparams.optParams.offset = 10000;  %Robbins-Monro offset
 VIparams.optParams.relXtol = 1e-12;
