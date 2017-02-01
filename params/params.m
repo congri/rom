@@ -2,7 +2,7 @@
 %CHANGE JOBFILE IF YOU CHANGE LINE NUMBERS!
 %Number of training data samples
 nStart = 1; %start training sample in training data file
-nTrain = 16;
+nTrain = 128;
 
 %Anisotropy; do NOT use together with limEffCond
 condTransOpts.anisotropy = false;
@@ -59,7 +59,7 @@ theta_prior_type = 'hierarchical_laplace';                  %hierarchical_gamma,
 sigma_prior_type = 'none';
 %prior hyperparams; obsolete for no prior
 % theta_prior_hyperparamArray = [0 1e-20];                   %a and b params for Gamma hyperprior
-theta_prior_hyperparamArray = [10];
+theta_prior_hyperparamArray = [.5];
 % theta_prior_hyperparam = 10;
 sigma_prior_hyperparam = 1e3;
 
@@ -103,7 +103,7 @@ if strcmp(condTransOpts.transform, 'logit')
 elseif condTransOpts.anisotropy
     initialParamsArray{1} = [0*ones(1, 3*domainc.nEl) .1*ones(1, 3*domainc.nEl)];
 elseif strcmp(condTransOpts.transform, 'log')
-    initialParamsArray{1} = [log(.5*loCond + .5*upCond)*ones(1, domainc.nEl) 1*ones(1, domainc.nEl)];
+    initialParamsArray{1} = [log(loCond)*ones(1, domainc.nEl) 1*ones(1, domainc.nEl)];
 elseif strcmp(condTransOpts.transform, 'log_lower_bound')
     initialParamsArray{1} = [log(.6*loCond + .4*upCond - condTransOpts.lowerCondLim)*ones(1, domainc.nEl)...
         5*ones(1, domainc.nEl)];

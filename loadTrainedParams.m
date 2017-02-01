@@ -21,10 +21,23 @@ theta_cf.mu = dlmread(strcat('./data/', datafolder, '/mu'))';
 disp('done')
 
 disp('Loading data normalization data...')
-featureFunctionMean = dlmread(strcat('./data/', datafolder, '/featureFunctionMean'));
-featureFunctionSqMean = dlmread(strcat('./data/', datafolder, '/featureFunctionSqMean'));
-featureFunctionMin = dlmread(strcat('./data/', datafolder, '/featureFunctionMin'));
-featureFunctionMax = dlmread(strcat('./data/', datafolder, '/featureFunctionMax'));
+try
+    featureFunctionMean = dlmread(strcat('./data/', datafolder, '/featureFunctionMean'));
+    featureFunctionSqMean = dlmread(strcat('./data/', datafolder, '/featureFunctionSqMean'));
+catch
+    warning('featureFunctionMean, featureFunctionSqMean not found, setting it to 0.')
+    featureFunctionMean = 0;
+    featureFunctionSqMean = 0;
+end
+
+try
+    featureFunctionMin = dlmread(strcat('./data/', datafolder, '/featureFunctionMin'));
+    featureFunctionMax = dlmread(strcat('./data/', datafolder, '/featureFunctionMax'));
+catch
+    warning('featureFunctionMin, featureFunctionMax not found, setting it to 0.')
+    featureFunctionMin = 0;
+    featureFunctionMax = 0;
+end
 disp('done')
 
 disp('Loading fine and coarse domain objects...')

@@ -52,15 +52,17 @@ elseif dir == 'y'
         end
         %no jump needed here?
     end
-    if(samePhase > 0)
-        L = samePhase/(maxY*xc);
-    else
-        L = 1/(maxY*xc);
-        warning('Lineal path function is 0. Setting it to smallest possible value.')
-        pathLength
-        dir
-        phase
-    end
+    %for stability when used with log
+%     if(samePhase > 0)
+%         L = samePhase/(maxY*xc);
+%     else
+%         L = 1/(maxY*xc);
+%         warning('Lineal path function is 0. Setting it to smallest possible value.')
+%         pathLength
+%         dir
+%         phase
+%     end
+L = samePhase/(maxY*xc);
     
 else
     error('Unknown direction for linealPath function')

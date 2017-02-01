@@ -50,15 +50,17 @@ elseif dir == 'y'
         end
         %no jump needed here?
     end
-    if(sampePhase > 0)
-        p = samePhase/(maxY*xc);
-    else
-        p = 1/(maxY*xc);
-        warning('2-point correlation function is 0. Setting it to smallest possible value.')
-        distance
-        dir
-        phase
-    end
+    %for stability when used with log
+%     if(sampePhase > 0)
+%         p = samePhase/(maxY*xc);
+%     else
+%         p = 1/(maxY*xc);
+%         warning('2-point correlation function is 0. Setting it to smallest possible value.')
+%         distance
+%         dir
+%         phase
+%     end
+p = samePhase/(maxY*xc);
     
 else
     error('Unknown direction for twoPointCorrelation function')

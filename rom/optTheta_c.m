@@ -29,7 +29,7 @@ while(~converged)
         if strcmp(theta_prior_type, 'hierarchical_laplace')
             %Matrix M is pos. def., invertible even if badly conditioned
             warning('off', 'MATLAB:nearlySingularMatrix');
-            M = sumPhiSq + theta_prior_hyperparam(1)*diag((2*sigma2)./(abs(theta_old) + 1e-80));
+            M = sumPhiSq + theta_prior_hyperparam(1)*diag((2*sigma2)./(abs(theta_old) + 1e-30));
         elseif strcmp(theta_prior_type, 'hierarchical_gamma')
             %Matrix M is pos. def., invertible even if badly conditioned
             warning('off', 'MATLAB:nearlySingularMatrix');
@@ -81,9 +81,13 @@ while(~converged)
     end
     
     
+    sigma2Cutoff = 1e2;
     if sigma2 == 0
         warning('sigma2 == 0. Set it to small finite value')
-        sigma2 = 1e-60;
+        sigma2 = 1e-10;
+    elseif sigma2 > sigma2Cutoff
+        warning('sigma2 > cutoff, set it to cutoff')
+        sigma2 = sigma2Cutoff;
     end
     
     iter = iter + 1;

@@ -46,74 +46,77 @@ nElf = [domainf.nElX domainf.nElY];
 %phi{end + 1} = @(lambda) linealPath(lambda, 0, 'x', 1, conductivities, nElc, nElf);
 
 %Phase 1
-% dLinPathMax = 64;
-% dLinPathMin = 0;
-% dLinPathIncr = 4;
-% for d = dLinPathMin:dLinPathIncr:dLinPathMax
-%    phi{end + 1} = @(lambda) linealPath(lambda, d, 'x', 1, conductivities, nElc, nElf);
-% end
-% 
-% dLinPathMax = 64;
-% dLinPathMin = 8;
-% dLinPathIncr = 8;
-% for d = dLinPathMin:dLinPathIncr:dLinPathMax
-%    phi{end + 1} = @(lambda) linealPath(lambda, d, 'y', 1, conductivities, nElc, nElf);
-% end
+dLinPathMax = 31;
+dLinPathMin = 0;
+dLinPathIncr = 4;
+for d = dLinPathMin:dLinPathIncr:dLinPathMax
+   phi{end + 1} = @(lambda) linealPath(lambda, d, 'x', 1, conductivities, nElc, nElf);
+end
+
+dLinPathMax = 31;
+dLinPathMin = 4;
+dLinPathIncr = 4;
+for d = dLinPathMin:dLinPathIncr:dLinPathMax
+   phi{end + 1} = @(lambda) linealPath(lambda, d, 'y', 1, conductivities, nElc, nElf);
+end
 
 
 %log Phase 1
-dLinPathMax = 63;
-dLinPathMin = 0;
-dLinPathIncr = 8;
-for d = dLinPathMin:dLinPathIncr:dLinPathMax
-    phi{end + 1} = @(lambda) log(linealPath(lambda, d, 'x', 1, conductivities, nElc, nElf));
-end
-
-dLinPathMax = 63;
-dLinPathMin = 8;
-dLinPathIncr = 8;
-for d = dLinPathMin:dLinPathIncr:dLinPathMax
-    phi{end + 1} = @(lambda) log(linealPath(lambda, d, 'y', 1, conductivities, nElc, nElf));
-end
+% dLinPathMax = 31;
+% dLinPathMin = 0;
+% dLinPathIncr = 4;
+% for d = dLinPathMin:dLinPathIncr:dLinPathMax
+%     phi{end + 1} = @(lambda) log(linealPath(lambda, d, 'x', 1, conductivities, nElc, nElf));
+% end
+% 
+% dLinPathMax = 31;
+% dLinPathMin = 4;
+% dLinPathIncr = 4;
+% for d = dLinPathMin:dLinPathIncr:dLinPathMax
+%     phi{end + 1} = @(lambda) log(linealPath(lambda, d, 'y', 1, conductivities, nElc, nElf));
+% end
 
 %Phase 2
-% dLinPathMax = 31;
-% dLinPathMin = 4;
-% dLinPathIncr = 4;
-% for d = dLinPathMin:dLinPathIncr:dLinPathMax
-%    phi{end + 1} = @(lambda) linealPath(lambda, d, 'x', 2, conductivities, nElc, nElf);
-% end
-% dLinPathMax = 31;
-% dLinPathMin = 4;
-% dLinPathIncr = 4;
-% for d = dLinPathMin:dLinPathIncr:dLinPathMax
-%    phi{end + 1} = @(lambda) linealPath(lambda, d, 'y', 2, conductivities, nElc, nElf);
-% end
-
-
-% %log Phase 2
 dLinPathMax = 16;
-dLinPathMin = 0;
+dLinPathMin = 2;
 dLinPathIncr = 2;
 for d = dLinPathMin:dLinPathIncr:dLinPathMax
-    phi{end + 1} = @(lambda) log(linealPath(lambda, d, 'x', 2, conductivities, nElc, nElf));
+   phi{end + 1} = @(lambda) linealPath(lambda, d, 'x', 2, conductivities, nElc, nElf);
 end
 dLinPathMax = 16;
 dLinPathMin = 2;
 dLinPathIncr = 2;
 for d = dLinPathMin:dLinPathIncr:dLinPathMax
-    phi{end + 1} = @(lambda) log(linealPath(lambda, d, 'y', 2, conductivities, nElc, nElf));
+   phi{end + 1} = @(lambda) linealPath(lambda, d, 'y', 2, conductivities, nElc, nElf);
 end
 
+
+% %log Phase 2
+% dLinPathMax = 8;
+% dLinPathMin = 0;
+% dLinPathIncr = 1;
+% for d = dLinPathMin:dLinPathIncr:dLinPathMax
+%     phi{end + 1} = @(lambda) log(linealPath(lambda, d, 'x', 2, conductivities, nElc, nElf));
+% end
+% dLinPathMax = 8;
+% dLinPathMin = 1;
+% dLinPathIncr = 1;
+% for d = dLinPathMin:dLinPathIncr:dLinPathMax
+%     phi{end + 1} = @(lambda) log(linealPath(lambda, d, 'y', 2, conductivities, nElc, nElf));
+% end
+
 %% 2-point corr
-% d2pointCorrMax = 62;
-% d2pointCorrMin = 2;
-% d2pointCorrIncr = 2;
-%Phase 1
+% d2pointCorrMax = 31;
+% d2pointCorrMin = 0;
+% d2pointCorrIncr = 4;
+% %Phase 1
 % for d = d2pointCorrMin:d2pointCorrIncr:d2pointCorrMax
 %     %distinct in x and y direction
 %     phi{end + 1} = @(lambda) twoPointCorrelation(lambda, d, 'x', 1, conductivities, nElc, nElf);
 % end
+% d2pointCorrMax = 31;
+% d2pointCorrMin = 4;
+% d2pointCorrIncr = 4;
 % for d = d2pointCorrMin:d2pointCorrIncr:d2pointCorrMax
 %     %distinct in x and y direction
 %     phi{end + 1} = @(lambda) twoPointCorrelation(lambda, d, 'y', 1, conductivities, nElc, nElf);
@@ -129,10 +132,16 @@ end
 % end
 
 %Phase 2
+% d2pointCorrMax = 16;
+% d2pointCorrMin = 0;
+% d2pointCorrIncr = 2;
 % for d = d2pointCorrMin:d2pointCorrIncr:d2pointCorrMax
 %     %distinct in x and y direction
 %     phi{end + 1} = @(lambda) twoPointCorrelation(lambda, d, 'x', 2, conductivities, nElc, nElf);
 % end
+% d2pointCorrMax = 16;
+% d2pointCorrMin = 2;
+% d2pointCorrIncr = 2;
 % for d = d2pointCorrMin:d2pointCorrIncr:d2pointCorrMax
 %     %distinct in x and y direction
 %     phi{end + 1} = @(lambda) twoPointCorrelation(lambda, d, 'y', 2, conductivities, nElc, nElf);
