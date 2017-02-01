@@ -251,7 +251,7 @@ for k = 2:(maxIterations + 1)
     if(k - 1 <= size(theta_prior_hyperparamArray, 1))
         theta_prior_hyperparam = theta_prior_hyperparamArray(k - 1, :)
     end
-    theta_c = optTheta_c(theta_c, nTrain, domainc.nEl, XNormSqMean,...
+    [theta_c, theta_prior_hyperparam] = optTheta_c(theta_c, nTrain, domainc.nEl, XNormSqMean,...
         sumPhiTXmean, Phi.sumPhiTPhi, theta_prior_type, theta_prior_hyperparam,...
         sigma_prior_type, sigma_prior_hyperparam);
     theta_c.sigma = (1 - mix_sigma)*theta_c.sigma + mix_sigma*sigma_old;
@@ -273,6 +273,7 @@ for k = 2:(maxIterations + 1)
        
     curr_sigma = theta_c.sigma
     mean_S = mean(theta_cf.S)
+    curr_gamma = theta_prior_hyperparam
     if(~condTransOpts.anisotropy)
         Lambda_eff1_mode = conductivityBackTransform(Phi.designMatrices{1}*theta_c.theta,...
             condTransOpts)
