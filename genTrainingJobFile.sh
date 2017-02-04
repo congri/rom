@@ -1,15 +1,15 @@
 NF=256
-CORRLENGTH=5
-NTRAIN=128
+CORRLENGTH=20
+NTRAIN=32
 VOLFRAC=0.1	#Theoretical volume fraction
 LOCOND=1
 HICOND=1000
-NC=8
+NC=4
 BC="[-50 164 112 -30]"
 
 DATESTR=`date +%m-%d-%H-%M-%S`	#datestring for jobfolder name
 PROJECTDIR="/home/constantin/matlab/projects/rom"
-JOBNAME="LINPATHTrainModel_nTrain=${NTRAIN}_volfrac${VOLFRAC}_locond=${LOCOND}_hicond=${HICOND}_Nc=${NC}"
+JOBNAME="LINPATHisotropicHiCondTrainModel_nTrain=${NTRAIN}_volfrac${VOLFRAC}_lo=${LOCOND}_hi=${HICOND}_Nc=${NC}l=${CORRLENGTH}"
 JOBDIR="/home/constantin/matlab/data/$DATESTR$JOBNAME"
 
 #Create job directory and copy source code
@@ -17,6 +17,7 @@ mkdir $JOBDIR
 cp -r $PROJECTDIR/* $JOBDIR
 #Remove existing data folder
 rm -r $PROJECTDIR/data
+#Remove existing predictions file
 rm $PROJECTDIR/predictions.mat
 #Change directory to job directory; completely independent from project directory
 cd $JOBDIR
@@ -25,7 +26,6 @@ rm job_file.sh
 #write job file
 printf "#PBS -N $JOBNAME
 #PBS -l nodes=1:ppn=16,walltime=240:00:00
-#PBS -o $JOBDIR
 #PBS -e $JOBDIR
 #PBS -m abe
 #PBS -M mailscluster@gmail.com

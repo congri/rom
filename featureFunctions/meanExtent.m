@@ -31,8 +31,13 @@ for i = 1:numel(extrema)
         meanExtSq = meanExtSq + maxExt_blob.^2;
     end
 end
-meanExt = meanExt/numel(extrema);
-meanExtSq = meanExtSq/numel(extrema);
+if(numel(extrema) > 0 && isfinite(meanExt) && isifnite(meanExtSq))
+    meanExt = meanExt/numel(extrema);
+    meanExtSq = meanExtSq/numel(extrema);
+else
+    meanExt = 0;
+    meanExtSq = 0;
+end
 
 if strcmp(meanOrVar, 'mean')
     out = meanExt;

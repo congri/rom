@@ -80,7 +80,6 @@ elseif strcmp(params.family, 'diagonalGaussian')
     %Construct function handle to optimal variational distribution
     variationalGaussSigma = exp(-.5*variationalParameters((params.optParams.dim + 1):end));
     optVarDist.dist = @(x) normpdf(x, variationalParameters(1:params.optParams.dim), sqrt(variationalGaussSigma));
-%     variationalParameters = [mean, log(sigma^-2)]
     optVarDist.params = variationalParameters;
     
 elseif strcmp(params.family, 'fullRankGaussian')

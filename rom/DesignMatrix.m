@@ -104,6 +104,9 @@ classdef DesignMatrix
             Phi.designMatrices = PhiCell;
             for i = 1:nTrain
                 if(~all(all(all(isfinite(Phi.designMatrices{i})))))
+                    dataPoint = i
+                    [coarseElement, featureFunction] = ind2sub(size(Phi.designMatrices{i}),...
+                        find(~isfinite(Phi.designMatrices{i})))
                     warning('Non-finite design matrix Phi. Setting non-finite component to 0.')
                     Phi.designMatrices{i}(~isfinite(Phi.designMatrices{i})) = 0;
                 elseif(~all(all(all(isreal(Phi.designMatrices{i})))))

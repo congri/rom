@@ -4,8 +4,9 @@ function [x] = conductivityTransform(conductivity, opts)
 if strcmp(opts.transform, 'logit')
     %Logistic sigmoid transformation
     offset = 1e-80; %for stability
-    x = log(conductivity - opts.lowerCondLim + offset)...
-        - log(opts.upperCondLim - conductivity + offset) + opts.shift;
+    %     x = log(conductivity - opts.lowerCondLim + offset)...
+    %         - log(opts.upperCondLim - conductivity + offset) + opts.shift;
+    x = - log((opts.upperCondLim - opts.lowerCondLim)./(conductivity - opts.lowerCondLim) - 1 + offset);
 elseif strcmp(opts.transform, 'log')
     offset = realmin;
     x = log(conductivity + offset);

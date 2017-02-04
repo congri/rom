@@ -3,10 +3,10 @@
 %Which data to load? We will get error if data doesn't exist
 nf = 256;
 loCond = 1;
-upCond = 1000;
+upCond = 10;
 nSamples = 1024;
-corrlength = '5';
-volfrac = '0.1';  %high conducting phase volume fraction
+corrlength = '10';
+volfrac = '0.3';  %high conducting phase volume fraction
 sigma_f2 = '1';
 cond_distribution = 'correlated_binary';
 bc = '[-50 164 112 -30]';

@@ -1,4 +1,4 @@
-function [theta_c, theta_prior_hyperparam] = optTheta_c(theta_c, nTrain, nCoarse, XNormSqMean,...
+function [theta_c] = optTheta_c(theta_c, nTrain, nCoarse, XNormSqMean,...
     sumPhiTXmean, sumPhiSq, theta_prior_type, theta_prior_hyperparam,...
     sigma_prior_type, sigma_prior_hyperparam)
 %% Find optimal theta_c and sigma
@@ -57,15 +57,6 @@ while(~converged)
         else
             theta = theta_temp;
         end
-        if strcmp(theta_prior_type, 'hierarchical_laplace')
-%             theta_prior_hyperparam = 1/(2*length(theta))*sum(abs(theta)) + 1/(2*sqrt(theta_prior_hyperparam));
-%             theta_prior_hyperparam = (2*length(theta))/(sum(abs(theta) + theta_prior_hyperparam^(-.5)));
-%             theta_prior_hyperparam = (length(theta))/...
-%                 (theta_prior_hyperparam*sum(sqrt(theta_prior_hyperparam)*abs(theta) + 1))
-            theta_prior_hyperparam = (2*length(theta)*theta_prior_hyperparam)/...
-                sum(sqrt(theta_prior_hyperparam)*abs(theta) + 1)
-            pause
-        end
         diff = theta - theta_old;
         ndiff = norm(diff);
         i = i + 1;
@@ -89,7 +80,7 @@ while(~converged)
     end
     
     
-    sigma2Cutoff = 1e2;
+    sigma2Cutoff = 1e4;
     if sigma2 == 0
         warning('sigma2 == 0. Set it to small finite value')
         sigma2 = 1e-10;
