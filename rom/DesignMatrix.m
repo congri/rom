@@ -29,7 +29,7 @@ classdef DesignMatrix
             Phi.featureFunctions = featureFunctions;
             Phi.dataFile = dataFile;
             Phi.dataSamples = dataSamples;
-
+            
         end
         
         function Phi = getCoarseElement(Phi, nf, nc)
@@ -138,12 +138,12 @@ classdef DesignMatrix
         function Phi = computeFeatureFunctionMean(Phi)
             Phi.featureFunctionMean = 0;
             for i = 1:numel(Phi.designMatrices)
-%                 Phi.featureFunctionMean = Phi.featureFunctionMean + mean(abs(Phi.designMatrices{i}), 1);
+                %                 Phi.featureFunctionMean = Phi.featureFunctionMean + mean(abs(Phi.designMatrices{i}), 1);
                 Phi.featureFunctionMean = Phi.featureFunctionMean + mean(Phi.designMatrices{i}, 1);
             end
             Phi.featureFunctionMean = Phi.featureFunctionMean/numel(Phi.designMatrices);
         end
-                
+        
         function Phi = computeFeatureFunctionSqMean(Phi)
             featureFunctionSqSum = 0;
             for i = 1:numel(Phi.designMatrices)
@@ -165,6 +165,20 @@ classdef DesignMatrix
                 for i = 1:numel(Phi.designMatrices)
                     Phi.designMatrices{i} = (Phi.designMatrices{i} - Phi.featureFunctionMin)./...
                         (Phi.featureFunctionMax - Phi.featureFunctionMin);
+                end
+            end
+            %Check for finiteness
+            for i = 1:numel(Phi.designMatrices)
+                if(~all(all(all(isfinite(Phi.designMatrices{i})))))
+                    warning('Non-finite design matrix Phi. Setting non-finite component to 0.')
+                    Phi.designMatrices{i}(~isfinite(Phi.designMatrices{i})) = 0;
+                elseif(~all(all(all(isreal(Phi.designMatrices{i})))))
+                    warning('Complex feature function output:')
+                    dataPoint = i
+                    [coarseElement, featureFunction] = ind2sub(size(Phi.designMatrices{i}),...
+                        find(imag(Phi.designMatrices{i})))
+                    disp('Ignoring imaginary part...')
+                    Phi.designMatrices{i} = real(Phi.designMatrices{i});
                 end
             end
         end
@@ -264,7 +278,7 @@ classdef DesignMatrix
                 save('./data/featureFunctionMax', 'featureFunctionMax', '-ascii');
             else
                 error('Which type of data normalization?')
-            end          
+            end
             
         end
         

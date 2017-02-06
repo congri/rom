@@ -38,6 +38,15 @@ if strcmp(FD.distributionType, 'correlated_binary')
         '_sigmafSq=', num2str(FD.distributionParams{3}), '/volumeFraction=',...
         num2str(FD.distributionParams{1}), '/', 'locond=', num2str(FD.loCond),...
         '_upcond=', num2str(FD.upCond), '/', 'BCcoeffs=', mat2str(boundaryCoeffs), '/');
+elseif strcmp(FD.distributionType, 'binary')
+    %Folder where finescale data is saved
+    fineDataPath = '~/matlab/data/fineData/';
+    %System size
+    fineDataPath = strcat(fineDataPath, 'systemSize=', num2str(domainf.nElX), 'x', num2str(domainf.nElY), '/');
+    %Type of conductivity distribution
+    fineDataPath = strcat(fineDataPath, FD.distributionType, '/volumeFraction=',...
+        num2str(FD.distributionParams{1}), '/', 'locond=', num2str(FD.loCond),...
+        '_upcond=', num2str(FD.upCond), '/', 'BCcoeffs=', mat2str(boundaryCoeffs), '/');
 else
     error('No savepath set for other distribution than correlated_binary')
 end

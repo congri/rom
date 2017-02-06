@@ -2,7 +2,7 @@
 %CHANGE JOBFILE IF YOU CHANGE LINE NUMBERS!
 %Number of training data samples
 nStart = 1; %start training sample in training data file
-nTrain = 16;
+nTrain = 32;
 
 %Anisotropy; do NOT use together with limEffCond
 condTransOpts.anisotropy = false;
@@ -11,7 +11,7 @@ condTransOpts.anisotropy = false;
 % condTransOpts.lowerCondLim = .96*loCond;
 % condTransOpts.shift = 4;    %controls eff. cond. for all theta_c = 0
 condTransOpts.upperCondLim = 1e10;
-condTransOpts.lowerCondLim = .01;
+condTransOpts.lowerCondLim = .001;
 %options:
 %log: x = log lambda
 %log_lower_bound: x = log(lambda - lower_bound), i.e. lambda > lower_bound
@@ -59,7 +59,7 @@ theta_prior_type = 'hierarchical_laplace';                  %hierarchical_gamma,
 sigma_prior_type = 'none';
 %prior hyperparams; obsolete for no prior
 % theta_prior_hyperparamArray = [0 1e-20];                   %a and b params for Gamma hyperprior
-theta_prior_hyperparamArray = [1];
+theta_prior_hyperparamArray = [10];
 % theta_prior_hyperparam = 10;
 sigma_prior_hyperparam = 1e3;
 
@@ -105,8 +105,8 @@ elseif condTransOpts.anisotropy
 elseif strcmp(condTransOpts.transform, 'log')
     initialParamsArray{1} = [log(loCond)*ones(1, domainc.nEl) 1*ones(1, domainc.nEl)];
 elseif strcmp(condTransOpts.transform, 'log_lower_bound')
-    initialParamsArray{1} = [log(.6*loCond + .4*upCond - condTransOpts.lowerCondLim)*ones(1, domainc.nEl)...
-        5*ones(1, domainc.nEl)];
+    initialParamsArray{1} = [log(1*loCond + 0*upCond - condTransOpts.lowerCondLim)*ones(1, domainc.nEl)...
+        20*ones(1, domainc.nEl)];
 else
     error('Which conductivity transformation?');
 end

@@ -45,6 +45,10 @@ else
     error('unknown conductivity transformation')
 end
 
-
+if(any(any(~isfinite(conductivity))))
+    conductivity
+    x
+    error('Non-finite conductivity')
+end
 end
 

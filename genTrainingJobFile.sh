@@ -1,15 +1,16 @@
 NF=256
-CORRLENGTH=20
+CORRLENGTH=10
 NTRAIN=32
 VOLFRAC=0.1	#Theoretical volume fraction
 LOCOND=1
-HICOND=1000
+HICOND=10
+HYPERPARAM=32	#Lasso sparsity hyperparameter
 NC=4
 BC="[-50 164 112 -30]"
 
 DATESTR=`date +%m-%d-%H-%M-%S`	#datestring for jobfolder name
 PROJECTDIR="/home/constantin/matlab/projects/rom"
-JOBNAME="LINPATHisotropicHiCondTrainModel_nTrain=${NTRAIN}_volfrac${VOLFRAC}_lo=${LOCOND}_hi=${HICOND}_Nc=${NC}l=${CORRLENGTH}"
+JOBNAME="crossValTrainModel_nTrain=${NTRAIN}_volfrac${VOLFRAC}_lo=${LOCOND}_hi=${HICOND}_Nc=${NC}l=${CORRLENGTH}gamma=${HYPERPARAM}"
 JOBDIR="/home/constantin/matlab/data/$DATESTR$JOBNAME"
 
 #Create job directory and copy source code
@@ -34,6 +35,7 @@ printf "#PBS -N $JOBNAME
 cd $JOBDIR
 #Set parameters
 sed -i \"5s/.*/nTrain = $NTRAIN;/\" ./params/params.m
+sed -i \"62s/.*/theta_prior_hyperparamArray = [$HYPERPARAM];/\" ./params/params.m
 sed -i \"4s/.*/nf = $NF;/\" ./loadTrainingData.m
 sed -i \"12s/.*/bc = '$BC';/\" ./loadTrainingData.m
 sed -i \"5s/.*/loCond = $LOCOND;/\" ./loadTrainingData.m

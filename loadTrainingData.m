@@ -6,7 +6,7 @@ loCond = 1;
 upCond = 10;
 nSamples = 1024;
 corrlength = '10';
-volfrac = '0.3';  %high conducting phase volume fraction
+volfrac = '0.1';  %high conducting phase volume fraction
 sigma_f2 = '1';
 cond_distribution = 'correlated_binary';
 bc = '[-50 164 112 -30]';
@@ -17,10 +17,18 @@ fineDataPath = '~/matlab/data/fineData/';
 %System size
 fineDataPath = strcat(fineDataPath, 'systemSize=', num2str(nf), 'x', num2str(nf), '/');
 %Type of conductivity distribution
-fineDataPath = strcat(fineDataPath, cond_distribution, '/', 'IsoSEcov/', 'l=',...
-    corrlength, '_sigmafSq=', sigma_f2, '/volumeFraction=',...
-    volfrac, '/', 'locond=', num2str(loCond),...
-    '_upcond=', num2str(upCond), '/', 'BCcoeffs=', bc, '/');
+if strcmp(cond_distribution, 'correlated_binary')
+    fineDataPath = strcat(fineDataPath, cond_distribution, '/', 'IsoSEcov/', 'l=',...
+        corrlength, '_sigmafSq=', sigma_f2, '/volumeFraction=',...
+        volfrac, '/', 'locond=', num2str(loCond),...
+        '_upcond=', num2str(upCond), '/', 'BCcoeffs=', bc, '/');
+elseif strcmp(cond_distribution, 'binary')
+    fineDataPath = strcat(fineDataPath, cond_distribution, '/volumeFraction=',...
+        volfrac, '/', 'locond=', num2str(loCond),...
+        '_upcond=', num2str(upCond), '/', 'BCcoeffs=', bc, '/');
+else
+    error('Unknown conductivity distribution')
+end
 clear nf corrlength volfrac sigma_f2 cond_distribution bc;
 
 

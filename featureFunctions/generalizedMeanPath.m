@@ -1,8 +1,9 @@
-function [N] = nPixelCross(lambdak, dir, phase, phaseConductivity, nElc, nElf, mode)
-%Number of pixels with phase phase going from left to right/ top to bottom on a straight line
+function [out] = generalizedMeanPath(lambdak, dir, nElc, nElf, meanParam, mode)
+%Generalized mean on a straight path from left to right/ top to bottom
 %   lambdak:        fine conductivities in coarse element k
 %   dir:            x or y direction
 %   phase:          Material phase, 1 or 2 for binary
+%   meanParam:      Generalized mean parameter
 %
 %   Output:
 %       N:          Number of pixels of phase phase that have to be crossed going from one side to
@@ -16,32 +17,33 @@ function [N] = nPixelCross(lambdak, dir, phase, phaseConductivity, nElc, nElf, m
 xc = nElf(1)/nElc(1);
 yc = nElf(2)/nElc(2);
 
-lambdakBin = (lambdak == phaseConductivity(phase));
-lambdakBin = reshape(lambdakBin, xc, yc);
+lambdak = reshape(lambdak, xc, yc);
 
 if dir == 'x'
-    N_vec = sum(lambdakBin)/xc;
-    
+    m = zeros(1, size(lambdak, 2));
+    for i = 1:size(lambdak, 2)
+        m(i) = generalizedMean(lambdak(:, i), meanParam);
+    end
 elseif dir == 'y'
-    N_vec = sum(lambdakBin, 2)/yc;
-    
+    m = zeros(1, size(lambdak, 1));
+    for i = 1:size(lambdak, 1)
+        m(i) = generalizedMean(lambdak(i, :), meanParam);
+    end
 else
-    error('Unknown direction for nPixelCross function')
+    error('Unknown direction for generalizedMeanPath function')
 end
 
 if strcmp(mode, 'mean')
-    N = mean(N_vec);
+    out = mean(m);
 elseif strcmp(mode, 'max')
-    N = max(N_vec);
+    out = max(m);
 elseif strcmp(mode, 'min')
-    N = min(N_vec);
+    out = min(m);
 elseif strcmp(mode, 'var')
-    N = var(N_vec);
+    out = var(m);
 else
     error('Unknown mode')
 end
 
 
 end
-
-

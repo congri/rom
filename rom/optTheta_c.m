@@ -80,18 +80,19 @@ while(~converged)
     end
     
     
-    sigma2Cutoff = 1e4;
-    if sigma2 == 0
-        warning('sigma2 == 0. Set it to small finite value')
-        sigma2 = 1e-10;
-    elseif sigma2 > sigma2Cutoff
+    sigma2CutoffHi = 1e4;
+    sigma2CutoffLo = 1e-12;
+    if sigma2 < sigma2CutoffLo
+        warning('sigma2 < cutoff. Set it to small cutoff value')
+        sigma2 = sigma2CutoffLo;
+    elseif sigma2 > sigma2CutoffHi
         warning('sigma2 > cutoff, set it to cutoff')
-        sigma2 = sigma2Cutoff;
+        sigma2 = sigma2CutoffHi;
     end
     
     iter = iter + 1;
     thetaDiffRel = norm(theta_old_old - theta)/(norm(theta)*numel(theta));
-    if(iter > 20 && thetaDiffRel < 1e-8)
+    if((iter > 20 && thetaDiffRel < 1e-8) || iter > 200)
         converged = true;
     end
     

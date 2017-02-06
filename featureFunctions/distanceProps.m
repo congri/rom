@@ -18,6 +18,24 @@ end
 
 dist = bwdist(lambdaMat, distMeasure);
 
+%Catch infinities: Take maximum possible distance
+if(any(any(isinf(dist))))
+    warning('Infinitiy in distance transformation. Setting to maximum possible distance')
+    if strcmp(distMeasure, 'cityblock')
+        dist(isinf(dist)) = size(dist, 1) + size(dist, 2);
+    elseif strcmp(distMeasure, 'chessboard')
+        dist(isinf(dist)) = max([size(dist, 1), size(dist, 2)]);
+    else
+        %Treat euclidean and quasi-euclidean equally. This is actually wrong for quasi-euclidean
+        dist(isinf(dist)) = norm(size(dist));
+    end
+end
+
+if(any(any(~isfinite(dist))))
+    dist
+    pause
+end
+
 
 m = mean(mean(dist));
 Max = max(max(dist));

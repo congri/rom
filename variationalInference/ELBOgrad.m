@@ -17,6 +17,11 @@ if strcmp(params.family, 'diagonalGaussian')
         try
             [~, trueGrad] = trueLogDist(variationalSample);
         catch
+            variationalParams
+            variationalMean
+            variationalStd
+            variationalSample
+            samples
             error('Gradient only implemented with reparametrization trick')
         end
         trueGrad = trueGrad';
