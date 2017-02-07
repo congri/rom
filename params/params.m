@@ -2,7 +2,7 @@
 %CHANGE JOBFILE IF YOU CHANGE LINE NUMBERS!
 %Number of training data samples
 nStart = 1; %start training sample in training data file
-nTrain = 32;
+nTrain = 16;
 
 %Anisotropy; do NOT use together with limEffCond
 condTransOpts.anisotropy = false;
@@ -59,7 +59,7 @@ theta_prior_type = 'hierarchical_laplace';                  %hierarchical_gamma,
 sigma_prior_type = 'none';
 %prior hyperparams; obsolete for no prior
 % theta_prior_hyperparamArray = [0 1e-20];                   %a and b params for Gamma hyperprior
-theta_prior_hyperparamArray = [10];
+theta_prior_hyperparamArray = [2];
 % theta_prior_hyperparam = 10;
 sigma_prior_hyperparam = 1e3;
 

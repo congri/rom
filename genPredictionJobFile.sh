@@ -1,7 +1,7 @@
 N_SAMPLES_P_C=10000
 TESTSAMPLE_LO=1
-TESTSAMPLE_UP=16
-TESTFILEPATH="\/home\/constantin\/matlab\/data\/fineData\/systemSize=256x256\/correlated_binary\/IsoSEcov\/l=5_sigmafSq=1\/volumeFraction=0.3\/locond=1_upcond=10\/BCcoeffs=[-50 164 112 -30]\/set1-samples=1024.mat"
+TESTSAMPLE_UP=128
+TESTFILEPATH="\/home\/constantin\/matlab\/data\/fineData\/systemSize=256x256\/correlated_binary\/IsoSEcov\/l=10_sigmafSq=1\/volumeFraction=0.1\/locond=1_upcond=10\/BCcoeffs=[-50 164 112 -30]\/set2-samples=128.mat"
 
 JOBNAME="prediction"
 

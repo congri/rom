@@ -1,4 +1,4 @@
-function [Tf_meanArray, Tf_varArray, Tf_mean_tot, Tf_sq_mean_tot, meanMahaErr, meanSqDist, sqDist, meanEffCond] =...
+function [Tf_meanArray, Tf_varArray, Tf_mean_tot, Tf_sq_mean_tot, meanMahaErr, meanSqDist, sqDist, meanEffCond, meanSqDistErr] =...
     predictOutput(nSamples_p_c, testSample_lo, testSample_up, testFilePath, modelParamsFolder)
 %Function to predict finescale output from generative model
 
@@ -46,6 +46,7 @@ disp('Solving coarse model and sample from p_cf...')
 addpath('./heatFEM')
 meanMahaErr = 0;
 meanSqDist = 0;
+meanSqDistSq = 0; %For error computation of error
 sqDist = 0;
 Tf_meanArray = zeros(domainf.nNodes, nTest);
 Tf_varArray = Tf_meanArray;
@@ -82,10 +83,12 @@ for j = 1:nTest
     
     if nargout > 4
         meanMahaErrTemp = mean(sqrt((.5./(Tf_var)).*(Tf(:, j) - Tf_mean).^2));
-        meanSqDistTemp = mean((Tf(:, j) - Tf_mean).^2)
         sqDistTemp = (Tf(:, j) - Tf_mean).^2;
+        meanSqDistTemp = mean(sqDistTemp)
         meanMahaErr = ((j- 1)/j)*meanMahaErr + (1/j)*meanMahaErrTemp;
         meanSqDist = ((j - 1)/j)*meanSqDist + (1/j)*meanSqDistTemp;
+        meanSqDistSq = ((j - 1)/j)*meanSqDistSq + (1/j)*meanSqDistTemp^2;
+        meanSqDistErr = sqrt((meanSqDistSq - meanSqDist^2)/j)
         sqDist = ((j - 1)/j)*sqDist + (1/j)*sqDistTemp;
     end
 end
