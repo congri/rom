@@ -15,7 +15,7 @@ bc = '[-50 164 112 -30]';
 
 %Prediction settings
 nStart = 1;
-nTrain = 256;
+nTrain = [2 4 6 8 10 12 14 16 32 64 128 256];
 nTest = 128;
 
 
@@ -46,10 +46,17 @@ trainFile = matfile(trainFileName);
 testFile = matfile(testFileName);
 
 
-trainMean = mean(trainFile.Tf(:, nStart:(nStart + nTrain - 1)), 2);
-T_test = testFile.Tf(:, 1:nTest);
-
-sqDist = 0;
-for i = 1:nTest
-    sqDist = ((i - 1)/i)*sqDist + (1/i)*mean((trainMean - T_test(:, i)).^2);  
+k = 1;
+sqDist = zeros(1, length(nTrain));
+sqDistSq = zeros(1, length(nTrain));
+for j = nTrain
+    trainMean = mean(trainFile.Tf(:, nStart:(nStart + j - 1)), 2);
+    T_test = testFile.Tf(:, 1:nTest);
+    
+    for i = 1:nTest
+        sqDist(k) = ((i - 1)/i)*sqDist(k) + (1/i)*mean((trainMean - T_test(:, i)).^2);
+        sqDistSq(k) = ((i - 1)/i)*sqDistSq(k) + (1/i)*mean((trainMean - T_test(:, i)).^2)^2;
+    end
+    sqDistErr(k) = sqrt((sqDistSq(k) - sqDist(k)^2)/nTest);
+    k = k + 1;
 end

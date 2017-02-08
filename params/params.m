@@ -31,7 +31,7 @@ genBasisFunctions;
 
 %% EM params
 basisFunctionUpdates = 0;
-basisUpdateGap = 100*ceil(nTrain/16);
+basisUpdateGap = 200*ceil(nTrain/16);
 maxIterations = (basisFunctionUpdates + 1)*basisUpdateGap - 1;
 
 %% Start value of model parameters
@@ -59,7 +59,7 @@ theta_prior_type = 'hierarchical_laplace';                  %hierarchical_gamma,
 sigma_prior_type = 'none';
 %prior hyperparams; obsolete for no prior
 % theta_prior_hyperparamArray = [0 1e-20];                   %a and b params for Gamma hyperprior
-theta_prior_hyperparamArray = [2];
+theta_prior_hyperparamArray = [.001];
 % theta_prior_hyperparam = 10;
 sigma_prior_hyperparam = 1e3;
 

@@ -3,6 +3,10 @@ function [Xopt, LambdaOpt, s2, thetaOpt, s2theta, LambdaThetaOpt] = detOpt_p_cf(
 
 addpath('./heatFEM')
 addpath('./rom')
+addpath('./params')
+addpath('./aux')
+addpath('./FEMgradient')
+addpath('./featureFunctions')
 
 
 %Conductivity transformation options

@@ -1,11 +1,11 @@
 NF=256
 CORRLENGTH=10
-NTRAIN=14
+NTRAIN=256
 VOLFRAC=0.1	#Theoretical volume fraction
 LOCOND=1
 HICOND=10
-HYPERPARAM=2	#Lasso sparsity hyperparameter
-NC=4
+HYPERPARAM=8	#Lasso sparsity hyperparameter
+NC=2
 BC="[-50 164 112 -30]"
 
 DATESTR=`date +%m-%d-%H-%M-%S`	#datestring for jobfolder name
@@ -26,7 +26,7 @@ rm job_file.sh
 
 #write job file
 printf "#PBS -N $JOBNAME
-#PBS -l nodes=1:ppn=14,walltime=240:00:00
+#PBS -l nodes=1:ppn=16,walltime=240:00:00
 #PBS -e $JOBDIR
 #PBS -m abe
 #PBS -M mailscluster@gmail.com
