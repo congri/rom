@@ -102,6 +102,7 @@ classdef DesignMatrix
             end
             
             Phi.designMatrices = PhiCell;
+            %Check for real finite inputs
             for i = 1:nTrain
                 if(~all(all(all(isfinite(Phi.designMatrices{i})))))
                     dataPoint = i

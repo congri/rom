@@ -31,7 +31,7 @@ for i = 1:numel(extrema)
         meanExtSq = meanExtSq + maxExt_blob.^2;
     end
 end
-if(numel(extrema) > 0 && isfinite(meanExt) && isifnite(meanExtSq))
+if(numel(extrema) > 0 && isfinite(meanExt) && isfinite(meanExtSq))
     meanExt = meanExt/numel(extrema);
     meanExtSq = meanExtSq/numel(extrema);
 else

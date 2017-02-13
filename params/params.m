@@ -2,7 +2,7 @@
 %CHANGE JOBFILE IF YOU CHANGE LINE NUMBERS!
 %Number of training data samples
 nStart = 1; %start training sample in training data file
-nTrain = 16;
+nTrain = 2;
 
 %Anisotropy; do NOT use together with limEffCond
 condTransOpts.anisotropy = false;
@@ -11,13 +11,13 @@ condTransOpts.anisotropy = false;
 % condTransOpts.lowerCondLim = .96*loCond;
 % condTransOpts.shift = 4;    %controls eff. cond. for all theta_c = 0
 condTransOpts.upperCondLim = 1e10;
-condTransOpts.lowerCondLim = .001;
+condTransOpts.lowerCondLim = 1e-10;
 %options:
 %log: x = log lambda
 %log_lower_bound: x = log(lambda - lower_bound), i.e. lambda > lower_bound
 %logit: lambda = logit(x), s.t. lowerCondLim < lambda < upperCondLim
 %log_cholesky: unique cholesky decomposition for anisotropy
-condTransOpts.transform = 'log_lower_bound';
+condTransOpts.transform = 'log';
 if ~exist('./data/', 'dir')
     mkdir('./data/');
 end
@@ -39,27 +39,27 @@ maxIterations = (basisFunctionUpdates + 1)*basisUpdateGap - 1;
 theta_cf.W = shapeInterp(domainc, domainf);
 %shrink finescale domain object to save memory
 domainf = domainf.shrink();
-theta_cf.S = 100*ones(domainf.nNodes, 1);
+theta_cf.S = 1*ones(domainf.nNodes, 1);
 theta_cf.Sinv = sparse(1:domainf.nNodes, 1:domainf.nNodes, 1./theta_cf.S);
 %precomputation to save resources
 theta_cf.WTSinv = theta_cf.W'*theta_cf.Sinv;
 theta_cf.mu = zeros(domainf.nNodes, 1);
 % theta_c.theta = (1/size(phi, 1))*ones(size(phi, 1), 1);
 % theta_c.theta = -10*ones(nBasis, 1);
-theta_c.theta = 0*cos(pi*(1:nBasis)');
+theta_c.theta = 0.5*cos(pi*(1:nBasis)');
 % d = .01;
 % theta_c.theta = 2*d*rand(nBasis, 1) - d;
 % theta_c.theta(end) = 1;
 % theta_c.theta = 0;
-theta_c.sigma = 1e0;
+theta_c.sigma = 1e-4;
 
 
 %what kind of prior for theta_c
 theta_prior_type = 'hierarchical_laplace';                  %hierarchical_gamma, hierarchical_laplace, laplace, gaussian, spikeAndSlab or none
 sigma_prior_type = 'none';
 %prior hyperparams; obsolete for no prior
-% theta_prior_hyperparamArray = [0 1e-20];                   %a and b params for Gamma hyperprior
-theta_prior_hyperparamArray = [.001];
+%theta_prior_hyperparamArray = [0 1e-20];                   %a and b params for Gamma hyperprior
+theta_prior_hyperparamArray = [30];
 % theta_prior_hyperparam = 10;
 sigma_prior_hyperparam = 1e3;
 
@@ -111,7 +111,7 @@ else
     error('Which conductivity transformation?');
 end
 initialParamsArray = repmat(initialParamsArray, nTrain, 1);
-VIparams.nSamples = 20;    %Gradient samples per iteration
+VIparams.nSamples = 50;    %Gradient samples per iteration
 VIparams.inferenceSamples = 200;
 VIparams.optParams.optType = 'adam';
 VIparams.optParams.dim = domainc.nEl;

@@ -19,7 +19,7 @@ if(dir == 'x')
         leftIndex = find(left);
         conPath = 0;
         for i = leftIndex'
-            geo = bwdistgeodesic(lambdakBin, i, 1);
+            geo = bwdistgeodesic(lambdakBin, 1, i);
             if(any(isfinite(geo(:, end))))
                 if strcmp(mode, 'exist')
                     %Connected path found, exit loop
@@ -29,6 +29,12 @@ if(dir == 'x')
                     conPathTemp = 1/min(geo(:, end));
                     if(conPathTemp > conPath)
                         conPath = conPathTemp;
+                        if(~isfinite(conPath))
+                            i
+                            dir
+                            geo
+                            error('Zero path length of connected path')
+                        end
                     end
                 end
             end
@@ -41,11 +47,11 @@ elseif(dir == 'y')
     top = lambdakBin(1, :);
     bottom = lambdakBin(end, :);
     if(any(top) && any(bottom))
-        %Loop through left boundary and use right boundary as mask for matlab bwgeodesic function
+        %Loop through upper boundary and use lower boundary as mask for matlab bwgeodesic function
         topIndex = find(top);
         conPath = 0;
         for i = topIndex
-            geo = bwdistgeodesic(lambdakBin, 1, i);
+            geo = bwdistgeodesic(lambdakBin, i, 1);
             if(any(isfinite(geo(end, :))))
                 if strcmp(mode, 'exist')
                     %Connected path found, exit loop
@@ -55,6 +61,12 @@ elseif(dir == 'y')
                     conPathTemp = 1/min(geo(end, :));
                     if(conPathTemp > conPath)
                         conPath = conPathTemp;
+                        if(~isfinite(conPath))
+                            i
+                            dir
+                            geo
+                            error('Zero path length of connected path')
+                        end
                     end
                 end
             end

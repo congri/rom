@@ -11,6 +11,7 @@ fsolve_options_sigma = optimoptions('fsolve', 'SpecifyObjectiveGradient', true,.
 
 %Solve self-consistently: compute optimal sigma2, then theta, then sigma2 again and so on
 theta = theta_c.theta;
+I = eye(length(theta));
 sigma2 = theta_c.sigma^2;
 logSigmaMinus2 = -2*log(theta_c.sigma);
 iter = 0;
@@ -28,20 +29,32 @@ while(~converged)
         
         if strcmp(theta_prior_type, 'hierarchical_laplace')
             %Matrix M is pos. def., invertible even if badly conditioned
-            warning('off', 'MATLAB:nearlySingularMatrix');
-            M = sumPhiSq + theta_prior_hyperparam(1)*diag((2*sigma2)./(abs(theta_old) + 1e-30));
+%             warning('off', 'MATLAB:nearlySingularMatrix');
+%             M = sumPhiSq + theta_prior_hyperparam(1)*diag((2*sigma2)./(abs(theta_old) + offset));
+            offset = 1e-30;
+%             V = theta_prior_hyperparam(1)*diag(1./(abs(theta_old) + offset));
+            U = diag(sqrt((abs(theta_old) + offset)/theta_prior_hyperparam(1)));
         elseif strcmp(theta_prior_type, 'hierarchical_gamma')
             %Matrix M is pos. def., invertible even if badly conditioned
-            warning('off', 'MATLAB:nearlySingularMatrix');
-            M = sumPhiSq + sigma2*diag((theta_prior_hyperparam(1) + .5)./(.5*abs(theta_old).^2 + theta_prior_hyperparam(2)));
+%             warning('off', 'MATLAB:nearlySingularMatrix');
+%             M = sumPhiSq + sigma2*diag((theta_prior_hyperparam(1) + .5)./(.5*abs(theta_old).^2 + theta_prior_hyperparam(2)));
+%             V = diag((theta_prior_hyperparam(1) + .5)./(.5*abs(theta_old).^2 + theta_prior_hyperparam(2)));
+            U = diag(sqrt((.5*abs(theta_old).^2 + theta_prior_hyperparam(2))./(theta_prior_hyperparam(1) + .5)));
         elseif strcmp(theta_prior_type, 'none')
             M = sumPhiSq;
         else
             error('Unknown prior on theta_c')
         end
-        theta_temp = M\sumPhiTXmean;
+
+        if strcmp(theta_prior_type, 'none')
+            theta_temp = sumPhiSq\sumPhiTXmean;
+        else
+%             theta_temp = M\sumPhiTXmean;
+%             theta_temp = (sigma2*V + sumPhiSq)\sumPhiTXmean;
+            theta_temp = U*((sigma2*I + U*sumPhiSq*U)\U)*sumPhiTXmean;
+        end
         
-        if(norm(theta_temp)/length(theta_temp) > 1e1)
+        if(norm(theta_temp)/length(theta_temp) > 5e1)
             warning('theta_c is assuming unusually large values. Using Newton-Raphson instead of mldivide.')
             %theta = fsolve(gradHessTheta, theta, fsolve_options_theta);
             

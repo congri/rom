@@ -20,7 +20,7 @@ load('./data/conductivityTransformation.mat');
 condTransOpts.anisotropy = false;
 Phi = Phi.computeDesignMatrix(domainc.nEl, domainf.nEl, condTransOpts);
 %Normalize design matrices
-% Phi = Phi.standardizeDesignMatrix(featureFunctionMean, featureFunctionSqMean);
+%Phi = Phi.standardizeDesignMatrix(featureFunctionMean, featureFunctionSqMean);
 Phi = Phi.rescaleDesignMatrix(featureFunctionMin, featureFunctionMax);
 
 tic;

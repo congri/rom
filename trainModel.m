@@ -29,7 +29,8 @@ ppool = gcp;    %parallel pool properties
 pend = 0;       %for sequential qi-updates
 %prealloc
 XMean = zeros(domainc.nEl, nTrain);
-XNormSqMean = zeros(1, nTrain);
+% XNormSqMean = zeros(1, nTrain);
+XNormSqMean = ones(1, nTrain);
 
 Tf = Tffile.Tf(:, nStart:(nStart + nTrain - 1));        %Finescale temperatures - load partially to save memory
 
@@ -37,7 +38,7 @@ Tf = Tffile.Tf(:, nStart:(nStart + nTrain - 1));        %Finescale temperatures 
 Phi = DesignMatrix([domainf.nElX domainf.nElY], [domainc.nElX domainc.nElY], phi, Tffile, nStart:(nStart + nTrain - 1));
 Phi = Phi.computeDesignMatrix(domainc.nEl, domainf.nEl, condTransOpts);
 %Normalize design matrices
-% Phi = Phi.standardizeDesignMatrix;
+%Phi = Phi.standardizeDesignMatrix;
 Phi = Phi.rescaleDesignMatrix;
 Phi.saveNormalization('rescaling'); %'rescaling' if rescaleDesignMatrix is used, 'standardization' if standardizeDesignMatrix is used
 %Compute sum_i Phi^T(x_i)^Phi(x_i)
@@ -264,10 +265,20 @@ for k = 2:(maxIterations + 1)
     if plotTheta
        if ~exist('thetaArray')
            thetaArray = theta_c.theta';
+           sigmaArray = theta_c.sigma;
        else
            thetaArray = [thetaArray; theta_c.theta'];
+           sigmaArray = [sigmaArray, theta_c.sigma];
        end
-       plot(thetaArray, 'linewidth', 2)
+	   subplot(1,3,1)
+       plot(thetaArray, 'linewidth', 1)
+	   axis tight;
+       subplot(1,3,2)
+       plot(sigmaArray, 'linewidth', 1)
+       axis tight;
+       subplot(1,3,3)
+       plot(theta_c.theta, 'linewidth', 1)
+       axis tight;
        drawnow
     end
        

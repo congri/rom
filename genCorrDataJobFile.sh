@@ -1,10 +1,10 @@
 NF=256
-CORRLENGTH=10
-NSET1=128
-NSET2=16
-VOLFRAC=0.3	#Theoretical volume fraction
+CORRLENGTH=20
+NSET1=1024
+NSET2=128
+VOLFRAC=0.15	#Theoretical volume fraction
 LOCOND=1
-HICOND=10
+HICOND=100
 
 #Set up file paths
 PROJECTDIR="/home/constantin/matlab/projects/rom"

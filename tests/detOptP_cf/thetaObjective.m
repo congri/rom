@@ -7,8 +7,8 @@ gradObj = 0;
 for i = nStart:(nStart + nTrain - 1)
     X = Phi.designMatrices{i}*theta;
     [objTemp, gradObjTemp] = objective(X, Tf, domainc, condTransOpts, theta_cf);
-    obj = obj + 2*objTemp;
-    gradObj = gradObj + 2*Phi.designMatrices{i}'*gradObjTemp;
+    obj = obj + objTemp;
+    gradObj = gradObj + Phi.designMatrices{i}'*gradObjTemp;
     j = j + 1;
 end
 

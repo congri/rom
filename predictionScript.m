@@ -3,7 +3,7 @@ nSamples_p_c = 1000;
 testSample_lo = 1;
 testSample_up = 16;
 testFilePath = ...
-'~/matlab/data/fineData/systemSize=256x256/correlated_binary/IsoSEcov/l=10_sigmafSq=1/volumeFraction=0.1/locond=1_upcond=10/BCcoeffs=[-50 164 112 -30]/set2-samples=128.mat';
+'~/matlab/data/fineData/systemSize=256x256/correlated_binary/IsoSEcov/l=20_sigmafSq=1/volumeFraction=0.15/locond=1_upcond=2/BCcoeffs=[-50 164 112 -30]/set2-samples=128.mat';
 modelParamsFolder = '';
 
 addpath('./aux')  %Is obsolete
