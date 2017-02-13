@@ -95,7 +95,7 @@ classdef DesignMatrix
                         if condTransOpts.anisotropy
                             PhiCell{s}((1 + (i - 1)*3):(i*3), j) = phi{j}(lambdak(:, i));
                         else
-                            PhiCell{s}(i, j) = phi{j}(lambdak(:, i));
+                            PhiCell{s}(i, j) = phi{j}(lambdak(:, i));                           
                         end
                     end
                 end
@@ -123,6 +123,51 @@ classdef DesignMatrix
             Phi_computation_time = toc
             
         end
+        
+        function Phi = includeNearestNeighborFeatures(Phi, nc)
+            %Can only be executed after standardization/rescaling!
+            %nc/nf: coarse/fine elements in x/y direction
+            disp('Including nearest neighbor feature function information...')
+            nElc = prod(nc);
+            nFeatureFunctions = numel(Phi.featureFunctions);
+            PhiCell{1} = zeros(nElc, 5*nFeatureFunctions);
+            nTrain = length(Phi.dataSamples);
+            PhiCell = repmat(PhiCell, nTrain, 1);
+            
+            for s = 1:nTrain
+                PhiCell{s}(:, 1:nFeatureFunctions) = Phi.designMatrices{s};
+                
+                %Only assign nonzero values to design matrix for neighboring elements if
+                %neighbor in respective direction exists
+                for i = 1:nElc
+                    if(mod(i, nc(1)) ~= 0)
+                        %right neighbor of coarse element exists
+                        PhiCell{s}(i, (nFeatureFunctions + 1):(2*nFeatureFunctions)) =...
+                           Phi.designMatrices{s}(i + 1, :);
+                    end
+                    
+                    if(i < nc(1)*(nc(2) - 1))
+                        %upper neighbor of coarse element exists
+                        PhiCell{s}(i, (2*nFeatureFunctions + 1):(3*nFeatureFunctions)) =...
+                            Phi.designMatrices{s}(i + nc(1), :);
+                    end
+                    
+                    if(mod(i - 1, nc(1)) ~= 0)
+                        %left neighbor of coarse element exists
+                        PhiCell{s}(i, (3*nFeatureFunctions + 1):(4*nFeatureFunctions)) =...
+                            Phi.designMatrices{s}(i - 1, :);
+                    end
+                    
+                    if(i > nc(1))
+                        %lower neighbor of coarse element exists
+                        PhiCell{s}(i, (4*nFeatureFunctions + 1):(5*nFeatureFunctions)) =...
+                            Phi.designMatrices{s}(i - nc(1), :);
+                    end
+                end
+            end
+            Phi.designMatrices = PhiCell;
+            
+        end%includeNearestNeighborFeatures
         
         function Phi = computeFeatureFunctionMinMax(Phi)
             %Computes min/max of feature function outputs over training data
@@ -156,6 +201,7 @@ classdef DesignMatrix
         
         function Phi = rescaleDesignMatrix(Phi, featFuncMin, featFuncMax)
             %Rescale design matrix s.t. outputs are between 0 and 1
+            disp('Rescale design matrix...')
             if(nargin > 1)
                 for i = 1:numel(Phi.designMatrices)
                     Phi.designMatrices{i} = (Phi.designMatrices{i} - featFuncMin)./...
@@ -173,6 +219,9 @@ classdef DesignMatrix
                 if(~all(all(all(isfinite(Phi.designMatrices{i})))))
                     warning('Non-finite design matrix Phi. Setting non-finite component to 0.')
                     Phi.designMatrices{i}(~isfinite(Phi.designMatrices{i})) = 0;
+                    dataPoint = i
+                    [coarseElement, featureFunction] = ind2sub(size(Phi.designMatrices{i}),...
+                        find(~isfinite(Phi.designMatrices{i})))
                 elseif(~all(all(all(isreal(Phi.designMatrices{i})))))
                     warning('Complex feature function output:')
                     dataPoint = i
@@ -182,11 +231,12 @@ classdef DesignMatrix
                     Phi.designMatrices{i} = real(Phi.designMatrices{i});
                 end
             end
+            disp('done')
         end
         
         function Phi = standardizeDesignMatrix(Phi, featFuncMean, featFuncSqMean)
             %Standardize covariates to have 0 mean and unit variance
-            
+            disp('Standardize design matrix')
             %Compute std
             if(nargin > 1)
                 Phi.featureFunctionStd = sqrt(featFuncSqMean - featFuncMean.^2);
@@ -230,6 +280,7 @@ classdef DesignMatrix
                     Phi.designMatrices{i} = real(Phi.designMatrices{i});
                 end
             end
+            disp('done')
         end
         
         

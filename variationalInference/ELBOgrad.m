@@ -14,16 +14,17 @@ if strcmp(params.family, 'diagonalGaussian')
     varGradSq = zeros(1, dim);
     for i = 1:params.nSamples
         variationalSample = variationalMean + variationalStd.*samples(i, :);
-        try
+        %what was the try catch again for?
+%         try
             [~, trueGrad] = trueLogDist(variationalSample);
-        catch
-            variationalParams
-            variationalMean
-            variationalStd
-            variationalSample
-            samples
-            error('Gradient only implemented with reparametrization trick')
-        end
+%         catch
+%             variationalParams
+%             variationalMean
+%             variationalStd
+%             variationalSample
+%             samples
+%             error('Gradient only implemented with reparametrization trick')
+%         end
         trueGrad = trueGrad';
         %Gradient of model distribution
         meanGrad = ((i - 1)/i)*meanGrad + (1/i)*trueGrad;

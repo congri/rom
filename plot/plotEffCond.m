@@ -30,7 +30,7 @@ for i = 1:3
     subplot(2,3, i + 3)
     imagesc(reshape(meanEffCond(:, i), nc, nc));
 %     caxis([min(min(meanEffCond)) max(max(meanEffCond))]);
-    caxis([1 2]);
+%     caxis([1 2]);
     axis square
     grid off
     xticklabels({})
@@ -47,7 +47,7 @@ for i = 1:3
     c2.FontSize = 22;
     c2.Label.String = '\Lambda';
     c2.Label.Rotation = 0;
-    c2.Ticks = [1 1.2 1.4 1.6 1.8 2];
+%     c2.Ticks = [1 1.2 1.4 1.6 1.8 2];
     
 end
 end

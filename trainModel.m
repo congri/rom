@@ -42,6 +42,10 @@ Phi = Phi.computeDesignMatrix(domainc.nEl, domainf.nEl, condTransOpts);
 Phi = Phi.rescaleDesignMatrix;
 Phi.saveNormalization('rescaling'); %'rescaling' if rescaleDesignMatrix is used, 'standardization' if standardizeDesignMatrix is used
 %Compute sum_i Phi^T(x_i)^Phi(x_i)
+if useNeighbor
+    %use feature function information from nearest neighbors
+    Phi = Phi.includeNearestNeighborFeatures([domainc.nElX domainc.nElY]);
+end
 Phi = Phi.computeSumPhiTPhi;
 
 
@@ -241,7 +245,7 @@ for k = 2:(maxIterations + 1)
 
     %optimal theta_c and sigma
     %sum_i Phi_i^T <X^i>_qi
-    sumPhiTXmean = zeros(numel(phi), 1);
+    sumPhiTXmean = zeros(numel(theta_c.theta), 1);
     for i = 1:nTrain
         sumPhiTXmean = sumPhiTXmean + Phi.designMatrices{i}'*XMean(:, i);
     end
@@ -260,7 +264,9 @@ for k = 2:(maxIterations + 1)
     disp('M-step done, current params:')
     k
     [~, index] = sort(abs(theta_c.theta));
-    curr_theta = [theta_c.theta(index) index]
+    feature = mod((index - 1), numel(Phi.featureFunctions)) + 1;
+    neighborElement = floor((index - 1)/numel(Phi.featureFunctions));
+    curr_theta = [theta_c.theta(index) feature neighborElement]
     plotTheta = true;
     if plotTheta
        if ~exist('thetaArray')

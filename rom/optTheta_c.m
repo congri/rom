@@ -89,7 +89,7 @@ while(~converged)
         logSigmaMinus2 = fsolve(gradHessLogSigmaMinus2, logSigmaMinus2, fsolve_options_sigma);
         sigmaMinus2 = exp(logSigmaMinus2);
         sigma2_old = sigma2;
-        sigma2 = 1/sigmaMinus2
+        sigma2 = 1/sigmaMinus2;
     end
     
     
@@ -105,7 +105,7 @@ while(~converged)
     
     iter = iter + 1;
     thetaDiffRel = norm(theta_old_old - theta)/(norm(theta)*numel(theta));
-    if((iter > 20 && thetaDiffRel < 1e-8) || iter > 200)
+    if((iter > 50 && thetaDiffRel < 1e-8) || iter > 500)
         converged = true;
     end
     
