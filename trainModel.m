@@ -29,6 +29,7 @@ ppool = gcp;    %parallel pool properties
 pend = 0;       %for sequential qi-updates
 %prealloc
 XMean = zeros(domainc.nEl, nTrain);
+XSqMean = ones(domainc.nEl, nTrain);
 % XNormSqMean = zeros(1, nTrain);
 XNormSqMean = ones(1, nTrain);
 
@@ -45,8 +46,13 @@ Phi.saveNormalization('rescaling'); %'rescaling' if rescaleDesignMatrix is used,
 if useNeighbor
     %use feature function information from nearest neighbors
     Phi = Phi.includeNearestNeighborFeatures([domainc.nElX domainc.nElY]);
+elseif useLocal
+    Phi = Phi.localTheta_c([domainc.nElX domainc.nElY]);
 end
 Phi = Phi.computeSumPhiTPhi;
+if useLocal
+    Phi.sumPhiTPhi = sparse(Phi.sumPhiTPhi);
+end
 
 
 
@@ -178,6 +184,7 @@ for k = 2:(maxIterations + 1)
             if(strcmp(VIparams.family, 'diagonalGaussian'))
                 VIdim = length(optVarDist{i}.params);
                 XMean(:, i) = optVarDist{i}.params(1:(VIdim/2));
+                XSqMean(:, i) = optVarDist{i}.params(1:(VIdim/2)).^2 + exp(-optVarDist{i}.params(((VIdim/2) + 1):end));
                 XNormSqMean(i) = sum([optVarDist{i}.params(1:(VIdim/2)).^2 exp(-optVarDist{i}.params(((VIdim/2) + 1):end))]);
             else
                 error('VI not implemented for this family of functions')
@@ -244,20 +251,14 @@ for k = 2:(maxIterations + 1)
     theta_cf.WTSinv = theta_cf.W'*theta_cf.Sinv;        %Precomputation for efficiency
 
     %optimal theta_c and sigma
-    %sum_i Phi_i^T <X^i>_qi
-    sumPhiTXmean = zeros(numel(theta_c.theta), 1);
-    for i = 1:nTrain
-        sumPhiTXmean = sumPhiTXmean + Phi.designMatrices{i}'*XMean(:, i);
-    end
-
     sigma_old = theta_c.sigma;
     theta_old = theta_c.theta;
     %Adjust hyperprior to not get stuck at 0
     if(k - 1 <= size(theta_prior_hyperparamArray, 1))
         theta_prior_hyperparam = theta_prior_hyperparamArray(k - 1, :)
     end
-    theta_c = optTheta_c(theta_c, nTrain, domainc.nEl, XNormSqMean,...
-        sumPhiTXmean, Phi.sumPhiTPhi, theta_prior_type, theta_prior_hyperparam,...
+    theta_c = optTheta_c(theta_c, nTrain, domainc.nEl, XSqMean,...
+        Phi, XMean, theta_prior_type, theta_prior_hyperparam,...
         sigma_prior_type, sigma_prior_hyperparam);
     theta_c.sigma = (1 - mix_sigma)*theta_c.sigma + mix_sigma*sigma_old;
     theta_c.theta = (1 - mix_theta)*theta_c.theta + mix_theta*theta_old;
@@ -268,6 +269,10 @@ for k = 2:(maxIterations + 1)
         feature = mod((index - 1), numel(Phi.featureFunctions)) + 1;
         neighborElement = floor((index - 1)/numel(Phi.featureFunctions));
         curr_theta = [theta_c.theta(index) feature neighborElement]
+    elseif useLocal
+        feature = mod((index - 1), numel(Phi.featureFunctions)) + 1;
+        Element = floor((index - 1)/numel(Phi.featureFunctions)) + 1;
+        curr_theta = [theta_c.theta(index) feature Element]
     else
         curr_theta = [theta_c.theta(index) index]
     end

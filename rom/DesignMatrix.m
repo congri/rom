@@ -166,8 +166,32 @@ classdef DesignMatrix
                 end
             end
             Phi.designMatrices = PhiCell;
-            
+            disp('done')
         end%includeNearestNeighborFeatures
+        
+        function Phi = localTheta_c(Phi, nc)
+            %Sets separate coefficients theta_c for each macro-cell in a single microstructure
+            %sample
+            %Can never be executed before rescaling/standardization of design Matrix!
+            disp('Using separate feature coefficients theta_c for each macro-cell in a microstructure...')
+            nElc = prod(nc);
+            nFeatureFunctions = numel(Phi.featureFunctions);
+            PhiCell{1} = zeros(nElc, nElc*nFeatureFunctions);
+            nTrain = length(Phi.dataSamples);
+            PhiCell = repmat(PhiCell, nTrain, 1);
+            
+            %Reassemble design matrix
+            for s = 1:nTrain
+                for i = 1:nElc
+                    PhiCell{s}(i, ((i - 1)*nFeatureFunctions + 1):(i*nFeatureFunctions)) = ...
+                      Phi.designMatrices{s}(i, :);
+                    PhiCell{s} = sparse(PhiCell{s});
+                end
+            end
+            Phi.designMatrices = PhiCell;
+            disp('done')
+            
+        end%localTheta_c
         
         function Phi = computeFeatureFunctionMinMax(Phi)
             %Computes min/max of feature function outputs over training data

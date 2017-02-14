@@ -1,5 +1,5 @@
 function [TfMeanArray, TfVarArray, Tf_mean_tot, Tf_sq_mean_tot, meanMahaErr, meanSqDist, sqDist, meanEffCond, meanSqDistErr] =...
-    predictOutput(nSamples_p_c, testSample_lo, testSample_up, testFilePath, modelParamsFolder, useNeighbor)
+    predictOutput(nSamples_p_c, testSample_lo, testSample_up, testFilePath, modelParamsFolder, useNeighbor, useLocal)
 %Function to predict finescale output from generative model
 
 %Load test file
@@ -25,6 +25,8 @@ Phi = Phi.rescaleDesignMatrix(featureFunctionMin, featureFunctionMax);
 if useNeighbor
     %use feature function information from nearest neighbors
     Phi = Phi.includeNearestNeighborFeatures([domainc.nElX domainc.nElY]);
+elseif useLocal
+    Phi = Phi.localTheta_c([domainc.nElX domainc.nElY]);
 end
 
 %% Sample from p_c

@@ -2,7 +2,7 @@
 %CHANGE JOBFILE IF YOU CHANGE LINE NUMBERS!
 %Number of training data samples
 nStart = 1; %start training sample in training data file
-nTrain = 128;
+nTrain = 32;
 
 %Anisotropy; do NOT use together with limEffCond
 condTransOpts.anisotropy = false;
@@ -30,6 +30,10 @@ genCoarseDomain;
 genBasisFunctions;
 %use neighboring element information?
 useNeighbor = false;
+%use separate theta_c's for each macro-element?
+useLocal = false;
+assert(~(useNeighbor && useLocal), 'useNeighbor and useLocal cannot be used at the same time')
+
 
 %% EM params
 basisFunctionUpdates = 0;
@@ -51,6 +55,8 @@ theta_cf.mu = zeros(domainf.nNodes, 1);
 theta_c.theta = 0*cos(pi*(1:nBasis)');
 if useNeighbor
     theta_c.theta = repmat(theta_c.theta, 5, 1);
+elseif useLocal
+    theta_c.theta = repmat(theta_c.theta, domainc.nEl, 1);   
 end
 
 % d = .01;
@@ -62,7 +68,7 @@ theta_c.sigma = 1e-4;
 
 %what kind of prior for theta_c
 theta_prior_type = 'hierarchical_laplace';                  %hierarchical_gamma, hierarchical_laplace, laplace, gaussian, spikeAndSlab or none
-sigma_prior_type = 'exponential_sigma2';
+sigma_prior_type = 'none';
 %prior hyperparams; obsolete for no prior
 %theta_prior_hyperparamArray = [0 1e-20];                   %a and b params for Gamma hyperprior
 theta_prior_hyperparamArray = [50];
