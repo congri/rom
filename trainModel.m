@@ -264,9 +264,13 @@ for k = 2:(maxIterations + 1)
     disp('M-step done, current params:')
     k
     [~, index] = sort(abs(theta_c.theta));
-    feature = mod((index - 1), numel(Phi.featureFunctions)) + 1;
-    neighborElement = floor((index - 1)/numel(Phi.featureFunctions));
-    curr_theta = [theta_c.theta(index) feature neighborElement]
+    if useNeighbor
+        feature = mod((index - 1), numel(Phi.featureFunctions)) + 1;
+        neighborElement = floor((index - 1)/numel(Phi.featureFunctions));
+        curr_theta = [theta_c.theta(index) feature neighborElement]
+    else
+        curr_theta = [theta_c.theta(index) index]
+    end
     plotTheta = true;
     if plotTheta
        if ~exist('thetaArray')

@@ -72,7 +72,6 @@ parfor j = 1:nTest
         Tf_mean{j} = ((i - 1)/i)*Tf_mean{j} + (1/i)*Tf_temp;
         Tf_sq_mean{j} = ((i - 1)/i)*Tf_sq_mean{j} + (1/i)*(Tf_temp.^2);
     end
-    disp('done')
     Tf_var = abs(Tf_sq_mean{j} - Tf_mean{j}.^2);  %abs to avoid negative variance due to numerical error
     meanTf_meanMCErr = mean(sqrt(Tf_var/nSamples_p_c))
     TfMeanArray{j} = Tf_mean{j};

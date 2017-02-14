@@ -29,7 +29,7 @@ genCoarseDomain;
 %% Generate basis function for p_c
 genBasisFunctions;
 %use neighboring element information?
-useNeighbor = true;
+useNeighbor = false;
 
 %% EM params
 basisFunctionUpdates = 0;

@@ -1,7 +1,7 @@
 %%Script for output prediction
 nSamples_p_c = 1000;
 testSample_lo = 1;
-testSample_up = 64;
+testSample_up = 128;
 testFilePath = ...
 '~/matlab/data/fineData/systemSize=256x256/correlated_binary/IsoSEcov/l=20_sigmafSq=1/volumeFraction=0.05/locond=1_upcond=100/BCcoeffs=[-50 164 112 -30]/set2-samples=128.mat';
 modelParamsFolder = '';
