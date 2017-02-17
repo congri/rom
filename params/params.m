@@ -37,7 +37,7 @@ assert(~(useNeighbor && useLocal), 'useNeighbor and useLocal cannot be used at t
 
 %% EM params
 basisFunctionUpdates = 0;
-basisUpdateGap = 200*ceil(nTrain/16);
+basisUpdateGap = 75*ceil(nTrain/16);
 maxIterations = (basisFunctionUpdates + 1)*basisUpdateGap - 1;
 
 %% Start value of model parameters
@@ -67,11 +67,11 @@ theta_c.sigma = 1e-4;
 
 
 %what kind of prior for theta_c
-theta_prior_type = 'hierarchical_laplace';                  %hierarchical_gamma, hierarchical_laplace, laplace, gaussian, spikeAndSlab or none
+theta_prior_type = 'hierarchical_gamma';                  %hierarchical_gamma, hierarchical_laplace, laplace, gaussian, spikeAndSlab or none
 sigma_prior_type = 'none';
 %prior hyperparams; obsolete for no prior
-%theta_prior_hyperparamArray = [0 1e-20];                   %a and b params for Gamma hyperprior
-theta_prior_hyperparamArray = [50];
+theta_prior_hyperparamArray = [1e-10 1e-10];                   %a and b params for Gamma hyperprior
+% theta_prior_hyperparamArray = [50];
 % theta_prior_hyperparam = 10;
 sigma_prior_hyperparam = 1;
 

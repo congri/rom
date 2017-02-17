@@ -22,8 +22,9 @@ sumXNormSqMean = sum(XNormSqMean);
 %% Solve self-consistently: compute optimal sigma2, then theta, then sigma2 again and so on
 theta = theta_c.theta;
 I = eye(length(theta));
-sigma2 = theta_c.sigma^2;
-logSigmaMinus2 = -2*log(theta_c.sigma);
+% sigma2 = theta_c.sigma^2;
+sigma2 = 1e-8;  %start value
+logSigmaMinus2 = -log(sigma2);
 iter = 0;
 converged = false;
 while(~converged)

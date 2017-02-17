@@ -1,9 +1,9 @@
 NF=256
-CORRLENGTH=20
-NTRAIN=4
-VOLFRAC=0.05	#Theoretical volume fraction
+CORRLENGTH=50
+NTRAIN=128
+VOLFRAC=0.08	#Theoretical volume fraction
 LOCOND=1
-HICOND=100
+HICOND=10
 HYPERPARAM=30	#Lasso sparsity hyperparameter
 NC=4
 BC="[-50 164 112 -30]"
@@ -27,7 +27,7 @@ rm job_file.sh
 
 #write job file
 printf "#PBS -N $JOBNAME
-#PBS -l nodes=1:ppn=4,walltime=240:00:00
+#PBS -l nodes=1:ppn=16,walltime=240:00:00
 #PBS -e /home/constantin/OEfiles
 #PBS -m abe
 #PBS -M mailscluster@gmail.com

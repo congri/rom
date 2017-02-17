@@ -1,7 +1,8 @@
 N_SAMPLES_P_C=10000
 TESTSAMPLE_LO=1
 TESTSAMPLE_UP=128
-TESTFILEPATH="~\/matlab\/data\/fineData\/systemSize=256x256\/correlated_binary\/IsoSEcov\/l=10_sigmafSq=1\/volumeFraction=0.1\/locond=1_upcond=10\/BCcoeffs=[-50 164 112 -30]\/set2-samples=128.mat"
+TESTFILEPATH="~\/matlab\/data\/fineData\/systemSize=256x256\/correlated_binary\/IsoSEcov\/l=20_sigmafSq=1\/volumeFraction=0.04\/locond=1_upcond=10\/BCcoeffs=[-50 164 112 -30]\/set2-samples=128.mat"
+CWD=$(printf "%q\n" "$(pwd)")
 
 JOBNAME="prediction"
 
@@ -10,13 +11,13 @@ rm job_file.sh
 #write job file
 printf "#PBS -N $JOBNAME
 #PBS -l nodes=1:ppn=16,walltime=240:00:00
-#PBS -o $PWD
-#PBS -e $PWD
+#PBS -o ~/OEfiles
+#PBS -e ~/OEfiles
 #PBS -m abe
 #PBS -M mailscluster@gmail.com
 
 #Switch to job directory
-cd $PWD
+cd $CWD
 #Set parameters
 sed -i \"2s/.*/nSamples_p_c = $N_SAMPLES_P_C;/\" ./predictionScript.m
 sed -i \"3s/.*/testSample_lo = $TESTSAMPLE_LO;/\" ./predictionScript.m
