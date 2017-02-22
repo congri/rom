@@ -1,10 +1,11 @@
-NF=256
+NF=512
 CORRLENGTH=50
 NSET1=1024
 NSET2=256
-VOLFRAC=0.08	#Theoretical volume fraction
+VOLFRAC=0.35	#Theoretical volume fraction
 LOCOND=1
-HICOND=10
+HICOND=100
+CWD=$(printf "%q\n" "$(pwd)")
 
 #Set up file paths
 PROJECTDIR="/home/constantin/matlab/projects/rom"
@@ -23,8 +24,8 @@ rm job_file.sh
 #write job file
 printf "#PBS -N $JOBNAME
 #PBS -l nodes=1:ppn=16,walltime=120:00:00
-#PBS -o $JOBDIR
-#PBS -e $JOBDIR
+#PBS -o $CWD
+#PBS -e $CWD
 #PBS -m abe
 #PBS -M mailscluster@gmail.com
 

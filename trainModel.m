@@ -251,7 +251,7 @@ for k = 2:(maxIterations + 1)
     theta_cf.WTSinv = theta_cf.W'*theta_cf.Sinv;        %Precomputation for efficiency
 
     %optimal theta_c and sigma
-    sigma_old = theta_c.sigma;
+    Sigma_old = theta_c.Sigma;
     theta_old = theta_c.theta;
     %Adjust hyperprior to not get stuck at 0
     if(k - 1 <= size(theta_prior_hyperparamArray, 1))
@@ -260,7 +260,7 @@ for k = 2:(maxIterations + 1)
     theta_c = optTheta_c(theta_c, nTrain, domainc.nEl, XSqMean,...
         Phi, XMean, theta_prior_type, theta_prior_hyperparam,...
         sigma_prior_type, sigma_prior_hyperparam);
-    theta_c.sigma = (1 - mix_sigma)*theta_c.sigma + mix_sigma*sigma_old;
+    theta_c.Sigma = (1 - mix_sigma)*theta_c.Sigma + mix_sigma*Sigma_old;
     theta_c.theta = (1 - mix_theta)*theta_c.theta + mix_theta*theta_old;
     disp('M-step done, current params:')
     k
@@ -280,24 +280,19 @@ for k = 2:(maxIterations + 1)
     if plotTheta
        if ~exist('thetaArray')
            thetaArray = theta_c.theta';
-           sigmaArray = theta_c.sigma;
        else
            thetaArray = [thetaArray; theta_c.theta'];
-           sigmaArray = [sigmaArray, theta_c.sigma];
        end
-	   subplot(1,3,1)
+	   subplot(1,2,1)
        plot(thetaArray, 'linewidth', 1)
 	   axis tight;
-       subplot(1,3,2)
-       plot(sigmaArray, 'linewidth', 1)
-       axis tight;
-       subplot(1,3,3)
+       subplot(1,2,2)
        plot(theta_c.theta, 'linewidth', 1)
        axis tight;
        drawnow
     end
        
-    curr_sigma = theta_c.sigma
+    curr_sigma = theta_c.Sigma
     mean_S = mean(theta_cf.S)
     if(~condTransOpts.anisotropy)
         Lambda_eff1_mode = conductivityBackTransform(Phi.designMatrices{1}*theta_c.theta,...

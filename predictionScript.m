@@ -3,7 +3,7 @@ nSamples_p_c = 1000;
 testSample_lo = 1;
 testSample_up = 128;
 testFilePath = ...
-'~/matlab/data/fineData/systemSize=256x256/correlated_binary/IsoSEcov/l=20_sigmafSq=1/volumeFraction=0.08/locond=1_upcond=10/BCcoeffs=[-50 164 112 -30]/set2-samples=256.mat';
+'~/matlab/data/fineData/systemSize=256x256/correlated_binary/IsoSEcov/l=20_sigmafSq=1/volumeFraction=0.2/locond=1_upcond=10/BCcoeffs=[-50 164 112 -30]/set2-samples=256.mat';
 modelParamsFolder = '';
 useNeighbor = false; %include feature information from neighboring coarse elements?
 useLocal = false;     %use separate theta_c for each macro-cell?

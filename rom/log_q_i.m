@@ -12,7 +12,7 @@ if condTransOpts.anisotropy
 else
     conductivity = conductivityBackTransform(Xi, condTransOpts);
 end
-[lg_p_c, d_lg_p_c] = log_p_c(Xi, Phi, theta_c.theta, theta_c.sigma);
+[lg_p_c, d_lg_p_c] = log_p_c(Xi, Phi, theta_c);
 [lg_p_cf, d_lg_p_cf, Tc] = log_p_cf(Tf_i_minus_mu, domainc, conductivity, theta_cf, condTransOpts);
 
 log_q = lg_p_cf + lg_p_c;
@@ -31,7 +31,7 @@ if FDcheck
         dXi(i) = d;
         conductivityFD = conductivity + conductivity.*dXi;
         
-        [lg_p_c, ~] = log_p_c(Xi + dXi, Phi, theta_c.theta, theta_c.sigma);
+        [lg_p_c, ~] = log_p_c(Xi + dXi, Phi, theta_c);
         [lg_p_cf, ~] = log_p_cf(Tf_i_minus_mu, domainc, conductivityFD, theta_cf, condTransOpts);
         
         log_qFD = lg_p_cf + lg_p_c;

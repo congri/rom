@@ -52,7 +52,7 @@ save(filename, 'theta', '-ascii', '-append');
 
 %sigma
 filename = './data/sigma';
-sigma = theta_c.sigma;
+sigma = full(diag(theta_c.Sigma))';
 save(filename, 'sigma', '-ascii', '-append');
 
 %S

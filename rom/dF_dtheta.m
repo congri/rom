@@ -1,5 +1,5 @@
-function [dF_dtheta_c, d2F_dtheta2] = dF_dtheta(theta, sigma2, theta_old, prior_type, prior_hyperparam, nTrain,...
-    sumPhiTXmean, sumPhiSq)
+function [dF_dtheta_c, d2F_dtheta2] = dF_dtheta(theta, theta_old, prior_type, prior_hyperparam, nTrain,...
+    sumPhiTSigmaInvXmean, sumPhiTSigmaInvPhi)
 %theta, sigma are the dependent variables, theta_c holds the current best estimate from EM
 %Compute gradient and Hessian for posterior lower bound
 %prior derivatives
@@ -11,18 +11,16 @@ else
     [~, dprior_dthetac, d2prior_d2thetac] = log_prior_theta_c(theta, theta_old, prior_type, prior_hyperparam);
 end
 
-sigmaMinus2 = 1/sigma2;
-
 %compute gradients of posterior lower bound
 %dF/dsigma^-2 (prior independent of sigma)
 % dL = sigmaMinus2*(sumPhiTXmean - sumPhiSq*theta)
 % dprior_dthetac
 % pause
 
-dF_dtheta_c = sigmaMinus2*(sumPhiTXmean - sumPhiSq*theta) + dprior_dthetac;
+dF_dtheta_c = (sumPhiTSigmaInvXmean - sumPhiTSigmaInvPhi*theta) + dprior_dthetac;
 
 %compute second derivatives
-d2F_dtheta2 = - sigmaMinus2*sumPhiSq + d2prior_d2thetac;
+d2F_dtheta2 = - sumPhiTSigmaInvPhi + d2prior_d2thetac;
 
 
 %THOSE ARE NOT THE TRUE DERIVATIVES!!! WE CANCEL THE FACTOR N SIGMA^2 IN HESS^-1 * GRAD IN 

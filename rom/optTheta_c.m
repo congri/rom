@@ -10,89 +10,119 @@ fsolve_options_theta = optimoptions('fsolve', 'SpecifyObjectiveGradient', true, 
 fsolve_options_sigma = optimoptions('fsolve', 'SpecifyObjectiveGradient', true,...
     'Display', 'off', 'Algorithm', 'levenberg-marquardt');
 
-%sum_i Phi_i^T <X^i>_qi
-sumPhiTXmean = zeros(numel(theta_c.theta), 1);
-for i = 1:nTrain
-    sumPhiTXmean = sumPhiTXmean + Phi.designMatrices{i}'*XMean(:, i);
-end
+dim_theta = numel(theta_c.theta);
 XNormSqMean = sum(XSqMean);
 sumXNormSqMean = sum(XNormSqMean);
 
 
 %% Solve self-consistently: compute optimal sigma2, then theta, then sigma2 again and so on
 theta = theta_c.theta;
-I = eye(length(theta));
+I = speye(dim_theta);
 % sigma2 = theta_c.sigma^2;
-sigma2 = 1e-8;  %start value
-logSigmaMinus2 = -log(sigma2);
+% sigma2 = 1e-8;  %start value
+Sigma = 1e-6*speye(nCoarse);
+% logSigmaMinus2 = -log(sigma2);
+
+%sum_i Phi_i^T Sigma^-1 <X^i>_qi
+sumPhiTSigmaInvXmean = 0;
+SigmaInv = inv(Sigma);
+SigmaInvXMean = Sigma\XMean;
+sumPhiTSigmaInvPhi = 0;
+PhiThetaMat = zeros(nCoarse, nTrain);
+
+for i = 1:nTrain
+    sumPhiTSigmaInvXmean = sumPhiTSigmaInvXmean + Phi.designMatrices{i}'*SigmaInvXMean(:, i);
+    sumPhiTSigmaInvPhi = sumPhiTSigmaInvPhi + Phi.designMatrices{i}'*SigmaInv*Phi.designMatrices{i};
+    PhiThetaMat(:, i) = Phi.designMatrices{i}*theta;
+end
+
 iter = 0;
 converged = false;
 while(~converged)
 
     theta_old_old = theta;  %to check for iterative convergence
-    ndiff = Inf;
-    i = 1;
-    %Inner EM-loop - obsolete?
-    while(ndiff > 1e-20 && i < 2)
-        theta_old = theta;
-        gradHessTheta = @(theta) dF_dtheta(theta, sigma2, theta_old, theta_prior_type, theta_prior_hyperparam, nTrain,...
-            sumPhiTXmean, Phi.sumPhiTPhi);
-        
-        if strcmp(theta_prior_type, 'hierarchical_laplace')
-            %Matrix M is pos. def., invertible even if badly conditioned
-%             warning('off', 'MATLAB:nearlySingularMatrix');
-%             M = Phi.sumPhiTPhi + theta_prior_hyperparam(1)*diag((2*sigma2)./(abs(theta_old) + offset));
-            offset = 1e-30;
-%             V = theta_prior_hyperparam(1)*diag(1./(abs(theta_old) + offset));
-            U = diag(sqrt((abs(theta_old) + offset)/theta_prior_hyperparam(1)));
-        elseif strcmp(theta_prior_type, 'hierarchical_gamma')
-            %Matrix M is pos. def., invertible even if badly conditioned
-%             warning('off', 'MATLAB:nearlySingularMatrix');
-%             M = Phi.sumPhiTPhi + sigma2*diag((theta_prior_hyperparam(1) + .5)./(.5*abs(theta_old).^2 + theta_prior_hyperparam(2)));
-%             V = diag((theta_prior_hyperparam(1) + .5)./(.5*abs(theta_old).^2 + theta_prior_hyperparam(2)));
-            U = diag(sqrt((.5*abs(theta_old).^2 + theta_prior_hyperparam(2))./(theta_prior_hyperparam(1) + .5)));
-        elseif strcmp(theta_prior_type, 'none')
-            M = Phi.sumPhiTPhi;
-        else
-            error('Unknown prior on theta_c')
-        end
+    theta_old = theta;
+    gradHessTheta = @(theta) dF_dtheta(theta, theta_old, theta_prior_type, theta_prior_hyperparam, nTrain,...
+        sumPhiTSigmaInvXmean, sumPhiTSigmaInvPhi);
+    
+    if strcmp(theta_prior_type, 'hierarchical_laplace')
+        %Matrix M is pos. def., invertible even if badly conditioned
+%       warning('off', 'MATLAB:nearlySingularMatrix');
+        offset = 1e-30;
+        U = diag(sqrt((abs(theta_old) + offset)/theta_prior_hyperparam(1)));
+    elseif strcmp(theta_prior_type, 'hierarchical_gamma')
+        %Matrix M is pos. def., invertible even if badly conditioned
+%       warning('off', 'MATLAB:nearlySingularMatrix');
+        U = diag(sqrt((.5*abs(theta_old).^2 + theta_prior_hyperparam(2))./(theta_prior_hyperparam(1) + .5)));
+    elseif strcmp(theta_prior_type, 'none')
 
-        if strcmp(theta_prior_type, 'none')
-            theta_temp = Phi.sumPhiTPhi\sumPhiTXmean;
-        else
-%             theta_temp = M\sumPhiTXmean;
-%             theta_temp = (sigma2*V + Phi.sumPhiTPhi)\sumPhiTXmean;
-            theta_temp = U*((sigma2*I + U*Phi.sumPhiTPhi*U)\U)*sumPhiTXmean;
-        end
-        
-        if(norm(theta_temp)/length(theta_temp) > 5e1)
-            warning('theta_c is assuming unusually large values. Using Newton-Raphson instead of mldivide.')
-            %theta = fsolve(gradHessTheta, theta, fsolve_options_theta);
-            
-            %Newton-Raphson maximization
-            startValueTheta = theta;
-            normGradientTol = eps;
-            provide_objective = false;
-            debugNRmax = false;
-            RMMode = false;
-            stepSizeTheta = .6;
-            theta = newtonRaphsonMaximization(gradHessTheta, startValueTheta,...
-                normGradientTol, provide_objective, stepSizeTheta, RMMode, debugNRmax);
-        else
-            theta = theta_temp;
-        end
-        diff = theta - theta_old;
-        ndiff = norm(diff);
-        i = i + 1;
+    else
+        error('Unknown prior on theta_c')
     end
+    
+    if strcmp(theta_prior_type, 'none')
+        theta_temp = sumPhiTSigmaInvPhi\sumPhiTSigmaInvXmean;
+    else
+%         theta_temp = U*((sigma2*I + U*Phi.sumPhiTPhi*U)\U)*sumPhiTSigmaInvXmean;
+        theta_temp = U*((U*sumPhiTSigmaInvPhi*U + I)\U)*sumPhiTSigmaInvXmean;
+    end
+    
+    %Catch instabilities
+    if(norm(theta_temp)/length(theta_temp) > 5e1 || any(~isfinite(theta_temp)))
+        warning('theta_c is assuming unusually large values. Using Newton-Raphson instead of mldivide.')
+        %theta = fsolve(gradHessTheta, theta, fsolve_options_theta);
         
+        %Newton-Raphson maximization
+        startValueTheta = theta;
+        normGradientTol = eps;
+        provide_objective = false;
+        debugNRmax = false;
+        RMMode = false;
+        stepSizeTheta = .6;
+        theta = newtonRaphsonMaximization(gradHessTheta, startValueTheta,...
+            normGradientTol, provide_objective, stepSizeTheta, RMMode, debugNRmax);
+    else
+        theta = theta_temp;
+    end
+    
     %     theta = .5*theta + .5*theta_old;    %for stability
     
     if strcmp(sigma_prior_type, 'none')
-        sigma2 = (1/(nTrain*nCoarse))*(sumXNormSqMean - 2*theta'*sumPhiTXmean + theta'*Phi.sumPhiTPhi*theta);
+        %         sigma2 = (1/(nTrain*nCoarse))*(sumXNormSqMean - 2*theta'*sumPhiTSigmaInvXmean + theta'*Phi.sumPhiTPhi*theta);
+        Sigma = sparse(1:nCoarse, 1:nCoarse, mean(XSqMean - 2*(PhiThetaMat.*XMean) + PhiThetaMat.^2, 2));
+        
+        sigma2CutoffHi = 4;
+        sigma2CutoffLo = eps;
+        if any(diag(Sigma) < sigma2CutoffLo)
+            warning('sigma2 < cutoff. Set it to small cutoff value')
+            %         sigma2 = sigma2CutoffLo;
+            s = diag(Sigma);
+            s(s < sigma2CutoffLo) = sigma2CutoffLo;
+            index = 1:nCoarse;
+            Sigma = sparse(index, index, s);
+        elseif any(any(Sigma > sigma2CutoffHi))
+            warning('sigma2 > cutoff, set it to cutoff')
+            Sigma(Sigma > sigma2CutoffHi) = sigma2CutoffHi;
+        end
+        
+        %sum_i Phi_i^T Sigma^-1 <X^i>_qi
+        sumPhiTSigmaInvXmean = 0;
+        %Only valid for diagonal Sigma
+        s = diag(Sigma);
+        SigmaInv = sparse(diag(1./s));
+        SigmaInvXMean = Sigma\XMean;
+        sumPhiTSigmaInvPhi = 0;
+        PhiThetaMat = zeros(nCoarse, nTrain);
+        
+        for i = 1:nTrain
+            sumPhiTSigmaInvXmean = sumPhiTSigmaInvXmean + Phi.designMatrices{i}'*SigmaInvXMean(:, i);
+            sumPhiTSigmaInvPhi = sumPhiTSigmaInvPhi + Phi.designMatrices{i}'*SigmaInv*Phi.designMatrices{i};
+            PhiThetaMat(:, i) = Phi.designMatrices{i}*theta;
+        end
     else
+        error('Prior on diagonal Sigma not yet implemented')
         gradHessLogSigmaMinus2 = @(lSigmaMinus2) dF_dlogSigmaMinus2(lSigmaMinus2, theta, nCoarse, nTrain, XNormSqMean,...
-            sumPhiTXmean, Phi.sumPhiTPhi, sigma_prior_type, sigma_prior_hyperparam);
+            sumPhiTSigmaInvXmean, Phi.sumPhiTPhi, sigma_prior_type, sigma_prior_hyperparam);
         %     startValueLogSigmaMinus2 = logSigmaMinus2;
         %     stepSizeSigma = .9; %the larger the faster, the smaller the more stable
         %     logSigmaMinus2 = newtonRaphsonMaximization(gradHessLogSigmaMinus2, startValueLogSigmaMinus2,...
@@ -103,17 +133,6 @@ while(~converged)
         sigma2 = 1/sigmaMinus2;
     end
     
-    
-    sigma2CutoffHi = 1e4;
-    sigma2CutoffLo = 1e-12;
-    if sigma2 < sigma2CutoffLo
-        warning('sigma2 < cutoff. Set it to small cutoff value')
-        sigma2 = sigma2CutoffLo;
-    elseif sigma2 > sigma2CutoffHi
-        warning('sigma2 > cutoff, set it to cutoff')
-        sigma2 = sigma2CutoffHi;
-    end
-    
     iter = iter + 1;
     thetaDiffRel = norm(theta_old_old - theta)/(norm(theta)*numel(theta));
     if((iter > 20 && thetaDiffRel < 1e-8) || iter > 200)
@@ -122,7 +141,8 @@ while(~converged)
     
 end
 theta_c.theta = theta;
-theta_c.sigma = sqrt(sigma2);
+% theta_c.sigma = sqrt(sigma2);
+theta_c.Sigma = Sigma;
 
 end
 

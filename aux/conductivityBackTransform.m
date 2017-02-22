@@ -23,20 +23,20 @@ elseif strcmp(opts.transform, 'log_cholesky')
     end
 elseif strcmp(opts.transform, 'log')
     conductivity = exp(x);
-    if any(conductivity < opts.lowerCondLim)
+    if any(any(conductivity < opts.lowerCondLim))
         %lower bound on conductivity for stability
         conductivity(conductivity < opts.lowerCondLim) = opts.lowerCondLim;
-        warning('Effective conductivity is below lower bound')
+%         warning('Effective conductivity is below lower bound')
     end
-    if any(conductivity > opts.upperCondLim)
+    if any(any(conductivity > opts.upperCondLim))
         %upper bound on conductivity for stability
         conductivity(conductivity > opts.upperCondLim) = opts.upperCondLim;
-        warning('Effective conductivity is above upper bound')
+%         warning('Effective conductivity is above upper bound')
     end
 elseif strcmp(opts.transform, 'log_lower_bound')
     %log transformation, where the eff. cond. lower bound is non-zero 
     conductivity = exp(x) + opts.lowerCondLim;
-    if any(conductivity > opts.upperCondLim)
+    if any(any(conductivity > opts.upperCondLim))
         %upper bound on conductivity for stability
         conductivity(conductivity > opts.upperCondLim) = opts.upperCondLim;
         warning('Effective conductivity is above upper bound')

@@ -11,8 +11,8 @@ addpath('./featureFunctions')
 disp('Loading optimal parameters...')
 theta_c.theta = dlmread(strcat('./data/', datafolder, '/theta'));
 theta_c.theta = theta_c.theta(end, :)';
-theta_c.sigma = dlmread(strcat('./data/', datafolder, '/sigma'));
-theta_c.sigma = theta_c.sigma(end);
+theta_c.Sigma = dlmread(strcat('./data/', datafolder, '/sigma'));
+theta_c.Sigma = diag(theta_c.Sigma(end, :));
 theta_cf.S = dlmread(strcat('./data/', datafolder, '/S'))';
 W = dlmread(strcat('./data/', datafolder, '/Wmat'));
 W = reshape(W, length(W)/3, 3)';

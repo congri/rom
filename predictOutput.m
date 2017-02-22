@@ -37,10 +37,10 @@ LambdaSamples{1} = zeros(domainc.nEl, nSamples_p_c);
 LambdaSamples = repmat(LambdaSamples, nTest, 1);
 meanEffCond = zeros(domainc.nEl, nTest);
 for i = 1:nTest
-    Xsamples(:, :, i) = mvnrnd(Phi.designMatrices{i}*theta_c.theta, (theta_c.sigma^2)*eye(domainc.nEl), nSamples_p_c)';
+    Xsamples(:, :, i) = mvnrnd(Phi.designMatrices{i}*theta_c.theta, theta_c.Sigma, nSamples_p_c)';
     LambdaSamples{i} = conductivityBackTransform(Xsamples(:, :, i), condTransOpts);
     if strcmp(condTransOpts.transform, 'log')
-        meanEffCond(:, i) = exp(Phi.designMatrices{i}*theta_c.theta + .5*theta_c.sigma^2);
+        meanEffCond(:, i) = exp(Phi.designMatrices{i}*theta_c.theta + .5*diag(theta_c.Sigma));
     else
         meanEffCond(:, i) = mean(LambdaSamples{i}, 2);
     end

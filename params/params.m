@@ -1,8 +1,8 @@
 %main parameter file for 2d coarse-graining
 %CHANGE JOBFILE IF YOU CHANGE LINE NUMBERS!
 %Number of training data samples
-nStart = 1; %start training sample in training data file
-nTrain = 32;
+nStart = 257; %start training sample in training data file
+nTrain = 2;
 
 %Anisotropy; do NOT use together with limEffCond
 condTransOpts.anisotropy = false;
@@ -63,15 +63,15 @@ end
 % theta_c.theta = 2*d*rand(nBasis, 1) - d;
 % theta_c.theta(end) = 1;
 % theta_c.theta = 0;
-theta_c.sigma = 1e-4;
+theta_c.Sigma = 1e-4*speye(domainc.nEl);
 
 
 %what kind of prior for theta_c
-theta_prior_type = 'hierarchical_gamma';                  %hierarchical_gamma, hierarchical_laplace, laplace, gaussian, spikeAndSlab or none
+theta_prior_type = 'hierarchical_laplace';                  %hierarchical_gamma, hierarchical_laplace, laplace, gaussian, spikeAndSlab or none
 sigma_prior_type = 'none';
 %prior hyperparams; obsolete for no prior
-theta_prior_hyperparamArray = [1e-10 1e-10];                   %a and b params for Gamma hyperprior
-% theta_prior_hyperparamArray = [50];
+% theta_prior_hyperparamArray = [0 1e-8];                   %a and b params for Gamma hyperprior
+theta_prior_hyperparamArray = [30];
 % theta_prior_hyperparam = 10;
 sigma_prior_hyperparam = 1;
 
