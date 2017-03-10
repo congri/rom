@@ -69,6 +69,7 @@ for k = 2:(maxIterations + 1)
             Phi.designMatrices{i}, domainc, condTransOpts);
     end
     
+    
     MonteCarlo = false;
     VI = true;
 
@@ -162,7 +163,7 @@ for k = 2:(maxIterations + 1)
         clear Tc_samples;
     elseif VI
         
-        if strcmp(update_qi, 'sequential')
+        if (strcmp(update_qi, 'sequential') && k > 2)
             %Sequentially update N_threads qi's at a time, then perform M-step
             pstart = pend + 1;
             if pstart > nTrain
@@ -283,11 +284,24 @@ for k = 2:(maxIterations + 1)
        else
            thetaArray = [thetaArray; theta_c.theta'];
        end
-	   subplot(1,2,1)
+       if ~exist('sigmaArray')
+           sigmaArray = diag(theta_c.Sigma)';
+       else
+           sigmaArray = [sigmaArray; diag(theta_c.Sigma)'];
+       end
+	   subplot(2,2,1)
        plot(thetaArray, 'linewidth', 1)
 	   axis tight;
-       subplot(1,2,2)
+       subplot(2,2,2)
        plot(theta_c.theta, 'linewidth', 1)
+       axis tight;
+       subplot(2,2,3)
+       plot(sigmaArray, 'linewidth', 1)
+	   axis tight;
+       subplot(2,2,4)
+       imagesc(reshape(diag(theta_c.Sigma), domainc.nElX, domainc.nElY))
+       colorbar
+       grid off;
        axis tight;
        drawnow
     end

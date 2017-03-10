@@ -16,17 +16,21 @@ sumXNormSqMean = sum(XNormSqMean);
 
 
 %% Solve self-consistently: compute optimal sigma2, then theta, then sigma2 again and so on
-theta = theta_c.theta;
+theta = .1*ones(size(theta_c.theta));
+% theta = 2*rand(size(theta_c.theta)) - 1;
 I = speye(dim_theta);
 % sigma2 = theta_c.sigma^2;
 % sigma2 = 1e-8;  %start value
-Sigma = 1e-6*speye(nCoarse);
+% Sigma = 1e-6*speye(nCoarse);
+Sigma = theta_c.Sigma;
 % logSigmaMinus2 = -log(sigma2);
 
 %sum_i Phi_i^T Sigma^-1 <X^i>_qi
 sumPhiTSigmaInvXmean = 0;
-SigmaInv = inv(Sigma);
-SigmaInvXMean = Sigma\XMean;
+% SigmaInv = inv(Sigma);
+% SigmaInvXMean = Sigma\XMean;
+SigmaInv = theta_c.SigmaInv;
+SigmaInvXMean = SigmaInv*XMean;
 sumPhiTSigmaInvPhi = 0;
 PhiThetaMat = zeros(nCoarse, nTrain);
 
@@ -60,18 +64,22 @@ while(~converged)
         error('Unknown prior on theta_c')
     end
     
+    warning('');
     if strcmp(theta_prior_type, 'none')
         theta_temp = sumPhiTSigmaInvPhi\sumPhiTSigmaInvXmean;
     else
 %         theta_temp = U*((sigma2*I + U*Phi.sumPhiTPhi*U)\U)*sumPhiTSigmaInvXmean;
         theta_temp = U*((U*sumPhiTSigmaInvPhi*U + I)\U)*sumPhiTSigmaInvXmean;
     end
+    [~, msgid] = lastwarn;     %to catch nearly singular matrix
     
     %Catch instabilities
-    if(norm(theta_temp)/length(theta_temp) > 5e1 || any(~isfinite(theta_temp)))
-        warning('theta_c is assuming unusually large values. Using Newton-Raphson instead of mldivide.')
-        %theta = fsolve(gradHessTheta, theta, fsolve_options_theta);
-        
+%     if(norm(theta_temp)/length(theta_temp) > 5e1 || any(~isfinite(theta_temp)))
+    if(strcmp(msgid, 'MATLAB:singularMatrix') || strcmp(msgid, 'MATLAB:nearlySingularMatrix')...
+            || strcmp(msgid, 'MATLAB:illConditionedMatrix') || norm(theta_temp)/length(theta) > 20)
+        warning('theta_c is assuming unusually large values. Do not update theta.')
+%         theta = fsolve(gradHessTheta, theta, fsolve_options_theta);
+        theta = theta_old
         %Newton-Raphson maximization
         startValueTheta = theta;
         normGradientTol = eps;
@@ -79,8 +87,8 @@ while(~converged)
         debugNRmax = false;
         RMMode = false;
         stepSizeTheta = .6;
-        theta = newtonRaphsonMaximization(gradHessTheta, startValueTheta,...
-            normGradientTol, provide_objective, stepSizeTheta, RMMode, debugNRmax);
+%         theta = newtonRaphsonMaximization(gradHessTheta, startValueTheta,...
+%             normGradientTol, provide_objective, stepSizeTheta, RMMode, debugNRmax);
     else
         theta = theta_temp;
     end
@@ -91,26 +99,26 @@ while(~converged)
         %         sigma2 = (1/(nTrain*nCoarse))*(sumXNormSqMean - 2*theta'*sumPhiTSigmaInvXmean + theta'*Phi.sumPhiTPhi*theta);
         Sigma = sparse(1:nCoarse, 1:nCoarse, mean(XSqMean - 2*(PhiThetaMat.*XMean) + PhiThetaMat.^2, 2));
         
-        sigma2CutoffHi = 4;
-        sigma2CutoffLo = eps;
-        if any(diag(Sigma) < sigma2CutoffLo)
-            warning('sigma2 < cutoff. Set it to small cutoff value')
-            %         sigma2 = sigma2CutoffLo;
-            s = diag(Sigma);
-            s(s < sigma2CutoffLo) = sigma2CutoffLo;
-            index = 1:nCoarse;
-            Sigma = sparse(index, index, s);
-        elseif any(any(Sigma > sigma2CutoffHi))
-            warning('sigma2 > cutoff, set it to cutoff')
-            Sigma(Sigma > sigma2CutoffHi) = sigma2CutoffHi;
-        end
+%         sigma2CutoffHi = 100;
+%         sigma2CutoffLo = 1e-50;
+%         if any(diag(Sigma) < sigma2CutoffLo)
+%             warning('sigma2 < cutoff. Set it to small cutoff value')
+%             %         sigma2 = sigma2CutoffLo;
+%             s = diag(Sigma);
+%             s(s < sigma2CutoffLo) = sigma2CutoffLo;
+%             index = 1:nCoarse;
+%             Sigma = sparse(index, index, s);
+%         elseif any(any(Sigma > sigma2CutoffHi))
+%             warning('sigma2 > cutoff, set it to cutoff')
+%             Sigma(Sigma > sigma2CutoffHi) = sigma2CutoffHi;
+%         end
         
         %sum_i Phi_i^T Sigma^-1 <X^i>_qi
         sumPhiTSigmaInvXmean = 0;
         %Only valid for diagonal Sigma
         s = diag(Sigma);
         SigmaInv = sparse(diag(1./s));
-        SigmaInvXMean = Sigma\XMean;
+        SigmaInvXMean = SigmaInv*XMean;
         sumPhiTSigmaInvPhi = 0;
         PhiThetaMat = zeros(nCoarse, nTrain);
         
@@ -135,7 +143,7 @@ while(~converged)
     
     iter = iter + 1;
     thetaDiffRel = norm(theta_old_old - theta)/(norm(theta)*numel(theta));
-    if((iter > 20 && thetaDiffRel < 1e-8) || iter > 200)
+    if((iter > 10 && thetaDiffRel < 1e-8) || iter > 200)
         converged = true;
     end
     
@@ -143,6 +151,7 @@ end
 theta_c.theta = theta;
 % theta_c.sigma = sqrt(sigma2);
 theta_c.Sigma = Sigma;
+theta_c.SigmaInv = SigmaInv;
 
 end
 

@@ -20,7 +20,7 @@ dist = bwdist(lambdaMat, distMeasure);
 
 %Catch infinities: Take maximum possible distance
 if(any(any(isinf(dist))))
-    warning('Infinity in distance transformation. Setting to maximum possible distance')
+%     warning('Infinity in distance transformation. Setting to maximum possible distance')
     if strcmp(distMeasure, 'cityblock')
         dist(isinf(dist)) = size(dist, 1) + size(dist, 2);
     elseif strcmp(distMeasure, 'chessboard')

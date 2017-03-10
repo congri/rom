@@ -1,19 +1,19 @@
 NF=256
 CORRLENGTH=20
-NTRAIN=80
-NSTART=257	#First training data sample in data file
+NTRAIN=48
+NSTART=1	#First training data sample in data file
 VOLFRAC=0.2	#Theoretical volume fraction
 LOCOND=1
 HICOND=10
-HYPERPARAM=30	#Lasso sparsity hyperparameter
-NC=2
+HYPERPARAM=10	#Lasso sparsity hyperparameter
+NC=8
 BC="[-50 164 112 -30]"
 BC2=\[-50\ 164\ 112\ -30\]
 
 DATESTR=`date +%m-%d-%H-%M-%S`	#datestring for jobfolder name
 PROJECTDIR="/home/constantin/matlab/projects/rom"
 JOBNAME="nTrain=${NTRAIN}_volfrac${VOLFRAC}_lo=${LOCOND}_hi=${HICOND}_Nc=${NC}l=${CORRLENGTH}gamma=${HYPERPARAM}"
-JOBDIR="/home/constantin/matlab/data/fineData/systemSize=${NF}x${NF}/correlated_binary/IsoSEcov/l=${CORRLENGTH}_sigmafSq=1/volumeFraction=${VOLFRAC}/locond=${LOCOND}_upcond=${HICOND}/BCcoeffs=${BC2}/third_nTrain=${NTRAIN}_Nc=${NC}_${DATESTR}"
+JOBDIR="/home/constantin/matlab/data/fineData/systemSize=${NF}x${NF}/correlated_binary/IsoSEcov/l=${CORRLENGTH}_sigmafSq=1/volumeFraction=${VOLFRAC}/locond=${LOCOND}_upcond=${HICOND}/BCcoeffs=${BC2}/longDiffGamma_nTrain=${NTRAIN}_Nc=${NC}_${DATESTR}"
 
 #Create job directory and copy source code
 mkdir "${JOBDIR}"

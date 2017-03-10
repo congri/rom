@@ -1,8 +1,8 @@
 %main parameter file for 2d coarse-graining
 %CHANGE JOBFILE IF YOU CHANGE LINE NUMBERS!
 %Number of training data samples
-nStart = 257; %start training sample in training data file
-nTrain = 2;
+nStart = 1; %start training sample in training data file
+nTrain = 32;
 
 %Anisotropy; do NOT use together with limEffCond
 condTransOpts.anisotropy = false;
@@ -37,7 +37,7 @@ assert(~(useNeighbor && useLocal), 'useNeighbor and useLocal cannot be used at t
 
 %% EM params
 basisFunctionUpdates = 0;
-basisUpdateGap = 75*ceil(nTrain/16);
+basisUpdateGap = 200;
 maxIterations = (basisFunctionUpdates + 1)*basisUpdateGap - 1;
 
 %% Start value of model parameters
@@ -63,14 +63,16 @@ end
 % theta_c.theta = 2*d*rand(nBasis, 1) - d;
 % theta_c.theta(end) = 1;
 % theta_c.theta = 0;
-theta_c.Sigma = 1e-4*speye(domainc.nEl);
+theta_c.Sigma = 1e-0*speye(domainc.nEl);
+s = diag(theta_c.Sigma);
+theta_c.SigmaInv = sparse(diag(1./s));
 
 
 %what kind of prior for theta_c
 theta_prior_type = 'hierarchical_laplace';                  %hierarchical_gamma, hierarchical_laplace, laplace, gaussian, spikeAndSlab or none
 sigma_prior_type = 'none';
 %prior hyperparams; obsolete for no prior
-% theta_prior_hyperparamArray = [0 1e-8];                   %a and b params for Gamma hyperprior
+% theta_prior_hyperparamArray = [0 1e-4];                   %a and b params for Gamma hyperprior
 theta_prior_hyperparamArray = [30];
 % theta_prior_hyperparam = 10;
 sigma_prior_hyperparam = 1;
@@ -118,7 +120,7 @@ elseif strcmp(condTransOpts.transform, 'log')
     initialParamsArray{1} = [log(loCond)*ones(1, domainc.nEl) 1*ones(1, domainc.nEl)];
 elseif strcmp(condTransOpts.transform, 'log_lower_bound')
     initialParamsArray{1} = [log(1*loCond + 0*upCond - condTransOpts.lowerCondLim)*ones(1, domainc.nEl)...
-        20*ones(1, domainc.nEl)];
+        1*ones(1, domainc.nEl)];
 else
     error('Which conductivity transformation?');
 end
@@ -127,7 +129,7 @@ VIparams.nSamples = 50;    %Gradient samples per iteration
 VIparams.inferenceSamples = 200;
 VIparams.optParams.optType = 'adam';
 VIparams.optParams.dim = domainc.nEl;
-VIparams.optParams.stepWidth = .08;
+VIparams.optParams.stepWidth = .005;
 VIparams.optParams.XWindow = 20;    %Averages dependent variable over last iterations
 VIparams.optParams.offset = 10000;  %Robbins-Monro offset
 VIparams.optParams.relXtol = 1e-12;
@@ -140,7 +142,7 @@ VIparams.optParams.adam.beta1 = .9;     %The higher this parameter, the more gra
 VIparams.optParams.adam.beta2 = .999;
 
 %Randomize among data points?
-update_qi = 'sequential';    %'randomize' to randomize among data points, 'all' to update all qi's in one E-step
+update_qi = 'all';    %'randomize' to randomize among data points, 'all' to update all qi's in one E-step
 
 
 

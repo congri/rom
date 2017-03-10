@@ -1,7 +1,7 @@
 N_SAMPLES_P_C=10000
 TESTSAMPLE_LO=1
-TESTSAMPLE_UP=128
-TESTFILEPATH="~\/matlab\/data\/fineData\/systemSize=256x256\/correlated_binary\/IsoSEcov\/l=20_sigmafSq=1\/volumeFraction=0.04\/locond=1_upcond=10\/BCcoeffs=[-50 164 112 -30]\/set2-samples=128.mat"
+TESTSAMPLE_UP=256
+TESTFILEPATH="~\/matlab\/data\/fineData\/systemSize=256x256\/correlated_binary\/IsoSEcov\/l=20_sigmafSq=1\/volumeFraction=0.2\/locond=1_upcond=10\/BCcoeffs=[-50 164 112 -30]\/set2-samples=256.mat"
 CWD=$(printf "%q\n" "$(pwd)")
 
 JOBNAME="prediction"

@@ -38,7 +38,7 @@ if strcmp(params.family, 'diagonalGaussian')
     end
     
     %Modification due to gradient of variational distribution (given analytically)
-    varGrad = varGrad + variationalStd;
+    varGrad = varGrad + 1./variationalStd;
     
     %Due to log transformation
     varGrad = -.5*(varGrad.*variationalStd);
@@ -46,7 +46,7 @@ if strcmp(params.family, 'diagonalGaussian')
     if nargout > 1
         MeanGradErr = real(sqrt(meanGradSq - meanGrad.^2))/params.nSamples;
         VarGradErr = real(sqrt(varGradSq - varGrad.^2))/params.nSamples;
-        gradErr = [MeanGradErr VarGradErr];
+        gradErr = [MeanGradErr VarGradErr]./abs(grad);
     end
 end
 
