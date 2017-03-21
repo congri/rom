@@ -1,11 +1,14 @@
-NF=512
-CORRLENGTH=50
+NF=256
+CORRLENGTH=20
 NSET1=1024
 NSET2=256
-VOLFRAC=0.35	#Theoretical volume fraction
+VOLFRAC=0.2	#Theoretical volume fraction
 LOCOND=1
-HICOND=100
-CWD=$(printf "%q\n" "$(pwd)")
+HICOND=1000
+BC1=0
+BC2=1000
+BC3=0
+BC4=0
 
 #Set up file paths
 PROJECTDIR="/home/constantin/matlab/projects/rom"
@@ -19,6 +22,7 @@ cp -r $PROJECTDIR/* $JOBDIR
 rm -r $PROJECTDIR/data
 #Change directory to job directory; completely independent from project directory
 cd $JOBDIR
+CWD=$(printf "%q\n" "$(pwd)")
 rm job_file.sh
 
 #write job file
@@ -36,9 +40,10 @@ sed -i \"15s/.*/nf = $NF;       %%Should be 2^n/\" ./generateFinescaleData.m
 sed -i \"24s/.*/FD = FinescaleData($LOCOND, $HICOND);/\" ./generateFinescaleData.m
 sed -i \"26s/.*/FD.nSamples = [$NSET1 $NSET2];/\" ./generateFinescaleData.m
 sed -i \"28s/.*/FD.distributionParams = {$VOLFRAC [$CORRLENGTH $CORRLENGTH] 1};/\" ./generateFinescaleData.m
+sed -i \"4s/.*/boundaryCoeffs = [$BC1 $BC2 $BC3 $BC4];/\" ./params/boundaryConditions.m
 
 #Run Matlab
-/home/constantin/Software/matlab2016b/bin/matlab -nodesktop -nodisplay -nosplash -r \"generateFinescaleData ; quit;\"" >> job_file.sh
+/home/matlab/R2017a/bin/matlab -nodesktop -nodisplay -nosplash -r \"generateFinescaleData ; quit;\"" >> job_file.sh
 
 chmod +x job_file.sh
 #directly submit job file

@@ -1,7 +1,7 @@
 %Monte Carlo estimate of integral (2) in Stelios' notes using training data
 
 Tffile = matfile(...
-'~/matlab/data/fineData/systemSize=256x256/correlated_binary/IsoSEcov/l=5_sigmafSq=1/volumeFraction=0.3/locond=1_upcond=100/BCcoeffs=[-50 164 112 -30]/set1-samples=1024.mat');
+'~/matlab/data/fineData/systemSize=256x256/correlated_binary/IsoSEcov/l=20_sigmafSq=1/volumeFraction=0.2/locond=1_upcond=10/BCcoeffs=[0 1000 0 0]/set1-samples=1024.mat');
 
 Tftemp = Tffile.Tf(:, 1);
 Tf_true_mean = zeros(size(Tftemp, 1), 1);

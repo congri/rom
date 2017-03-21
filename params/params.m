@@ -69,11 +69,11 @@ theta_c.SigmaInv = sparse(diag(1./s));
 
 
 %what kind of prior for theta_c
-theta_prior_type = 'hierarchical_laplace';                  %hierarchical_gamma, hierarchical_laplace, laplace, gaussian, spikeAndSlab or none
+theta_prior_type = 'hierarchical_gamma';                  %hierarchical_gamma, hierarchical_laplace, laplace, gaussian, spikeAndSlab or none
 sigma_prior_type = 'none';
 %prior hyperparams; obsolete for no prior
-% theta_prior_hyperparamArray = [0 1e-4];                   %a and b params for Gamma hyperprior
-theta_prior_hyperparamArray = [30];
+theta_prior_hyperparamArray = [0 1e-4];                   %a and b params for Gamma hyperprior
+% theta_prior_hyperparamArray = [10];
 % theta_prior_hyperparam = 10;
 sigma_prior_hyperparam = 1;
 
@@ -125,11 +125,11 @@ else
     error('Which conductivity transformation?');
 end
 initialParamsArray = repmat(initialParamsArray, nTrain, 1);
-VIparams.nSamples = 50;    %Gradient samples per iteration
+VIparams.nSamples = 40;    %Gradient samples per iteration
 VIparams.inferenceSamples = 200;
 VIparams.optParams.optType = 'adam';
 VIparams.optParams.dim = domainc.nEl;
-VIparams.optParams.stepWidth = .005;
+VIparams.optParams.stepWidth = .1;
 VIparams.optParams.XWindow = 20;    %Averages dependent variable over last iterations
 VIparams.optParams.offset = 10000;  %Robbins-Monro offset
 VIparams.optParams.relXtol = 1e-12;
@@ -142,7 +142,7 @@ VIparams.optParams.adam.beta1 = .9;     %The higher this parameter, the more gra
 VIparams.optParams.adam.beta2 = .999;
 
 %Randomize among data points?
-update_qi = 'all';    %'randomize' to randomize among data points, 'all' to update all qi's in one E-step
+update_qi = 'sequential';    %'randomize' to randomize among data points, 'all' to update all qi's in one E-step
 
 
 

@@ -26,7 +26,7 @@ sed -i \"6s/.*/'${TESTFILEPATH}';/\" ./predictionScript.m
 
 
 #Run Matlab
-/home/constantin/Software/matlab2016b/bin/matlab -nodesktop -nodisplay -nosplash -r \"predictionScript ; quit;\"" >> job_file.sh
+/home/matlab/R2017a/bin/matlab -nodesktop -nodisplay -nosplash -r \"predictionScript ; quit;\"" >> job_file.sh
 
 chmod +x job_file.sh
 #directly submit job file

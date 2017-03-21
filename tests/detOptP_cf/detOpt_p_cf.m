@@ -14,7 +14,7 @@ condTransOpts.anisotropy = false;
 %Upper and lower limit on effective conductivity
 condTransOpts.upperCondLim = 1e10;
 condTransOpts.lowerCondLim = .001;
-condTransOpts.transform = 'log_lower_bound';
+condTransOpts.transform = 'log';
 
 %Load finescale data, including domainf
 loadTrainingData;
@@ -28,7 +28,7 @@ theta_cf.W = shapeInterp(domainc, domainf);
 theta_cf.WTSinv = theta_cf.W'*theta_cf.Sinv;
 
 options = optimoptions(@fminunc,'Display','iter', 'SpecifyObjectiveGradient', true);
-Xinit = ones(domainc.nEl, 1);
+Xinit = 0*ones(domainc.nEl, 1);
 Xopt = zeros(domainc.nEl, nTrain);
 LambdaOpt = Xopt;
 s2 = zeros(1, nTrain);

@@ -9,7 +9,7 @@ corrlength = '20';
 volfrac = '0.2';  %high conducting phase volume fraction
 sigma_f2 = '1';
 cond_distribution = 'correlated_binary';
-bc = '[-50 164 112 -30]';
+bc = '[0 1000 0 0]';
 
 
 %Folder where finescale data is saved

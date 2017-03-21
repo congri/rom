@@ -51,7 +51,7 @@ sed -i \"2s/.*/nc = $NC;/\" ./params/genCoarseDomain.m
 
 
 #Run Matlab
-/home/constantin/Software/matlab2016b/bin/matlab -nodesktop -nodisplay -nosplash -r \"trainModel ; quit;\"" >> job_file.sh
+/home/matlab/R2017a/bin/matlab -nodesktop -nodisplay -nosplash -r \"trainModel ; quit;\"" >> job_file.sh
 
 chmod +x job_file.sh
 #directly submit job file
