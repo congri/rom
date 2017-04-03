@@ -9,7 +9,7 @@ corrlength = '20';
 volfrac = '0.2';  %high conducting phase volume fraction
 sigma_f2 = '1';
 cond_distribution = 'correlated_binary';
-bc = '[0 1000 0 0]';
+bc = '[0 1000 0 0]';    %Make sure to also change the bc coefficients in the file boundaryConditions.m
 
 
 %Folder where finescale data is saved

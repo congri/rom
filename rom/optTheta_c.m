@@ -46,8 +46,6 @@ while(~converged)
 
     theta_old_old = theta;  %to check for iterative convergence
     theta_old = theta;
-    gradHessTheta = @(theta) dF_dtheta(theta, theta_old, theta_prior_type, theta_prior_hyperparam, nTrain,...
-        sumPhiTSigmaInvXmean, sumPhiTSigmaInvPhi);
     
     if strcmp(theta_prior_type, 'hierarchical_laplace')
         %Matrix M is pos. def., invertible even if badly conditioned
@@ -58,14 +56,15 @@ while(~converged)
         %Matrix M is pos. def., invertible even if badly conditioned
 %       warning('off', 'MATLAB:nearlySingularMatrix');
         U = diag(sqrt((.5*abs(theta_old).^2 + theta_prior_hyperparam(2))./(theta_prior_hyperparam(1) + .5)));
+    elseif strcmp(theta_prior_type, 'gaussian')
+        sumPhiTSigmaInvPhi = sumPhiTSigmaInvPhi + theta_prior_hyperparam(1)*I;
     elseif strcmp(theta_prior_type, 'none')
 
     else
         error('Unknown prior on theta_c')
     end
     
-    warning('');
-    if strcmp(theta_prior_type, 'none')
+    if (strcmp(theta_prior_type, 'gaussian') || strcmp(theta_prior_type, 'none'))
         theta_temp = sumPhiTSigmaInvPhi\sumPhiTSigmaInvXmean;
     else
 %         theta_temp = U*((sigma2*I + U*Phi.sumPhiTPhi*U)\U)*sumPhiTSigmaInvXmean;
@@ -75,6 +74,9 @@ while(~converged)
     
     %Catch instabilities
 %     if(norm(theta_temp)/length(theta_temp) > 5e1 || any(~isfinite(theta_temp)))
+    
+    gradHessTheta = @(theta) dF_dtheta(theta, theta_old, theta_prior_type, theta_prior_hyperparam, nTrain,...
+        sumPhiTSigmaInvXmean, sumPhiTSigmaInvPhi);
     if(strcmp(msgid, 'MATLAB:singularMatrix') || strcmp(msgid, 'MATLAB:nearlySingularMatrix')...
             || strcmp(msgid, 'MATLAB:illConditionedMatrix') || norm(theta_temp)/length(theta) > 20)
         warning('theta_c is assuming unusually large values. Do not update theta.')
@@ -143,7 +145,7 @@ while(~converged)
     
     iter = iter + 1;
     thetaDiffRel = norm(theta_old_old - theta)/(norm(theta)*numel(theta));
-    if((iter > 10 && thetaDiffRel < 1e-8) || iter > 200)
+    if((iter > 1 && thetaDiffRel < 1e-8) || iter > 200)
         converged = true;
     end
     

@@ -5,7 +5,7 @@ if ~exist('./data/', 'dir')
 end
 %Remove old data in first step, if there exists some
 if(k == 1)
-    delete('./data/MCMCstepWidth', './data/sigma', './data/S', './data/mu', './data/theta', './data/Wmat')
+    delete('./data/MCMCstepWidth', './data/sigma', './data/S', './data/mu', './data/theta', './data/Wmat', './data/w')
 end
 
 %% MCMC Step width

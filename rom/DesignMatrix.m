@@ -16,6 +16,8 @@ classdef DesignMatrix
         featureFunctionMax
         
         E                       %gives the coarse element a fine element belongs to
+        lambdak
+        xk
         sumPhiTPhi
         
     end
@@ -76,7 +78,8 @@ classdef DesignMatrix
                 PhiCell{1} = zeros(nElc, nFeatureFunctions);
             end
             PhiCell = repmat(PhiCell, nTrain, 1);
-            parfor s = 1:nTrain
+%             parfor s = 1:nTrain
+            for s = 1:nTrain    %for very cheap features, serial evaluation might be more efficient
                 %inputs belonging to same coarse element are in the same column of xk. They are ordered in
                 %x-direction.
                 if condTransOpts.anisotropy
@@ -84,18 +87,19 @@ classdef DesignMatrix
                 else
                     PhiCell{s} = zeros(nElc, nFeatureFunctions);
                 end
-                lambdak = zeros(nElf/nElc, nElc);
+                Phi.lambdak{s} = zeros(nElf/nElc, nElc);
                 for i = 1:nElc
-                    lambdak(:, i) = conductivity{s}(coarseElement == i);
+                    Phi.lambdak{s}(:, i) = conductivity{s}(coarseElement == i);
                 end
+                Phi.xk{s} = log(Phi.lambdak{s});
                 
                 %construct design matrix Phi
                 for i = 1:nElc
                     for j = 1:nFeatureFunctions
                         if condTransOpts.anisotropy
-                            PhiCell{s}((1 + (i - 1)*3):(i*3), j) = phi{j}(lambdak(:, i));
+                            PhiCell{s}((1 + (i - 1)*3):(i*3), j) = phi{j}(Phi.lambdak{s}(:, i));
                         else
-                            PhiCell{s}(i, j) = phi{j}(lambdak(:, i));                           
+                            PhiCell{s}(i, j) = phi{j}(Phi.lambdak{s}(:, i));                           
                         end
                     end
                 end

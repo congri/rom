@@ -2,7 +2,7 @@
 %CHANGE JOBFILE IF YOU CHANGE LINE NUMBERS!
 %Number of training data samples
 nStart = 1; %start training sample in training data file
-nTrain = 32;
+nTrain = 64;
 
 %Anisotropy; do NOT use together with limEffCond
 condTransOpts.anisotropy = false;
@@ -32,13 +32,16 @@ genBasisFunctions;
 useNeighbor = false;
 %use separate theta_c's for each macro-element?
 useLocal = false;
+%add linear filter basis functions sequentially?
+linFiltSeq = false;
 assert(~(useNeighbor && useLocal), 'useNeighbor and useLocal cannot be used at the same time')
 
 
 %% EM params
-basisFunctionUpdates = 0;
-basisUpdateGap = 200;
-maxIterations = (basisFunctionUpdates + 1)*basisUpdateGap - 1;
+initialIterations = 20;
+basisFunctionUpdates = 10;
+basisUpdateGap = 20;
+maxIterations = (basisFunctionUpdates + 1)*basisUpdateGap - 1 + initialIterations;
 
 %% Start value of model parameters
 %Shape function interpolate in W
@@ -51,8 +54,8 @@ theta_cf.Sinv = sparse(1:domainf.nNodes, 1:domainf.nNodes, 1./theta_cf.S);
 theta_cf.WTSinv = theta_cf.W'*theta_cf.Sinv;
 theta_cf.mu = zeros(domainf.nNodes, 1);
 % theta_c.theta = (1/size(phi, 1))*ones(size(phi, 1), 1);
-% theta_c.theta = -10*ones(nBasis, 1);
-theta_c.theta = 0*cos(pi*(1:nBasis)');
+theta_c.theta = ones(nBasis, 1);
+% theta_c.theta = 0*cos(pi*(1:nBasis)');
 if useNeighbor
     theta_c.theta = repmat(theta_c.theta, 5, 1);
 elseif useLocal
@@ -69,11 +72,11 @@ theta_c.SigmaInv = sparse(diag(1./s));
 
 
 %what kind of prior for theta_c
-theta_prior_type = 'hierarchical_gamma';                  %hierarchical_gamma, hierarchical_laplace, laplace, gaussian, spikeAndSlab or none
+theta_prior_type = 'gaussian';                  %hierarchical_gamma, hierarchical_laplace, laplace, gaussian, spikeAndSlab or none
 sigma_prior_type = 'none';
 %prior hyperparams; obsolete for no prior
-theta_prior_hyperparamArray = [0 1e-4];                   %a and b params for Gamma hyperprior
-% theta_prior_hyperparamArray = [10];
+% theta_prior_hyperparamArray = [0 1e-4];                   %a and b params for Gamma hyperprior
+theta_prior_hyperparamArray = [1];
 % theta_prior_hyperparam = 10;
 sigma_prior_hyperparam = 1;
 
@@ -117,7 +120,7 @@ if strcmp(condTransOpts.transform, 'logit')
 elseif condTransOpts.anisotropy
     initialParamsArray{1} = [0*ones(1, 3*domainc.nEl) .1*ones(1, 3*domainc.nEl)];
 elseif strcmp(condTransOpts.transform, 'log')
-    initialParamsArray{1} = [log(loCond)*ones(1, domainc.nEl) 1*ones(1, domainc.nEl)];
+    initialParamsArray{1} = [log(loCond)*ones(1, domainc.nEl) 1e3*ones(1, domainc.nEl)];
 elseif strcmp(condTransOpts.transform, 'log_lower_bound')
     initialParamsArray{1} = [log(1*loCond + 0*upCond - condTransOpts.lowerCondLim)*ones(1, domainc.nEl)...
         1*ones(1, domainc.nEl)];
@@ -125,11 +128,11 @@ else
     error('Which conductivity transformation?');
 end
 initialParamsArray = repmat(initialParamsArray, nTrain, 1);
-VIparams.nSamples = 40;    %Gradient samples per iteration
+VIparams.nSamples = 100;    %Gradient samples per iteration
 VIparams.inferenceSamples = 200;
 VIparams.optParams.optType = 'adam';
 VIparams.optParams.dim = domainc.nEl;
-VIparams.optParams.stepWidth = .1;
+VIparams.optParams.stepWidth = .005;
 VIparams.optParams.XWindow = 20;    %Averages dependent variable over last iterations
 VIparams.optParams.offset = 10000;  %Robbins-Monro offset
 VIparams.optParams.relXtol = 1e-12;

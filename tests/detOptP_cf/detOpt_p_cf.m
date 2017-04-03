@@ -13,7 +13,7 @@ addpath('./featureFunctions')
 condTransOpts.anisotropy = false;
 %Upper and lower limit on effective conductivity
 condTransOpts.upperCondLim = 1e10;
-condTransOpts.lowerCondLim = .001;
+condTransOpts.lowerCondLim = 1e-10;
 condTransOpts.transform = 'log';
 
 %Load finescale data, including domainf
