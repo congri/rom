@@ -47,53 +47,53 @@ nElf = [domainf.nElX domainf.nElY];
 % %         linealPath(lambda, d, 'y', 2, conductivities, nElc, nElf);
 % % end
 % 
-% volume fraction
-phi{end + 1} = @(lambda) linealPath(lambda, 0, 'x', 1, conductivities, nElc, nElf);
-
-% % Phase 1
-dLinPathMax = 30;
-dLinPathMin = 2;
-dLinPathIncr = 2;
-for d = dLinPathMin:dLinPathIncr:dLinPathMax
-   phi{end + 1} = @(lambda) linealPath(lambda, d, 'x', 1, conductivities, nElc, nElf);
-end
-
-dLinPathMax = 30;
-dLinPathMin = 2;
-dLinPathIncr = 2;
-for d = dLinPathMin:dLinPathIncr:dLinPathMax
-   phi{end + 1} = @(lambda) linealPath(lambda, d, 'y', 1, conductivities, nElc, nElf);
-end
+% % volume fraction
+% phi{end + 1} = @(lambda) linealPath(lambda, 0, 'x', 1, conductivities, nElc, nElf);
 % 
+% % % Phase 1
+% dLinPathMax = 30;
+% dLinPathMin = 2;
+% dLinPathIncr = 2;
+% for d = dLinPathMin:dLinPathIncr:dLinPathMax
+%    phi{end + 1} = @(lambda) linealPath(lambda, d, 'x', 1, conductivities, nElc, nElf);
+% end
 % 
-% %log Phase 1
-% % dLinPathMax = 31;
-% % dLinPathMin = 0;
-% % dLinPathIncr = 4;
-% % for d = dLinPathMin:dLinPathIncr:dLinPathMax
-% %     phi{end + 1} = @(lambda) log(linealPath(lambda, d, 'x', 1, conductivities, nElc, nElf));
-% % end
+% dLinPathMax = 30;
+% dLinPathMin = 2;
+% dLinPathIncr = 2;
+% for d = dLinPathMin:dLinPathIncr:dLinPathMax
+%    phi{end + 1} = @(lambda) linealPath(lambda, d, 'y', 1, conductivities, nElc, nElf);
+% end
 % % 
-% % dLinPathMax = 31;
-% % dLinPathMin = 4;
-% % dLinPathIncr = 4;
-% % for d = dLinPathMin:dLinPathIncr:dLinPathMax
-% %     phi{end + 1} = @(lambda) log(linealPath(lambda, d, 'y', 1, conductivities, nElc, nElf));
-% % end
-% 
-%Phase 2
-dLinPathMax = 30;
-dLinPathMin = 2;
-dLinPathIncr = 2;
-for d = dLinPathMin:dLinPathIncr:dLinPathMax
-   phi{end + 1} = @(lambda) linealPath(lambda, d, 'x', 2, conductivities, nElc, nElf);
-end
-dLinPathMax = 30;
-dLinPathMin = 2;
-dLinPathIncr = 2;
-for d = dLinPathMin:dLinPathIncr:dLinPathMax
-   phi{end + 1} = @(lambda) linealPath(lambda, d, 'y', 2, conductivities, nElc, nElf);
-end
+% % 
+% % %log Phase 1
+% % % dLinPathMax = 31;
+% % % dLinPathMin = 0;
+% % % dLinPathIncr = 4;
+% % % for d = dLinPathMin:dLinPathIncr:dLinPathMax
+% % %     phi{end + 1} = @(lambda) log(linealPath(lambda, d, 'x', 1, conductivities, nElc, nElf));
+% % % end
+% % % 
+% % % dLinPathMax = 31;
+% % % dLinPathMin = 4;
+% % % dLinPathIncr = 4;
+% % % for d = dLinPathMin:dLinPathIncr:dLinPathMax
+% % %     phi{end + 1} = @(lambda) log(linealPath(lambda, d, 'y', 1, conductivities, nElc, nElf));
+% % % end
+% % 
+% %Phase 2
+% dLinPathMax = 30;
+% dLinPathMin = 2;
+% dLinPathIncr = 2;
+% for d = dLinPathMin:dLinPathIncr:dLinPathMax
+%    phi{end + 1} = @(lambda) linealPath(lambda, d, 'x', 2, conductivities, nElc, nElf);
+% end
+% dLinPathMax = 30;
+% dLinPathMin = 2;
+% dLinPathIncr = 2;
+% for d = dLinPathMin:dLinPathIncr:dLinPathMax
+%    phi{end + 1} = @(lambda) linealPath(lambda, d, 'y', 2, conductivities, nElc, nElf);
+% end
 % 
 % 
 % % %log Phase 2
@@ -890,7 +890,7 @@ end
 % % 
 % %% Self-consistent approximation
 % phi{end + 1} = @(lambda) SCA(lambda, conductivities, 'plain');
-% phi{end + 1} = @(lambda) SCA(lambda, conductivities, 'log');
+phi{end + 1} = @(lambda) SCA(lambda, conductivities, 'log');
 % % phi{end + 1} = @(lambda) SCA(lambda, conductivities, 'logit');
 % % 
 % 

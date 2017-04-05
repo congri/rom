@@ -1,5 +1,5 @@
 function [TfMeanArray, TfVarArray, Tf_mean_tot, Tf_sq_mean_tot, meanMahaErr, meanSqDist, sqDist, meanEffCond, meanSqDistErr] =...
-    predictOutput(nSamples_p_c, testSample_lo, testSample_up, testFilePath, modelParamsFolder, useNeighbor, useLocal)
+    predictOutput(nSamples_p_c, testSample_lo, testSample_up, testFilePath, modelParamsFolder, mode, theta_c)
 %Function to predict finescale output from generative model
 
 %Load test file
@@ -7,7 +7,7 @@ Tffile = matfile(testFilePath);
 if nargout > 4
     Tf = Tffile.Tf(:, testSample_lo:testSample_up);
 end
-[theta_c, theta_cf, domainc, domainf, phi, featureFunctionMean, featureFunctionSqMean,...
+[~, theta_cf, domainc, domainf, phi, featureFunctionMean, featureFunctionSqMean,...
     featureFunctionMin, featureFunctionMax] = loadTrainedParams(modelParamsFolder);
 
 addpath('./rom')
@@ -22,10 +22,13 @@ Phi = Phi.computeDesignMatrix(domainc.nEl, domainf.nEl, condTransOpts);
 %Normalize design matrices
 %Phi = Phi.standardizeDesignMatrix(featureFunctionMean, featureFunctionSqMean);
 Phi = Phi.rescaleDesignMatrix(featureFunctionMin, featureFunctionMax);
-if useNeighbor
+if strcmp(mode, 'useNeighbor')
     %use feature function information from nearest neighbors
     Phi = Phi.includeNearestNeighborFeatures([domainc.nElX domainc.nElY]);
-elseif useLocal
+elseif strcmp(mode, 'useDiagNeighbor')
+    %use feature function information from nearest and diagonal neighbors
+    Phi = Phi.includeDiagNeighborFeatures([domainc.nElX domainc.nElY]);
+elseif strcmp(mode, 'useLocal')
     Phi = Phi.localTheta_c([domainc.nElX domainc.nElY]);
 end
 
@@ -36,10 +39,31 @@ Xsamples = zeros(domainc.nEl, nSamples_p_c, nTest);
 LambdaSamples{1} = zeros(domainc.nEl, nSamples_p_c);
 LambdaSamples = repmat(LambdaSamples, nTest, 1);
 meanEffCond = zeros(domainc.nEl, nTest);
+
+if theta_c.useNeuralNet
+    finePerCoarse = [sqrt(size(Phi.xk{1}, 1)), sqrt(size(Phi.xk{1}, 1))];
+    xkNN = zeros(finePerCoarse(1), finePerCoarse(2), 1, nTest*domainc.nEl);
+    k = 1;
+    for i = 1:nTest
+        for j = 1:domainc.nEl
+            xkNN(:, :, 1, k) =...
+                reshape(Phi.xk{i}(:, j), finePerCoarse(1), finePerCoarse(2)); %for neural net
+            k = k + 1;
+        end
+    end
+end
+
+
 for i = 1:nTest
-    Xsamples(:, :, i) = mvnrnd(Phi.designMatrices{i}*theta_c.theta, theta_c.Sigma, nSamples_p_c)';
+    if theta_c.useNeuralNet
+        PhiMat = xkNN(:, :, 1, ((i - 1)*domainc.nEl + 1):(i*domainc.nEl));
+        mu = double(predict(theta_c.theta, PhiMat));
+        Xsamples(:, :, i) = mvnrnd(mu, theta_c.Sigma, nSamples_p_c)';
+    else
+        Xsamples(:, :, i) = mvnrnd(Phi.designMatrices{i}*theta_c.theta, theta_c.Sigma, nSamples_p_c)';
+    end
     LambdaSamples{i} = conductivityBackTransform(Xsamples(:, :, i), condTransOpts);
-    if strcmp(condTransOpts.transform, 'log')
+    if(strcmp(condTransOpts.transform, 'log') && ~theta_c.useNeuralNet)
         meanEffCond(:, i) = exp(Phi.designMatrices{i}*theta_c.theta + .5*diag(theta_c.Sigma));
     else
         meanEffCond(:, i) = mean(LambdaSamples{i}, 2);

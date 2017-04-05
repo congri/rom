@@ -2,7 +2,7 @@
 %CHANGE JOBFILE IF YOU CHANGE LINE NUMBERS!
 %Number of training data samples
 nStart = 1; %start training sample in training data file
-nTrain = 64;
+nTrain = 128;
 
 %Anisotropy; do NOT use together with limEffCond
 condTransOpts.anisotropy = false;
@@ -28,18 +28,16 @@ genCoarseDomain;
                                                                 
 %% Generate basis function for p_c
 genBasisFunctions;
-%use neighboring element information?
-useNeighbor = false;
-%use separate theta_c's for each macro-element?
-useLocal = false;
-%add linear filter basis functions sequentially?
+mode = 'useLocal'; %useNeighbor, useDiagNeighbor, useLocal
 linFiltSeq = false;
-assert(~(useNeighbor && useLocal), 'useNeighbor and useLocal cannot be used at the same time')
+%load old configuration? (Optimal parameters, optimal variational distributions
+loadOldConf = false;
+theta_c.useNeuralNet = false;    %use neural net for p_c
 
 
 %% EM params
-initialIterations = 20;
-basisFunctionUpdates = 10;
+initialIterations = 10000;
+basisFunctionUpdates = 0;
 basisUpdateGap = 20;
 maxIterations = (basisFunctionUpdates + 1)*basisUpdateGap - 1 + initialIterations;
 
@@ -48,31 +46,42 @@ maxIterations = (basisFunctionUpdates + 1)*basisUpdateGap - 1 + initialIteration
 theta_cf.W = shapeInterp(domainc, domainf);
 %shrink finescale domain object to save memory
 domainf = domainf.shrink();
-theta_cf.S = 1*ones(domainf.nNodes, 1);
+if loadOldConf
+    disp('Loading old configuration...')
+    theta_cf.S = dlmread('./data/S')';
+    theta_cf.mu = dlmread('./data/mu')';
+    theta_c.theta = dlmread('./data/theta');
+    theta_c.theta = theta_c.theta(end, :)';
+    s = dlmread('./data/sigma');
+    s = s(end, :);
+    theta_c.Sigma = sparse(diag(s));
+    theta_c.SigmaInv = sparse(diag(1./s));
+else
+    theta_cf.S = 1*ones(domainf.nNodes, 1);
+    theta_cf.mu = zeros(domainf.nNodes, 1);
+    theta_c.theta = 0*ones(nBasis, 1);
+    theta_c.Sigma = 1e-1*speye(domainc.nEl);
+    s = diag(theta_c.Sigma);
+    theta_c.SigmaInv = sparse(diag(1./s));
+end
 theta_cf.Sinv = sparse(1:domainf.nNodes, 1:domainf.nNodes, 1./theta_cf.S);
+theta_cf.Sinv_vec = 1./theta_cf.S;
 %precomputation to save resources
 theta_cf.WTSinv = theta_cf.W'*theta_cf.Sinv;
-theta_cf.mu = zeros(domainf.nNodes, 1);
-% theta_c.theta = (1/size(phi, 1))*ones(size(phi, 1), 1);
-theta_c.theta = ones(nBasis, 1);
-% theta_c.theta = 0*cos(pi*(1:nBasis)');
-if useNeighbor
-    theta_c.theta = repmat(theta_c.theta, 5, 1);
-elseif useLocal
-    theta_c.theta = repmat(theta_c.theta, domainc.nEl, 1);   
-end
 
-% d = .01;
-% theta_c.theta = 2*d*rand(nBasis, 1) - d;
-% theta_c.theta(end) = 1;
-% theta_c.theta = 0;
-theta_c.Sigma = 1e-0*speye(domainc.nEl);
-s = diag(theta_c.Sigma);
-theta_c.SigmaInv = sparse(diag(1./s));
+if ~loadOldConf
+    if strcmp(mode, 'useNeighbor')
+        theta_c.theta = repmat(theta_c.theta, 5, 1);
+    elseif strcmp(mode, 'useDiagNeighbor')
+        theta_c.theta = repmat(theta_c.theta, 9, 1);
+    elseif strcmp(mode, 'useLocal')
+        theta_c.theta = repmat(theta_c.theta, domainc.nEl, 1);
+    end
+end
 
 
 %what kind of prior for theta_c
-theta_prior_type = 'gaussian';                  %hierarchical_gamma, hierarchical_laplace, laplace, gaussian, spikeAndSlab or none
+theta_prior_type = 'none';                  %hierarchical_gamma, hierarchical_laplace, laplace, gaussian, spikeAndSlab or none
 sigma_prior_type = 'none';
 %prior hyperparams; obsolete for no prior
 % theta_prior_hyperparamArray = [0 1e-4];                   %a and b params for Gamma hyperprior
@@ -110,24 +119,28 @@ end
 mix_sigma = 0;
 mix_S = 0;
 mix_W = 0;
-mix_theta = 0;    %to damp oscillations?
+mix_theta = -.2;    %to damp oscillations/ drive convergence?
 
 %% Variational inference params
 dim = domainc.nEl;
 VIparams.family = 'diagonalGaussian';
-if strcmp(condTransOpts.transform, 'logit')
-    initialParamsArray{1} = [-20*ones(1, domainc.nEl) 10*ones(1, domainc.nEl)];
-elseif condTransOpts.anisotropy
-    initialParamsArray{1} = [0*ones(1, 3*domainc.nEl) .1*ones(1, 3*domainc.nEl)];
-elseif strcmp(condTransOpts.transform, 'log')
-    initialParamsArray{1} = [log(loCond)*ones(1, domainc.nEl) 1e3*ones(1, domainc.nEl)];
-elseif strcmp(condTransOpts.transform, 'log_lower_bound')
-    initialParamsArray{1} = [log(1*loCond + 0*upCond - condTransOpts.lowerCondLim)*ones(1, domainc.nEl)...
-        1*ones(1, domainc.nEl)];
+if loadOldConf
+    load('./data/initialParamsArray.mat');
 else
-    error('Which conductivity transformation?');
+    if strcmp(condTransOpts.transform, 'logit')
+        initialParamsArray{1} = [-20*ones(1, domainc.nEl) 10*ones(1, domainc.nEl)];
+    elseif condTransOpts.anisotropy
+        initialParamsArray{1} = [0*ones(1, 3*domainc.nEl) .1*ones(1, 3*domainc.nEl)];
+    elseif strcmp(condTransOpts.transform, 'log')
+        initialParamsArray{1} = [log(loCond)*ones(1, domainc.nEl) 1e3*ones(1, domainc.nEl)];
+    elseif strcmp(condTransOpts.transform, 'log_lower_bound')
+        initialParamsArray{1} = [log(1*loCond + 0*upCond - condTransOpts.lowerCondLim)*ones(1, domainc.nEl)...
+            1*ones(1, domainc.nEl)];
+    else
+        error('Which conductivity transformation?');
+    end
+    initialParamsArray = repmat(initialParamsArray, nTrain, 1);
 end
-initialParamsArray = repmat(initialParamsArray, nTrain, 1);
 VIparams.nSamples = 100;    %Gradient samples per iteration
 VIparams.inferenceSamples = 200;
 VIparams.optParams.optType = 'adam';

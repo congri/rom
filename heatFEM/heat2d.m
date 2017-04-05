@@ -30,6 +30,7 @@ Out.globalForce = get_glob_force(domain, Out.localStiffness);
 %Finally solving the equation system
 Out.naturalTemperatures = Out.globalStiffness\Out.globalForce;
 
+
 %Temperature field
 Tf = zeros(domain.nNodes, 1);
 Tf(domain.id) = Out.naturalTemperatures;

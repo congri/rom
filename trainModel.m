@@ -30,7 +30,6 @@ pend = 0;       %for sequential qi-updates
 %prealloc
 XMean = zeros(domainc.nEl, nTrain);
 XSqMean = ones(domainc.nEl, nTrain);
-% XNormSqMean = zeros(1, nTrain);
 XNormSqMean = ones(1, nTrain);
 
 Tf = Tffile.Tf(:, nStart:(nStart + nTrain - 1));        %Finescale temperatures - load partially to save memory
@@ -43,15 +42,32 @@ Phi = Phi.computeDesignMatrix(domainc.nEl, domainf.nEl, condTransOpts);
 Phi = Phi.rescaleDesignMatrix;
 Phi.saveNormalization('rescaling'); %'rescaling' if rescaleDesignMatrix is used, 'standardization' if standardizeDesignMatrix is used
 %Compute sum_i Phi^T(x_i)^Phi(x_i)
-if useNeighbor
+if strcmp(mode, 'useNeighbor')
     %use feature function information from nearest neighbors
     Phi = Phi.includeNearestNeighborFeatures([domainc.nElX domainc.nElY]);
-elseif useLocal
+elseif strcmp(mode, 'useDiagNeighbor')
+    %use feature function information from nearest and diagonal neighbors
+    Phi = Phi.includeDiagNeighborFeatures([domainc.nElX domainc.nElY]);
+elseif strcmp(mode, 'useLocal')
+    %Use separate parameters for every macro-cell
     Phi = Phi.localTheta_c([domainc.nElX domainc.nElY]);
 end
 Phi = Phi.computeSumPhiTPhi;
-if useLocal
+if strcmp(mode, 'useLocal')
     Phi.sumPhiTPhi = sparse(Phi.sumPhiTPhi);
+end
+
+if theta_c.useNeuralNet
+    finePerCoarse = [sqrt(size(Phi.xk{1}, 1)), sqrt(size(Phi.xk{1}, 1))];
+    xkNN = zeros(finePerCoarse(1), finePerCoarse(2), 1, nTrain*domainc.nEl);
+    k = 1;
+    for i = 1:nTrain
+        for j = 1:domainc.nEl
+            xkNN(:, :, 1, k) =...
+                reshape(Phi.xk{i}(:, j), finePerCoarse(1), finePerCoarse(2)); %for neural net
+            k = k + 1;
+        end
+    end
 end
 
 
@@ -65,7 +81,11 @@ for k = 2:(maxIterations + 1)
     %% Establish distribution to sample from
     for i = 1:nTrain
         Tf_i_minus_mu = Tf(:, i) - theta_cf.mu;
-        PhiMat = Phi.designMatrices{i};
+        if theta_c.useNeuralNet
+            PhiMat = xkNN(:, :, 1, ((i - 1)*domainc.nEl + 1):(i*domainc.nEl));
+        else
+            PhiMat = Phi.designMatrices{i};
+        end
         log_qi{i} = @(Xi) log_q_i(Xi, Tf_i_minus_mu, theta_cf, theta_c,...
             PhiMat, domainc, condTransOpts);
     end
@@ -193,6 +213,7 @@ for k = 2:(maxIterations + 1)
                 error('VI not implemented for this family of functions')
             end
         end
+        save('./data/initialParamsArray.mat', 'initialParamsArray');
         %Set start values for next iteration
         for i = pstart:pend
             VIparams.initialParams{i} = optVarDist{i}.params;
@@ -251,6 +272,7 @@ for k = 2:(maxIterations + 1)
         + mix_S*theta_cf.S + lowerBoundS*ones(domainf.nNodes, 1);
 %     clear p_cf_exponent;
     theta_cf.Sinv = sparse(1:domainf.nNodes, 1:domainf.nNodes, 1./theta_cf.S);
+    theta_cf.Sinv_vec = 1./theta_cf.S;
     theta_cf.WTSinv = theta_cf.W'*theta_cf.Sinv;        %Precomputation for efficiency
 
     %optimal theta_c and sigma
@@ -264,183 +286,198 @@ for k = 2:(maxIterations + 1)
         Phi, XMean, theta_prior_type, theta_prior_hyperparam,...
         sigma_prior_type, sigma_prior_hyperparam);
     theta_c.Sigma = (1 - mix_sigma)*theta_c.Sigma + mix_sigma*Sigma_old;
-    theta_c.theta = (1 - mix_theta)*theta_c.theta + mix_theta*theta_old;
-    disp('M-step done, current params:')
+    
     k
-    [~, index] = sort(abs(theta_c.theta));
-    if useNeighbor
-        feature = mod((index - 1), numel(Phi.featureFunctions)) + 1;
-        neighborElement = floor((index - 1)/numel(Phi.featureFunctions));
-        curr_theta = [theta_c.theta(index) feature neighborElement]
-    elseif useLocal
-        feature = mod((index - 1), numel(Phi.featureFunctions)) + 1;
-        Element = floor((index - 1)/numel(Phi.featureFunctions)) + 1;
-        curr_theta = [theta_c.theta(index) feature Element]
-    else
-        curr_theta = [theta_c.theta(index) index]
+    if(~theta_c.useNeuralNet)
+        theta_c.theta = (1 - mix_theta)*theta_c.theta + mix_theta*theta_old;
+        disp('M-step done, current params:')
+        [~, index] = sort(abs(theta_c.theta));
+        if strcmp(mode, 'useNeighbor')
+            feature = mod((index - 1), numel(Phi.featureFunctions)) + 1;
+            neighborElement = floor((index - 1)/numel(Phi.featureFunctions)); %counted counterclockwise from right to lower neighbor
+            curr_theta = [theta_c.theta(index) feature neighborElement]
+        elseif strcmp(mode, 'useDiagNeighbor')
+            feature = mod((index - 1), numel(Phi.featureFunctions)) + 1;
+            neighborElement = floor((index - 1)/numel(Phi.featureFunctions)); %counted counterclockwise from right to lower right neighbor
+            curr_theta = [theta_c.theta(index) feature neighborElement]
+        elseif strcmp(mode, 'useLocal')
+            feature = mod((index - 1), numel(Phi.featureFunctions)) + 1;
+            Element = floor((index - 1)/numel(Phi.featureFunctions)) + 1;
+            curr_theta = [theta_c.theta(index) feature Element]
+        else
+            curr_theta = [theta_c.theta(index) index]
+        end
+        
+        if(linFiltSeq && k > initialIterations && mod(k, basisUpdateGap) == 0)
+            %Construct E-matrix, see notes
+            %        finePerCoarse = domainf.nEl/domainc.nEl;     %finescale pixels per coarse element - update this for non-square meshes!
+            %        E = zeros(finePerCoarse);
+            sigma2Inv_vec = (1./diag(theta_c.Sigma));
+            XMeanMinusPhiThetac = zeros(domainc.nEl, nTrain);
+            for i = 1:nTrain
+                XMeanMinusPhiThetac(:, i) = XMean(:, i) - Phi.designMatrices{i}*theta_c.theta;
+            end
+            xk = Phi.xk;
+            
+            %        tic
+            %        parfor i = 1:nTrain
+            %            for j = 1:nTrain
+            %                for m = 1:domainc.nEl
+            %                    for n = 1:domainc.nEl
+            %                        E = E + sigma2Inv_mat(m, n)*...
+            %                            XMeanMinusPhiThetac{i}(m)*XMeanMinusPhiThetac{j}(n)*...
+            %                            xk{i}(:, m)*xk{j}(:, n)';
+            %                    end
+            %                end
+            %            end
+            %        end
+            %        assemble_t = toc
+            
+            xtemp = 0;
+            for i = 1:nTrain     %serial seems to be more efficient here
+                for m = 1:domainc.nEl
+                    xtemp = xtemp + sigma2Inv_vec(m)*XMeanMinusPhiThetac(m, i)*xk{i}(:, m);
+                end
+            end
+            
+            pseudoinverse = true;
+            if pseudoinverse
+                Atemp = 0;
+                for i = 1:nTrain     %serial seems to be more efficient here
+                    for m = 1:domainc.nEl
+                        Atemp = Atemp + sigma2Inv_vec(m)*(xk{i}(:, m)*xk{i}(:, m)');
+                    end
+                end
+                xtemp = pinv(Atemp)*xtemp;
+            end
+            xtempNorm = norm(xtemp);
+            xtemp = xtemp'/xtempNorm;
+            
+            %save xtemp
+            filename = './data/w';
+            save(filename, 'xtemp', '-ascii', '-append');
+            
+            %sigma
+            filename = './data/sigma';
+            sigma = full(diag(theta_c.Sigma))';
+            save(filename, 'sigma', '-ascii', '-append');
+            %        E = xtemp*xtemp';
+            %
+            %
+            %        opts.issym = true;
+            %        opts.isreal = true;
+            %        [V, eigVals] = eigs(E, 4, 'lm', opts);
+            %        V = real(V);
+            %        eigVals = real(eigVals);
+            %        figure(2)
+            %        eigVals = diag(eigVals)
+            %        [eigVals, indEigVals] = sort(eigVals, 'descend');
+            %        V = V(:, indEigVals);
+            %        plot(eigVals)
+            %        figure(4)
+            %        for i = 1:4
+            %            subplot(2,2,i);
+            %            imagesc(reshape(V(:, i), 64, 64))
+            %            axis square
+            %            grid off
+            %            xticks({})
+            %            yticks({})
+            %            colorbar
+            %        end
+            figure(3)
+            imagesc(reshape(xtemp, 64, 64))
+            axis square
+            grid off
+            xticks({})
+            yticks({})
+            colorbar
+            drawnow
+            
+            %        phi{end + 1} = @(lambda) sum(V(:, 1).*lambda);
+            phi{end + 1} = @(lambda) sum(xtemp'.*lambda);
+            nBasis = nBasis + 1;
+            %% Compute design matrices
+            %ATTENTION: this can and should be done more efficiently. Up to now,
+            %all feature functions are recomputed
+            Phi = DesignMatrix([domainf.nElX domainf.nElY], [domainc.nElX domainc.nElY], phi, Tffile, nStart:(nStart + nTrain - 1));
+            Phi = Phi.computeDesignMatrix(domainc.nEl, domainf.nEl, condTransOpts);
+            %Normalize design matrices
+            %Phi = Phi.standardizeDesignMatrix;
+            % Phi = Phi.rescaleDesignMatrix;
+            % Phi.saveNormalization('rescaling'); %'rescaling' if rescaleDesignMatrix is used, 'standardization' if standardizeDesignMatrix is used
+            %Compute sum_i Phi^T(x_i)^Phi(x_i)
+            if strcmp(mode, 'useNeighbor')
+                %use feature function information from nearest neighbors
+                Phi = Phi.includeNearestNeighborFeatures([domainc.nElX domainc.nElY]);
+            elseif strcmp(mode, 'useDiagNeighbor')
+                %use feature function information from nearest and diagonal neighbors
+                Phi = Phi.includeDiagNeighborFeatures([domainc.nElX domainc.nElY]);
+            elseif strcmp(mode, 'useLocal')
+                Phi = Phi.localTheta_c([domainc.nElX domainc.nElY]);
+            end
+            Phi = Phi.computeSumPhiTPhi;
+            if useLocal
+                Phi.sumPhiTPhi = sparse(Phi.sumPhiTPhi);
+            end
+            %append theta-value
+            theta_c.theta = [theta_c.theta; 1/xtempNorm];
+            
+        end
+        
+        plotTheta = true;
+        if plotTheta
+            if ~exist('thetaArray')
+                thetaArray = theta_c.theta';
+            else
+                if(size(theta_c.theta, 1) > size(thetaArray, 2))
+                    %New basis function included. Expand array
+                    thetaArray = [thetaArray, zeros(size(thetaArray, 1), 1)];
+                    thetaArray = [thetaArray; theta_c.theta'];
+                else
+                    thetaArray = [thetaArray; theta_c.theta'];
+                end
+            end
+            if ~exist('sigmaArray')
+                sigmaArray = diag(theta_c.Sigma)';
+            else
+                sigmaArray = [sigmaArray; diag(theta_c.Sigma)'];
+            end
+            figure(1)
+            subplot(2,2,1)
+            plot(thetaArray, 'linewidth', 1)
+            axis tight;
+            subplot(2,2,2)
+            plot(theta_c.theta, 'linewidth', 1)
+            %        imagesc(reshape(theta_c.theta, 64, 64))
+            %        colorbar
+            %        grid off;
+            %        axis tight;
+            subplot(2,2,3)
+            semilogy(sqrt(sigmaArray), 'linewidth', 1)
+            axis tight;
+            %        ylim([0 20])
+            subplot(2,2,4)
+            imagesc(reshape(diag(sqrt(theta_c.Sigma)), domainc.nElX, domainc.nElY))
+            title('\sigma_k')
+            colorbar
+            grid off;
+            axis tight;
+            drawnow
+        end
     end
     
-    if(linFiltSeq && k > initialIterations && mod(k, basisUpdateGap) == 0)
-       %Construct E-matrix, see notes
-%        finePerCoarse = domainf.nEl/domainc.nEl;     %finescale pixels per coarse element - update this for non-square meshes!
-%        E = zeros(finePerCoarse);
-       sigma2Inv_vec = (1./diag(theta_c.Sigma));
-       XMeanMinusPhiThetac = zeros(domainc.nEl, nTrain);
-       for i = 1:nTrain
-           XMeanMinusPhiThetac(:, i) = XMean(:, i) - Phi.designMatrices{i}*theta_c.theta;
-       end
-       xk = Phi.xk;
-       
-%        tic
-%        parfor i = 1:nTrain
-%            for j = 1:nTrain
-%                for m = 1:domainc.nEl
-%                    for n = 1:domainc.nEl
-%                        E = E + sigma2Inv_mat(m, n)*...
-%                            XMeanMinusPhiThetac{i}(m)*XMeanMinusPhiThetac{j}(n)*...
-%                            xk{i}(:, m)*xk{j}(:, n)';
-%                    end
-%                end
-%            end
-%        end
-%        assemble_t = toc
-       
-       xtemp = 0;
-       for i = 1:nTrain     %serial seems to be more efficient here
-           for m = 1:domainc.nEl
-               xtemp = xtemp + sigma2Inv_vec(m)*XMeanMinusPhiThetac(m, i)*xk{i}(:, m);
-           end
-       end
-       
-       pseudoinverse = true;
-       if pseudoinverse
-           Atemp = 0;
-           for i = 1:nTrain     %serial seems to be more efficient here
-               for m = 1:domainc.nEl
-                   Atemp = Atemp + sigma2Inv_vec(m)*(xk{i}(:, m)*xk{i}(:, m)');
-               end
-           end
-           xtemp = pinv(Atemp)*xtemp;
-       end
-       xtempNorm = norm(xtemp);
-       xtemp = xtemp'/xtempNorm;
-       
-       %save xtemp
-       filename = './data/w';
-       save(filename, 'xtemp', '-ascii', '-append');
-       
-       %sigma
-       filename = './data/sigma';
-       sigma = full(diag(theta_c.Sigma))';
-       save(filename, 'sigma', '-ascii', '-append');
-       %        E = xtemp*xtemp';
-       %
-%        
-%        opts.issym = true;
-%        opts.isreal = true;
-%        [V, eigVals] = eigs(E, 4, 'lm', opts);
-%        V = real(V);
-%        eigVals = real(eigVals);
-%        figure(2)
-%        eigVals = diag(eigVals)
-%        [eigVals, indEigVals] = sort(eigVals, 'descend');
-%        V = V(:, indEigVals);
-%        plot(eigVals)
-%        figure(4)
-%        for i = 1:4
-%            subplot(2,2,i);
-%            imagesc(reshape(V(:, i), 64, 64))
-%            axis square
-%            grid off
-%            xticks({})
-%            yticks({})
-%            colorbar
-%        end
-       figure(3)
-       imagesc(reshape(xtemp, 64, 64))
-       axis square
-       grid off
-       xticks({})
-       yticks({})
-       colorbar
-       drawnow
-       
-%        phi{end + 1} = @(lambda) sum(V(:, 1).*lambda);
-       phi{end + 1} = @(lambda) sum(xtemp'.*lambda);
-       nBasis = nBasis + 1;
-       %% Compute design matrices
-       %ATTENTION: this can and should be done more efficiently. Up to now,
-       %all feature functions are recomputed
-       Phi = DesignMatrix([domainf.nElX domainf.nElY], [domainc.nElX domainc.nElY], phi, Tffile, nStart:(nStart + nTrain - 1));
-       Phi = Phi.computeDesignMatrix(domainc.nEl, domainf.nEl, condTransOpts);
-       %Normalize design matrices
-       %Phi = Phi.standardizeDesignMatrix;
-       % Phi = Phi.rescaleDesignMatrix;
-       % Phi.saveNormalization('rescaling'); %'rescaling' if rescaleDesignMatrix is used, 'standardization' if standardizeDesignMatrix is used
-       %Compute sum_i Phi^T(x_i)^Phi(x_i)
-       if useNeighbor
-           %use feature function information from nearest neighbors
-           Phi = Phi.includeNearestNeighborFeatures([domainc.nElX domainc.nElY]);
-       elseif useLocal
-           Phi = Phi.localTheta_c([domainc.nElX domainc.nElY]);
-       end
-       Phi = Phi.computeSumPhiTPhi;
-       if useLocal
-           Phi.sumPhiTPhi = sparse(Phi.sumPhiTPhi);
-       end
-       %append theta-value
-       theta_c.theta = [theta_c.theta; 1/xtempNorm];
-       
-    end
-    
-    plotTheta = true;
-    if plotTheta
-       if ~exist('thetaArray')
-           thetaArray = theta_c.theta';
-       else
-           if(size(theta_c.theta, 1) > size(thetaArray, 2))
-               %New basis function included. Expand array
-               thetaArray = [thetaArray, zeros(size(thetaArray, 1), 1)];
-               thetaArray = [thetaArray; theta_c.theta'];
-           else
-               thetaArray = [thetaArray; theta_c.theta'];
-           end
-       end
-       if ~exist('sigmaArray')
-           sigmaArray = diag(theta_c.Sigma)';
-       else
-           sigmaArray = [sigmaArray; diag(theta_c.Sigma)'];
-       end
-       figure(1)
-	   subplot(2,2,1)
-       plot(thetaArray, 'linewidth', 1)
-       axis tight;
-       subplot(2,2,2)
-       plot(theta_c.theta, 'linewidth', 1)
-%        imagesc(reshape(theta_c.theta, 64, 64))
-%        colorbar
-%        grid off;
-%        axis tight;
-       subplot(2,2,3)
-       semilogy(sqrt(sigmaArray), 'linewidth', 1)
-	   axis tight;
-%        ylim([0 20])
-       subplot(2,2,4)
-       imagesc(reshape(diag(sqrt(theta_c.Sigma)), domainc.nElX, domainc.nElY))
-       title('\sigma_k')
-       colorbar
-       grid off;
-       axis tight;
-       drawnow
-    end
-       
     curr_sigma = theta_c.Sigma
     mean_S = mean(theta_cf.S)
     if(~condTransOpts.anisotropy)
-        Lambda_eff1_mode = conductivityBackTransform(Phi.designMatrices{1}*theta_c.theta,...
-            condTransOpts)
+        if theta_c.useNeuralNet
+            m = predict(theta_c.theta, xkNN(:, :, 1, 1:domainc.nEl));
+            Lambda_eff1_mode = conductivityBackTransform(m, condTransOpts)
+        else
+            Lambda_eff1_mode = conductivityBackTransform(Phi.designMatrices{1}*theta_c.theta,...
+                condTransOpts)
+        end
     end
-
+    
     %collect data and write it to disk periodically to save memory
     collectData;
 end

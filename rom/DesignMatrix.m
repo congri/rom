@@ -129,6 +129,7 @@ classdef DesignMatrix
         end
         
         function Phi = includeNearestNeighborFeatures(Phi, nc)
+            %Includes feature function information of neighboring cells
             %Can only be executed after standardization/rescaling!
             %nc/nf: coarse/fine elements in x/y direction
             disp('Including nearest neighbor feature function information...')
@@ -139,6 +140,7 @@ classdef DesignMatrix
             PhiCell = repmat(PhiCell, nTrain, 1);
             
             for s = 1:nTrain
+                %The first columns contain feature function information of the original cell
                 PhiCell{s}(:, 1:nFeatureFunctions) = Phi.designMatrices{s};
                 
                 %Only assign nonzero values to design matrix for neighboring elements if
@@ -150,7 +152,7 @@ classdef DesignMatrix
                            Phi.designMatrices{s}(i + 1, :);
                     end
                     
-                    if(i < nc(1)*(nc(2) - 1))
+                    if(i <= nc(1)*(nc(2) - 1))
                         %upper neighbor of coarse element exists
                         PhiCell{s}(i, (2*nFeatureFunctions + 1):(3*nFeatureFunctions)) =...
                             Phi.designMatrices{s}(i + nc(1), :);
@@ -172,6 +174,75 @@ classdef DesignMatrix
             Phi.designMatrices = PhiCell;
             disp('done')
         end%includeNearestNeighborFeatures
+        
+        
+        function Phi = includeDiagNeighborFeatures(Phi, nc)
+            %includes feature function information of all other cells
+            %Can only be executed after standardization/rescaling!
+            %nc/nf: coarse/fine elements in x/y direction
+            disp('Including nearest and diagonal neighbor feature function information...')
+            nElc = prod(nc);
+            nFeatureFunctions = numel(Phi.featureFunctions);
+            PhiCell{1} = zeros(nElc, 9*nFeatureFunctions);
+            nTrain = length(Phi.dataSamples);
+            PhiCell = repmat(PhiCell, nTrain, 1);
+            
+            for s = 1:nTrain
+                %The first columns contain feature function information of the original cell
+                PhiCell{s}(:, 1:nFeatureFunctions) = Phi.designMatrices{s};
+                
+                %Only assign nonzero values to design matrix for neighboring elements if
+                %neighbor in respective direction exists
+                for i = 1:nElc
+                    if(mod(i, nc(1)) ~= 0)
+                        %right neighbor of coarse element exists
+                        PhiCell{s}(i, (nFeatureFunctions + 1):(2*nFeatureFunctions)) =...
+                            Phi.designMatrices{s}(i + 1, :);
+                        if(i <= nc(1)*(nc(2) - 1))
+                            %upper right neighbor of coarse element exists
+                            PhiCell{s}(i, (2*nFeatureFunctions + 1):(3*nFeatureFunctions)) =...
+                                Phi.designMatrices{s}(i + nc(1) + 1, :);
+                        end
+                    end
+                    
+                    if(i <= nc(1)*(nc(2) - 1))
+                        %upper neighbor of coarse element exists
+                        PhiCell{s}(i, (3*nFeatureFunctions + 1):(4*nFeatureFunctions)) =...
+                            Phi.designMatrices{s}(i + nc(1), :);
+                        if(mod(i - 1, nc(1)) ~= 0)
+                            %upper left neighbor exists
+                            PhiCell{s}(i, (4*nFeatureFunctions + 1):(5*nFeatureFunctions)) =...
+                            Phi.designMatrices{s}(i + nc(1) - 1, :);
+                        end
+                    end
+                    
+                    if(mod(i - 1, nc(1)) ~= 0)
+                        %left neighbor of coarse element exists
+                        PhiCell{s}(i, (5*nFeatureFunctions + 1):(6*nFeatureFunctions)) =...
+                            Phi.designMatrices{s}(i - 1, :);
+                        if(i > nc(1))
+                            %lower left neighbor exists
+                            PhiCell{s}(i, (6*nFeatureFunctions + 1):(7*nFeatureFunctions)) =...
+                            Phi.designMatrices{s}(i - nc(1) - 1, :);
+                        end
+                    end
+                    
+                    if(i > nc(1))
+                        %lower neighbor of coarse element exists
+                        PhiCell{s}(i, (7*nFeatureFunctions + 1):(8*nFeatureFunctions)) =...
+                            Phi.designMatrices{s}(i - nc(1), :);
+                        if(mod(i, nc(1)) ~= 0)
+                            %lower right neighbor exists
+                            PhiCell{s}(i, (8*nFeatureFunctions + 1):(9*nFeatureFunctions)) =...
+                            Phi.designMatrices{s}(i - nc(1) + 1, :);
+                        end
+                    end
+                end
+            end
+            Phi.designMatrices = PhiCell;
+            disp('done')
+        end%includeDiagNeighborFeatures
+        
         
         function Phi = localTheta_c(Phi, nc)
             %Sets separate coefficients theta_c for each macro-cell in a single microstructure

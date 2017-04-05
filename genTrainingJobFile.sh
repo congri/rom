@@ -1,14 +1,14 @@
 NF=256
 CORRLENGTH=20
-NTRAIN=48
+NTRAIN=1024
 NSTART=1	#First training data sample in data file
 VOLFRAC=0.2	#Theoretical volume fraction
 LOCOND=1
 HICOND=10
-HYPERPARAM=10	#Lasso sparsity hyperparameter
-NC=8
-BC="[-50 164 112 -30]"
-BC2=\[-50\ 164\ 112\ -30\]
+HYPERPARAM=0	#Lasso sparsity hyperparameter
+NC=4
+BC="[0 1000 0 0]"
+BC2=\[0\ 1000\ 0\ 0\]
 
 DATESTR=`date +%m-%d-%H-%M-%S`	#datestring for jobfolder name
 PROJECTDIR="/home/constantin/matlab/projects/rom"

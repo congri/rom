@@ -7,7 +7,7 @@ function [log_p, d_log_p, Tc] = log_p_cf(Tf_i_minus_mu, domainc, conductivity, t
 %short hand notation
 W = theta_cf.W;
 S = theta_cf.S;
-Sinv = theta_cf.Sinv;
+Sinv_vec = theta_cf.Sinv_vec;
 
 if condTransOpts.anisotropy
     FEMout = heat2d(domainc, conductivity);
@@ -25,7 +25,7 @@ Tc = Tc(:);
 WTc = W*Tc;
 Tf_i_minus_mu_minus_WTc = Tf_i_minus_mu - WTc;
 %only for diagonal S!
-log_p = -.5*sum(log(S)) - .5*(Tf_i_minus_mu_minus_WTc)'*(Sinv*(Tf_i_minus_mu_minus_WTc));
+log_p = -.5*(sum(log(S)) + (Tf_i_minus_mu_minus_WTc)'*(Sinv_vec.*(Tf_i_minus_mu_minus_WTc)));
 
 if nargout > 1
     %Gradient of FEM equation system w.r.t. conductivities
@@ -73,7 +73,7 @@ if nargout > 1
             TcFD = TcFD(:);
             
             WTcFD = W*TcFD;
-            log_pFD = -.5*sum(log(S)) - .5*(Tf_i_minus_mu - WTcFD)'*(Sinv*(Tf_i_minus_mu - WTcFD));
+            log_pFD = -.5*sum(log(S)) - .5*(Tf_i_minus_mu - WTcFD)'*(Sinv_vec.*(Tf_i_minus_mu - WTcFD));
             if strcmp(condTransOpts.transform, 'log')
                 FDgrad(e) = conductivity(e)*(log_pFD - log_p)/d;
             elseif strcmp(condTransOpts.transform, 'logit')
