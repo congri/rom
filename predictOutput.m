@@ -1,5 +1,5 @@
 function [TfMeanArray, TfVarArray, Tf_mean_tot, Tf_sq_mean_tot, meanMahaErr, meanSqDist, sqDist, meanEffCond, meanSqDistErr] =...
-    predictOutput(nSamples_p_c, testSample_lo, testSample_up, testFilePath, modelParamsFolder, mode, theta_c)
+    predictOutput(nSamples_p_c, testSample_lo, testSample_up, testFilePath, modelParamsFolder, mode)
 %Function to predict finescale output from generative model
 
 %Load test file
@@ -7,8 +7,15 @@ Tffile = matfile(testFilePath);
 if nargout > 4
     Tf = Tffile.Tf(:, testSample_lo:testSample_up);
 end
-[~, theta_cf, domainc, domainf, phi, featureFunctionMean, featureFunctionSqMean,...
+[theta_c, theta_cf, domainc, domainf, phi, featureFunctionMean, featureFunctionSqMean,...
     featureFunctionMin, featureFunctionMax] = loadTrainedParams(modelParamsFolder);
+
+if strcmp(mode, 'linFiltSeq')
+    w = dlmread('./data/w');
+    for i = 1:size(w, 1)
+        phi{end + 1} = @(lambda) sum(w(i, :)'.*log(lambda));
+    end
+end
 
 addpath('./rom')
 addpath('./aux')
@@ -21,10 +28,14 @@ condTransOpts.anisotropy = false;
 Phi = Phi.computeDesignMatrix(domainc.nEl, domainf.nEl, condTransOpts);
 %Normalize design matrices
 %Phi = Phi.standardizeDesignMatrix(featureFunctionMean, featureFunctionSqMean);
-Phi = Phi.rescaleDesignMatrix(featureFunctionMin, featureFunctionMax);
+% Phi = Phi.rescaleDesignMatrix(featureFunctionMin, featureFunctionMax);
 if strcmp(mode, 'useNeighbor')
     %use feature function information from nearest neighbors
     Phi = Phi.includeNearestNeighborFeatures([domainc.nElX domainc.nElY]);
+elseif strcmp(mode, 'useLocalNeighbor')
+    Phi = Phi.includeLocalNearestNeighborFeatures([domainc.nElX domainc.nElY]);
+elseif strcmp(mode, 'useLocalDiagNeighbor')
+    Phi = Phi.includeLocalDiagNeighborFeatures([domainc.nElX domainc.nElY]);
 elseif strcmp(mode, 'useDiagNeighbor')
     %use feature function information from nearest and diagonal neighbors
     Phi = Phi.includeDiagNeighborFeatures([domainc.nElX domainc.nElY]);
@@ -40,6 +51,7 @@ LambdaSamples{1} = zeros(domainc.nEl, nSamples_p_c);
 LambdaSamples = repmat(LambdaSamples, nTest, 1);
 meanEffCond = zeros(domainc.nEl, nTest);
 
+theta_c.useNeuralNet = false;
 if theta_c.useNeuralNet
     finePerCoarse = [sqrt(size(Phi.xk{1}, 1)), sqrt(size(Phi.xk{1}, 1))];
     xkNN = zeros(finePerCoarse(1), finePerCoarse(2), 1, nTest*domainc.nEl);

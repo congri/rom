@@ -20,6 +20,8 @@ classdef DesignMatrix
         xk
         sumPhiTPhi
         
+        neighborDictionary      %This array holds the index of theta, the corresponding feature function number, coarse element and neighboring number
+        
     end
     
     methods
@@ -176,6 +178,92 @@ classdef DesignMatrix
         end%includeNearestNeighborFeatures
         
         
+        function Phi = includeLocalNearestNeighborFeatures(Phi, nc)
+            %Includes feature function information of neighboring cells
+            %Can only be executed after standardization/rescaling!
+            %nc/nf: coarse/fine elements in x/y direction
+            disp('Including nearest neighbor feature function information separately for each cell...')
+            nElc = prod(nc);
+            nFeatureFunctions = numel(Phi.featureFunctions);
+%             PhiCell{1} = zeros(nElc, 5*nFeatureFunctions);
+            nTrain = length(Phi.dataSamples);
+%             PhiCell = repmat(PhiCell, nTrain, 1);
+            
+            for s = 1:nTrain
+                %The first columns contain feature function information of the original cell
+                PhiCell{s}(:, 1:nFeatureFunctions) = Phi.designMatrices{s};
+                
+                %Only assign nonzero values to design matrix for neighboring elements if
+                %neighbor in respective direction exists
+                k = 0;
+                for i = 1:nElc
+                    PhiCell{s}(i, (k*nFeatureFunctions + 1):((k + 1)*nFeatureFunctions)) =...
+                        Phi.designMatrices{s}(i, :);
+                    Phi.neighborDictionary((k*nFeatureFunctions + 1):((k + 1)*nFeatureFunctions), 1) = ...
+                        (1:nFeatureFunctions)'; %feature index
+                    Phi.neighborDictionary((k*nFeatureFunctions + 1):((k + 1)*nFeatureFunctions), 2) = ...
+                        i; %coarse element index
+                    Phi.neighborDictionary((k*nFeatureFunctions + 1):((k + 1)*nFeatureFunctions), 3) = ...
+                        0; %center element
+                    k = k + 1;
+                    if(mod(i, nc(1)) ~= 0)
+                        %right neighbor of coarse element exists
+                        PhiCell{s}(i, (k*nFeatureFunctions + 1):((k + 1)*nFeatureFunctions)) =...
+                            Phi.designMatrices{s}(i + 1, :);
+                        Phi.neighborDictionary((k*nFeatureFunctions + 1):((k + 1)*nFeatureFunctions), 1) = ...
+                            (1:nFeatureFunctions)'; %feature index
+                        Phi.neighborDictionary((k*nFeatureFunctions + 1):((k + 1)*nFeatureFunctions), 2) = ...
+                            i; %coarse element index
+                        Phi.neighborDictionary((k*nFeatureFunctions + 1):((k + 1)*nFeatureFunctions), 3) = ...
+                            1; %right neighbor
+                        k = k + 1;
+                    end
+                    
+                    if(i <= nc(1)*(nc(2) - 1))
+                        %upper neighbor of coarse element exists
+                        PhiCell{s}(i, (k*nFeatureFunctions + 1):((k + 1)*nFeatureFunctions)) =...
+                            Phi.designMatrices{s}(i + nc(1), :);
+                        Phi.neighborDictionary((k*nFeatureFunctions + 1):((k + 1)*nFeatureFunctions), 1) = ...
+                            (1:nFeatureFunctions)'; %feature index
+                        Phi.neighborDictionary((k*nFeatureFunctions + 1):((k + 1)*nFeatureFunctions), 2) = ...
+                            i; %coarse element index
+                        Phi.neighborDictionary((k*nFeatureFunctions + 1):((k + 1)*nFeatureFunctions), 3) = ...
+                            2; %upper neighbor
+                        k = k + 1;
+                    end
+                    
+                    if(mod(i - 1, nc(1)) ~= 0)
+                        %left neighbor of coarse element exists
+                        PhiCell{s}(i, (k*nFeatureFunctions + 1):((k + 1)*nFeatureFunctions)) =...
+                            Phi.designMatrices{s}(i - 1, :);
+                        Phi.neighborDictionary((k*nFeatureFunctions + 1):((k + 1)*nFeatureFunctions), 1) = ...
+                            (1:nFeatureFunctions)'; %feature index
+                        Phi.neighborDictionary((k*nFeatureFunctions + 1):((k + 1)*nFeatureFunctions), 2) = ...
+                            i; %coarse element index
+                        Phi.neighborDictionary((k*nFeatureFunctions + 1):((k + 1)*nFeatureFunctions), 3) = ...
+                            3; %left neighbor
+                        k = k + 1;
+                    end
+                    
+                    if(i > nc(1))
+                        %lower neighbor of coarse element exists
+                        PhiCell{s}(i, (k*nFeatureFunctions + 1):((k + 1)*nFeatureFunctions)) =...
+                            Phi.designMatrices{s}(i - nc(1), :);
+                        Phi.neighborDictionary((k*nFeatureFunctions + 1):((k + 1)*nFeatureFunctions), 1) = ...
+                            (1:nFeatureFunctions)'; %feature index
+                        Phi.neighborDictionary((k*nFeatureFunctions + 1):((k + 1)*nFeatureFunctions), 2) = ...
+                            i; %coarse element index
+                        Phi.neighborDictionary((k*nFeatureFunctions + 1):((k + 1)*nFeatureFunctions), 3) = ...
+                            4; %lower neighbor
+                        k = k + 1;
+                    end
+                end
+            end
+            Phi.designMatrices = PhiCell;
+            disp('done')
+        end%includeLocalNearestNeighborFeatures
+        
+        
         function Phi = includeDiagNeighborFeatures(Phi, nc)
             %includes feature function information of all other cells
             %Can only be executed after standardization/rescaling!
@@ -242,6 +330,151 @@ classdef DesignMatrix
             Phi.designMatrices = PhiCell;
             disp('done')
         end%includeDiagNeighborFeatures
+        
+        
+        
+        function Phi = includeLocalDiagNeighborFeatures(Phi, nc)
+            %Includes feature function information of direct and diagonal neighboring cells
+            %Can only be executed after standardization/rescaling!
+            %nc/nf: coarse/fine elements in x/y direction
+            disp('Including nearest + diagonal neighbor feature function information separately for each cell...')
+            nElc = prod(nc);
+            nFeatureFunctions = numel(Phi.featureFunctions);
+%             PhiCell{1} = zeros(nElc, 5*nFeatureFunctions);
+            nTrain = length(Phi.dataSamples);
+%             PhiCell = repmat(PhiCell, nTrain, 1);
+            
+            for s = 1:nTrain
+                %The first columns contain feature function information of the original cell
+                PhiCell{s}(:, 1:nFeatureFunctions) = Phi.designMatrices{s}; %unnecessary?
+                %Only assign nonzero values to design matrix for neighboring elements if
+                %neighbor in respective direction exists
+                k = 0;
+                for i = 1:nElc
+                    PhiCell{s}(i, (k*nFeatureFunctions + 1):((k + 1)*nFeatureFunctions)) =...
+                        Phi.designMatrices{s}(i, :);
+                    Phi.neighborDictionary((k*nFeatureFunctions + 1):((k + 1)*nFeatureFunctions), 1) = ...
+                        (1:nFeatureFunctions)'; %feature index
+                    Phi.neighborDictionary((k*nFeatureFunctions + 1):((k + 1)*nFeatureFunctions), 2) = ...
+                        i; %coarse element index
+                    Phi.neighborDictionary((k*nFeatureFunctions + 1):((k + 1)*nFeatureFunctions), 3) = ...
+                        0; %center element
+                    k = k + 1;
+                    if(mod(i, nc(1)) ~= 0)
+                        %right neighbor of coarse element exists
+                        PhiCell{s}(i, (k*nFeatureFunctions + 1):((k + 1)*nFeatureFunctions)) =...
+                            Phi.designMatrices{s}(i + 1, :);
+                        Phi.neighborDictionary((k*nFeatureFunctions + 1):((k + 1)*nFeatureFunctions), 1) = ...
+                            (1:nFeatureFunctions)'; %feature index
+                        Phi.neighborDictionary((k*nFeatureFunctions + 1):((k + 1)*nFeatureFunctions), 2) = ...
+                            i; %coarse element index
+                        Phi.neighborDictionary((k*nFeatureFunctions + 1):((k + 1)*nFeatureFunctions), 3) = ...
+                            1; %right neighbor
+                        k = k + 1;
+                        
+                        if(i <= nc(1)*(nc(2) - 1))
+                            %upper right neighbor of coarse element exists
+                            PhiCell{s}(i, (k*nFeatureFunctions + 1):((k + 1)*nFeatureFunctions)) =...
+                                Phi.designMatrices{s}(i + nc(1) + 1, :);
+                            Phi.neighborDictionary((k*nFeatureFunctions + 1):((k + 1)*nFeatureFunctions), 1) = ...
+                                (1:nFeatureFunctions)'; %feature index
+                            Phi.neighborDictionary((k*nFeatureFunctions + 1):((k + 1)*nFeatureFunctions), 2) = ...
+                                i; %coarse element index
+                            Phi.neighborDictionary((k*nFeatureFunctions + 1):((k + 1)*nFeatureFunctions), 3) = ...
+                                2; % upper right neighbor
+                            k = k + 1;
+                        end
+                        
+                    end
+                    
+                    
+                    if(i <= nc(1)*(nc(2) - 1))
+                        %upper neighbor of coarse element exists
+                        PhiCell{s}(i, (k*nFeatureFunctions + 1):((k + 1)*nFeatureFunctions)) =...
+                            Phi.designMatrices{s}(i + nc(1), :);
+                        Phi.neighborDictionary((k*nFeatureFunctions + 1):((k + 1)*nFeatureFunctions), 1) = ...
+                            (1:nFeatureFunctions)'; %feature index
+                        Phi.neighborDictionary((k*nFeatureFunctions + 1):((k + 1)*nFeatureFunctions), 2) = ...
+                            i; %coarse element index
+                        Phi.neighborDictionary((k*nFeatureFunctions + 1):((k + 1)*nFeatureFunctions), 3) = ...
+                            2; %upper neighbor
+                        k = k + 1;
+                        
+                        if(mod(i - 1, nc(1)) ~= 0)
+                            %upper left neighbor of coarse element exists
+                            PhiCell{s}(i, (k*nFeatureFunctions + 1):((k + 1)*nFeatureFunctions)) =...
+                                Phi.designMatrices{s}(i + nc(1) - 1, :);
+                            Phi.neighborDictionary((k*nFeatureFunctions + 1):((k + 1)*nFeatureFunctions), 1) = ...
+                                (1:nFeatureFunctions)'; %feature index
+                            Phi.neighborDictionary((k*nFeatureFunctions + 1):((k + 1)*nFeatureFunctions), 2) = ...
+                                i; %coarse element index
+                            Phi.neighborDictionary((k*nFeatureFunctions + 1):((k + 1)*nFeatureFunctions), 3) = ...
+                                4; % upper left neighbor
+                            k = k + 1;
+                        end
+                        
+                    end
+                    
+                    
+                    if(mod(i - 1, nc(1)) ~= 0)
+                        %left neighbor of coarse element exists
+                        PhiCell{s}(i, (k*nFeatureFunctions + 1):((k + 1)*nFeatureFunctions)) =...
+                            Phi.designMatrices{s}(i - 1, :);
+                        Phi.neighborDictionary((k*nFeatureFunctions + 1):((k + 1)*nFeatureFunctions), 1) = ...
+                            (1:nFeatureFunctions)'; %feature index
+                        Phi.neighborDictionary((k*nFeatureFunctions + 1):((k + 1)*nFeatureFunctions), 2) = ...
+                            i; %coarse element index
+                        Phi.neighborDictionary((k*nFeatureFunctions + 1):((k + 1)*nFeatureFunctions), 3) = ...
+                            3; %left neighbor
+                        k = k + 1;
+                        
+                        if(i > nc(1))
+                            %lower left neighbor of coarse element exists
+                            PhiCell{s}(i, (k*nFeatureFunctions + 1):((k + 1)*nFeatureFunctions)) =...
+                                Phi.designMatrices{s}(i - nc(1) - 1, :);
+                            Phi.neighborDictionary((k*nFeatureFunctions + 1):((k + 1)*nFeatureFunctions), 1) = ...
+                                (1:nFeatureFunctions)'; %feature index
+                            Phi.neighborDictionary((k*nFeatureFunctions + 1):((k + 1)*nFeatureFunctions), 2) = ...
+                                i; %coarse element index
+                            Phi.neighborDictionary((k*nFeatureFunctions + 1):((k + 1)*nFeatureFunctions), 3) = ...
+                                6; % lower left neighbor
+                            k = k + 1;
+                        end
+                        
+                    end
+                    
+                    
+                    if(i > nc(1))
+                        %lower neighbor of coarse element exists
+                        PhiCell{s}(i, (k*nFeatureFunctions + 1):((k + 1)*nFeatureFunctions)) =...
+                            Phi.designMatrices{s}(i - nc(1), :);
+                        Phi.neighborDictionary((k*nFeatureFunctions + 1):((k + 1)*nFeatureFunctions), 1) = ...
+                            (1:nFeatureFunctions)'; %feature index
+                        Phi.neighborDictionary((k*nFeatureFunctions + 1):((k + 1)*nFeatureFunctions), 2) = ...
+                            i; %coarse element index
+                        Phi.neighborDictionary((k*nFeatureFunctions + 1):((k + 1)*nFeatureFunctions), 3) = ...
+                            4; %lower neighbor
+                        k = k + 1;
+                        
+                        if(mod(i, nc(1)) ~= 0)
+                            %lower right neighbor of coarse element exists
+                            PhiCell{s}(i, (k*nFeatureFunctions + 1):((k + 1)*nFeatureFunctions)) =...
+                                Phi.designMatrices{s}(i - nc(1) + 1, :);
+                            Phi.neighborDictionary((k*nFeatureFunctions + 1):((k + 1)*nFeatureFunctions), 1) = ...
+                                (1:nFeatureFunctions)'; %feature index
+                            Phi.neighborDictionary((k*nFeatureFunctions + 1):((k + 1)*nFeatureFunctions), 2) = ...
+                                i; %coarse element index
+                            Phi.neighborDictionary((k*nFeatureFunctions + 1):((k + 1)*nFeatureFunctions), 3) = ...
+                                8; % lower right neighbor
+                            k = k + 1;
+                        end
+                        
+                    end
+                end
+            end
+            Phi.designMatrices = PhiCell;
+            disp('done')
+        end%includeLocalDiagNeighborFeatures
         
         
         function Phi = localTheta_c(Phi, nc)

@@ -4,6 +4,7 @@ tic;    %measure runtime
 clear all;
 datestr(now, 'mmddHHMMSS')  %Print datestring to pipe
 
+restoredefaultpath
 addpath('./params')
 addpath('./aux')
 addpath('./heatFEM')
@@ -39,12 +40,16 @@ Phi = DesignMatrix([domainf.nElX domainf.nElY], [domainc.nElX domainc.nElY], phi
 Phi = Phi.computeDesignMatrix(domainc.nEl, domainf.nEl, condTransOpts);
 %Normalize design matrices
 %Phi = Phi.standardizeDesignMatrix;
-Phi = Phi.rescaleDesignMatrix;
-Phi.saveNormalization('rescaling'); %'rescaling' if rescaleDesignMatrix is used, 'standardization' if standardizeDesignMatrix is used
+% Phi = Phi.rescaleDesignMatrix;
+% Phi.saveNormalization('rescaling'); %'rescaling' if rescaleDesignMatrix is used, 'standardization' if standardizeDesignMatrix is used
 %Compute sum_i Phi^T(x_i)^Phi(x_i)
 if strcmp(mode, 'useNeighbor')
     %use feature function information from nearest neighbors
     Phi = Phi.includeNearestNeighborFeatures([domainc.nElX domainc.nElY]);
+elseif strcmp(mode, 'useLocalNeighbor')
+    Phi = Phi.includeLocalNearestNeighborFeatures([domainc.nElX domainc.nElY]);
+elseif strcmp(mode, 'useLocalDiagNeighbor')
+    Phi = Phi.includeLocalDiagNeighborFeatures([domainc.nElX domainc.nElY]);
 elseif strcmp(mode, 'useDiagNeighbor')
     %use feature function information from nearest and diagonal neighbors
     Phi = Phi.includeDiagNeighborFeatures([domainc.nElX domainc.nElY]);
@@ -201,6 +206,10 @@ for k = 2:(maxIterations + 1)
         end
         
         disp('Finding optimal variational distributions...')
+        VIparams.optParams.stepWidth = stepWidthDropRate*VIparams.optParams.stepWidth;
+        if(VIparams.optParams.stepWidth < stepWidthLowerBound)
+            VIparams.optParams.stepWidth = stepWidthLowerBound;
+        end
         parfor i = pstart:pend
             [optVarDist{i}, RMsteps{i}] = variationalInference(log_qi{i}, VIparams, initialParamsArray{i});
             initialParamsArray{i} = optVarDist{i}.params;
@@ -304,6 +313,10 @@ for k = 2:(maxIterations + 1)
             feature = mod((index - 1), numel(Phi.featureFunctions)) + 1;
             Element = floor((index - 1)/numel(Phi.featureFunctions)) + 1;
             curr_theta = [theta_c.theta(index) feature Element]
+        elseif(strcmp(mode, 'useLocalNeighbor') || strcmp(mode, 'useLocalDiagNeighbor'))
+            disp('theta feature coarseElement neighbor')
+            curr_theta = [theta_c.theta(index) Phi.neighborDictionary(index, 1)...
+                Phi.neighborDictionary(index, 2) Phi.neighborDictionary(index, 3)]
         else
             curr_theta = [theta_c.theta(index) index]
         end
@@ -340,7 +353,7 @@ for k = 2:(maxIterations + 1)
                 end
             end
             
-            pseudoinverse = true;
+            pseudoinverse = false;
             if pseudoinverse
                 Atemp = 0;
                 for i = 1:nTrain     %serial seems to be more efficient here
@@ -351,11 +364,15 @@ for k = 2:(maxIterations + 1)
                 xtemp = pinv(Atemp)*xtemp;
             end
             xtempNorm = norm(xtemp);
+            E = xtempNorm^2
             xtemp = xtemp'/xtempNorm;
             
             %save xtemp
             filename = './data/w';
             save(filename, 'xtemp', '-ascii', '-append');
+            %save E
+            filename = './data/E';
+            save(filename, 'E', '-ascii', '-append');
             
             %sigma
             filename = './data/sigma';
@@ -394,7 +411,7 @@ for k = 2:(maxIterations + 1)
             drawnow
             
             %        phi{end + 1} = @(lambda) sum(V(:, 1).*lambda);
-            phi{end + 1} = @(lambda) sum(xtemp'.*lambda);
+            phi{end + 1} = @(lambda) sum(xtemp'.*log(lambda));
             nBasis = nBasis + 1;
             %% Compute design matrices
             %ATTENTION: this can and should be done more efficiently. Up to now,
@@ -403,8 +420,8 @@ for k = 2:(maxIterations + 1)
             Phi = Phi.computeDesignMatrix(domainc.nEl, domainf.nEl, condTransOpts);
             %Normalize design matrices
             %Phi = Phi.standardizeDesignMatrix;
-            % Phi = Phi.rescaleDesignMatrix;
-            % Phi.saveNormalization('rescaling'); %'rescaling' if rescaleDesignMatrix is used, 'standardization' if standardizeDesignMatrix is used
+%             Phi = Phi.rescaleDesignMatrix;
+%             Phi.saveNormalization('rescaling'); %'rescaling' if rescaleDesignMatrix is used, 'standardization' if standardizeDesignMatrix is used
             %Compute sum_i Phi^T(x_i)^Phi(x_i)
             if strcmp(mode, 'useNeighbor')
                 %use feature function information from nearest neighbors
@@ -416,11 +433,15 @@ for k = 2:(maxIterations + 1)
                 Phi = Phi.localTheta_c([domainc.nElX domainc.nElY]);
             end
             Phi = Phi.computeSumPhiTPhi;
-            if useLocal
+            if strcmp(mode, 'useLocal')
                 Phi.sumPhiTPhi = sparse(Phi.sumPhiTPhi);
             end
             %append theta-value
-            theta_c.theta = [theta_c.theta; 1/xtempNorm];
+            if pseudoinverse
+                theta_c.theta = [theta_c.theta; 1/xtempNorm];
+            else
+                theta_c.theta = [theta_c.theta; 0];
+            end
             
         end
         
@@ -451,7 +472,7 @@ for k = 2:(maxIterations + 1)
             %        imagesc(reshape(theta_c.theta, 64, 64))
             %        colorbar
             %        grid off;
-            %        axis tight;
+            axis tight;
             subplot(2,2,3)
             semilogy(sqrt(sigmaArray), 'linewidth', 1)
             axis tight;

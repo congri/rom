@@ -25,8 +25,8 @@ conductivities = [loCond upCond];
 % % dLinPathIncr = 4;
 nElc = [domainc.nElX domainc.nElY];
 nElf = [domainf.nElX domainf.nElY];
-% %Take 1px/ total number of px as cutoff
-% log_cutoff = 10*((nElf(1)*nElf(2))/(nElc(1)*nElc(2)))^(-1);
+%Take 1px/ total number of px as cutoff
+log_cutoff = 10*((nElf(1)*nElf(2))/(nElc(1)*nElc(2)))^(-1);
 % 
 % % 
 % %Phase 1, isotropic
@@ -1006,6 +1006,16 @@ phi{end + 1} = @(lambda) SCA(lambda, conductivities, 'log');
 
 %linear filter with equal weights to start with
 % phi{end + 1} = @(lambda) (1/sqrt(domainf.nEl/domainc.nEl))*sum(log(lambda));
+% 
+% wndw = [16 16];
+% stride = wndw;
+% % poolfunc = @(lambda) generalizedMean(lambda, -1);
+% poolfunc = @(lambda) SCA(lambda(:), conductivities, 'plain');
+% %There is much unnecessary overhead here!
+% %Check the number of pooled pixels if you change anything here!
+% for i = 1:((prod(nElf)/prod(nElc))/prod(wndw))
+%     phi{end + 1} = @(lambda) log(poolingFeature(lambda, i, wndw, poolfunc, i, stride));
+% end
 
 % nRandFilt = 10;
 % w = 2*rand(domainf.nEl/domainc.nEl, nRandFilt) - 1;

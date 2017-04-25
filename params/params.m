@@ -2,7 +2,7 @@
 %CHANGE JOBFILE IF YOU CHANGE LINE NUMBERS!
 %Number of training data samples
 nStart = 1; %start training sample in training data file
-nTrain = 128;
+nTrain = 64;
 
 %Anisotropy; do NOT use together with limEffCond
 condTransOpts.anisotropy = false;
@@ -28,7 +28,7 @@ genCoarseDomain;
                                                                 
 %% Generate basis function for p_c
 genBasisFunctions;
-mode = 'useLocal'; %useNeighbor, useDiagNeighbor, useLocal
+mode = 'useLocalDiagNeighbor'; %useNeighbor, useLocalNeighbor, useDiagNeighbor, useLocalDiagNeighbor, useLocal
 linFiltSeq = false;
 %load old configuration? (Optimal parameters, optimal variational distributions
 loadOldConf = false;
@@ -36,9 +36,9 @@ theta_c.useNeuralNet = false;    %use neural net for p_c
 
 
 %% EM params
-initialIterations = 10000;
-basisFunctionUpdates = 0;
-basisUpdateGap = 20;
+initialIterations = 50;
+basisFunctionUpdates = 10;
+basisUpdateGap = 80;
 maxIterations = (basisFunctionUpdates + 1)*basisUpdateGap - 1 + initialIterations;
 
 %% Start value of model parameters
@@ -57,10 +57,10 @@ if loadOldConf
     theta_c.Sigma = sparse(diag(s));
     theta_c.SigmaInv = sparse(diag(1./s));
 else
-    theta_cf.S = 1*ones(domainf.nNodes, 1);
+    theta_cf.S = 1e-4*ones(domainf.nNodes, 1);
     theta_cf.mu = zeros(domainf.nNodes, 1);
-    theta_c.theta = 0*ones(nBasis, 1);
-    theta_c.Sigma = 1e-1*speye(domainc.nEl);
+    theta_c.theta = 1e-2*ones(nBasis, 1);
+    theta_c.Sigma = 1e-4*speye(domainc.nEl);
     s = diag(theta_c.Sigma);
     theta_c.SigmaInv = sparse(diag(1./s));
 end
@@ -72,6 +72,14 @@ theta_cf.WTSinv = theta_cf.W'*theta_cf.Sinv;
 if ~loadOldConf
     if strcmp(mode, 'useNeighbor')
         theta_c.theta = repmat(theta_c.theta, 5, 1);
+    elseif strcmp(mode, 'useLocalNeighbor')
+        nNeighbors = 12 + 8*(domainc.nElX - 2) + 8*(domainc.nElY - 2) +...
+            5*(domainc.nElX - 2)*(domainc.nElX - 2);
+        theta_c.theta = repmat(theta_c.theta, nNeighbors, 1);
+    elseif strcmp(mode, 'useLocalDiagNeighbor')
+        nNeighbors = 16 + 12*(domainc.nElX - 2) + 12*(domainc.nElY - 2) +...
+            9*(domainc.nElX - 2)*(domainc.nElX - 2);
+        theta_c.theta = repmat(theta_c.theta, nNeighbors, 1);
     elseif strcmp(mode, 'useDiagNeighbor')
         theta_c.theta = repmat(theta_c.theta, 9, 1);
     elseif strcmp(mode, 'useLocal')
@@ -79,13 +87,12 @@ if ~loadOldConf
     end
 end
 
-
 %what kind of prior for theta_c
-theta_prior_type = 'none';                  %hierarchical_gamma, hierarchical_laplace, laplace, gaussian, spikeAndSlab or none
+theta_prior_type = 'gaussian';                  %hierarchical_gamma, hierarchical_laplace, laplace, gaussian, spikeAndSlab or none
 sigma_prior_type = 'none';
 %prior hyperparams; obsolete for no prior
 % theta_prior_hyperparamArray = [0 1e-4];                   %a and b params for Gamma hyperprior
-theta_prior_hyperparamArray = [1];
+theta_prior_hyperparamArray = [1000];
 % theta_prior_hyperparam = 10;
 sigma_prior_hyperparam = 1;
 
@@ -119,7 +126,7 @@ end
 mix_sigma = 0;
 mix_S = 0;
 mix_W = 0;
-mix_theta = -.2;    %to damp oscillations/ drive convergence?
+mix_theta = 0;    %to damp oscillations/ drive convergence?
 
 %% Variational inference params
 dim = domainc.nEl;
@@ -145,7 +152,9 @@ VIparams.nSamples = 100;    %Gradient samples per iteration
 VIparams.inferenceSamples = 200;
 VIparams.optParams.optType = 'adam';
 VIparams.optParams.dim = domainc.nEl;
-VIparams.optParams.stepWidth = .005;
+VIparams.optParams.stepWidth = .001;
+stepWidthDropRate = 1;    %after each iteration, reduce stepWidth by this factor
+stepWidthLowerBound = 0.001;    %lower bound on the VI step width parameter
 VIparams.optParams.XWindow = 20;    %Averages dependent variable over last iterations
 VIparams.optParams.offset = 10000;  %Robbins-Monro offset
 VIparams.optParams.relXtol = 1e-12;

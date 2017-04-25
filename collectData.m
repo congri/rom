@@ -5,7 +5,8 @@ if ~exist('./data/', 'dir')
 end
 %Remove old data in first step, if there exists some
 if(k == 1)
-    delete('./data/MCMCstepWidth', './data/sigma', './data/S', './data/mu', './data/theta', './data/Wmat', './data/w')
+    delete('./data/MCMCstepWidth', './data/sigma', './data/S', './data/mu',...
+        './data/theta', './data/Wmat', './data/w', './data/E', './data/neighborDictionary')
 end
 
 %% MCMC Step width
@@ -80,4 +81,13 @@ if saveMu
         save(filename, 'mu', '-ascii', '-append')
     end
     clear mu;
+end
+
+%neighbor dictionary
+saveNeighborDictionary = true;
+if saveNeighborDictionary
+    nbdict = Phi.neighborDictionary;
+    filename = './data/neighborDictionary';
+    save(filename, 'nbdict', '-ascii');
+    clear nbdict;
 end

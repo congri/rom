@@ -24,6 +24,7 @@ genCoarseDomain;
 
 theta_cf.S = 1;
 theta_cf.Sinv = 1;
+theta_cf.Sinv_vec = ones(domainf.nNodes, 1);
 theta_cf.W = shapeInterp(domainc, domainf);
 theta_cf.WTSinv = theta_cf.W'*theta_cf.Sinv;
 

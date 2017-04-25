@@ -16,8 +16,9 @@ sumXNormSqMean = sum(XNormSqMean);
 
 
 %% Solve self-consistently: compute optimal sigma2, then theta, then sigma2 again and so on
-theta = .1*ones(size(theta_c.theta));
+% theta = .1*ones(size(theta_c.theta));
 % theta = 2*rand(size(theta_c.theta)) - 1;
+theta = theta_c.theta;
 I = speye(dim_theta);
 % sigma2 = theta_c.sigma^2;
 % sigma2 = 1e-8;  %start value
@@ -40,16 +41,17 @@ if theta_c.useNeuralNet
     k = 1;
 end
 for i = 1:nTrain
-    sumPhiTSigmaInvXmean = sumPhiTSigmaInvXmean + Phi.designMatrices{i}'*SigmaInvXMean(:, i);
-    sumPhiTSigmaInvPhi = sumPhiTSigmaInvPhi + Phi.designMatrices{i}'*SigmaInv*Phi.designMatrices{i};
-    PhiThetaMat(:, i) = Phi.designMatrices{i}*theta;
     if theta_c.useNeuralNet
         for j = 1:nCoarse
             xkNN(:, :, 1, k) =...
                 reshape(Phi.xk{i}(:, j), finePerCoarse(1), finePerCoarse(2)); %for neural net
             k = k + 1;
         end
-    end
+    else
+        sumPhiTSigmaInvXmean = sumPhiTSigmaInvXmean + Phi.designMatrices{i}'*SigmaInvXMean(:, i);
+        sumPhiTSigmaInvPhi = sumPhiTSigmaInvPhi + Phi.designMatrices{i}'*SigmaInv*Phi.designMatrices{i};
+        PhiThetaMat(:, i) = Phi.designMatrices{i}*theta;
+    end 
 end
 
 iter = 0;
@@ -57,7 +59,12 @@ converged = false;
 while(~converged)
     
     if theta_c.useNeuralNet
-        net = trainNN(xkNN, XMean(:), finePerCoarse);
+        %check if there is a pretrained net from a previous iteration
+        if isfield(theta_c.theta, 'Layers')
+            net = trainNN(xkNN, XMean(:), finePerCoarse, 'CNN', theta_c.theta);
+        else
+            net = trainNN(xkNN, XMean(:), finePerCoarse, 'CNN');
+        end
         Xpred = predict(net, xkNN);
         Xpred = reshape(Xpred, nCoarse, nTrain);
         %Variances
@@ -106,7 +113,7 @@ while(~converged)
         gradHessTheta = @(theta) dF_dtheta(theta, theta_old, theta_prior_type, theta_prior_hyperparam, nTrain,...
             sumPhiTSigmaInvXmean, sumPhiTSigmaInvPhi);
         if(strcmp(msgid, 'MATLAB:singularMatrix') || strcmp(msgid, 'MATLAB:nearlySingularMatrix')...
-                || strcmp(msgid, 'MATLAB:illConditionedMatrix') || norm(theta_temp)/length(theta) > 20)
+                || strcmp(msgid, 'MATLAB:illConditionedMatrix') || norm(theta_temp)/length(theta) > 100)
             warning('theta_c is assuming unusually large values. Do not update theta.')
             %         theta = fsolve(gradHessTheta, theta, fsolve_options_theta);
             theta = theta_old
@@ -117,8 +124,8 @@ while(~converged)
             debugNRmax = false;
             RMMode = false;
             stepSizeTheta = .6;
-            %         theta = newtonRaphsonMaximization(gradHessTheta, startValueTheta,...
-            %             normGradientTol, provide_objective, stepSizeTheta, RMMode, debugNRmax);
+%             theta = newtonRaphsonMaximization(gradHessTheta, startValueTheta,...
+%                 normGradientTol, provide_objective, stepSizeTheta, RMMode, debugNRmax);
         else
             theta = theta_temp;
         end
@@ -128,7 +135,7 @@ while(~converged)
         if strcmp(sigma_prior_type, 'none')
             %         sigma2 = (1/(nTrain*nCoarse))*(sumXNormSqMean - 2*theta'*sumPhiTSigmaInvXmean + theta'*Phi.sumPhiTPhi*theta);
             Sigma = sparse(1:nCoarse, 1:nCoarse, mean(XSqMean - 2*(PhiThetaMat.*XMean) + PhiThetaMat.^2, 2));
-            
+            Sigma(Sigma < 0) = eps; %for numerical stability
             %         sigma2CutoffHi = 100;
             %         sigma2CutoffLo = 1e-50;
             %         if any(diag(Sigma) < sigma2CutoffLo)
@@ -173,7 +180,7 @@ while(~converged)
         
         iter = iter + 1;
         thetaDiffRel = norm(theta_old_old - theta)/(norm(theta)*numel(theta));
-        if((iter > 1 && thetaDiffRel < 1e-8) || iter > 200)
+        if((iter > 5 && thetaDiffRel < 1e-8) || iter > 200)
             converged = true;
         end
     end
@@ -187,4 +194,7 @@ if ~theta_c.useNeuralNet
 end
 
 end
+
+
+
 
