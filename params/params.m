@@ -2,7 +2,7 @@
 %CHANGE JOBFILE IF YOU CHANGE LINE NUMBERS!
 %Number of training data samples
 nStart = 1; %start training sample in training data file
-nTrain = 64;
+nTrain = 1024;
 
 %Anisotropy; do NOT use together with limEffCond
 condTransOpts.anisotropy = false;
@@ -28,7 +28,9 @@ genCoarseDomain;
                                                                 
 %% Generate basis function for p_c
 genBasisFunctions;
-mode = 'useLocalDiagNeighbor'; %useNeighbor, useLocalNeighbor, useDiagNeighbor, useLocalDiagNeighbor, useLocal
+mode = 'global'; %useNeighbor, useLocalNeighbor, useDiagNeighbor, useLocalDiagNeighbor, useLocal, global
+                               %global: take whole microstructure as feature function input, not
+                               %only local window (only recommended for pooling)
 linFiltSeq = false;
 %load old configuration? (Optimal parameters, optimal variational distributions
 loadOldConf = false;
@@ -84,6 +86,8 @@ if ~loadOldConf
         theta_c.theta = repmat(theta_c.theta, 9, 1);
     elseif strcmp(mode, 'useLocal')
         theta_c.theta = repmat(theta_c.theta, domainc.nEl, 1);
+    elseif strcmp(mode, 'global')
+        theta_c.theta = zeros(domainf.nEl*domainc.nEl/prod(wndw), 1); %wndw is set in genBasisFunctions
     end
 end
 

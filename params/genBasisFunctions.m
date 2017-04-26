@@ -890,7 +890,7 @@ log_cutoff = 10*((nElf(1)*nElf(2))/(nElc(1)*nElc(2)))^(-1);
 % % 
 % %% Self-consistent approximation
 % phi{end + 1} = @(lambda) SCA(lambda, conductivities, 'plain');
-phi{end + 1} = @(lambda) SCA(lambda, conductivities, 'log');
+% phi{end + 1} = @(lambda) SCA(lambda, conductivities, 'log');
 % % phi{end + 1} = @(lambda) SCA(lambda, conductivities, 'logit');
 % % 
 % 
@@ -1007,15 +1007,20 @@ phi{end + 1} = @(lambda) SCA(lambda, conductivities, 'log');
 %linear filter with equal weights to start with
 % phi{end + 1} = @(lambda) (1/sqrt(domainf.nEl/domainc.nEl))*sum(log(lambda));
 % 
-% wndw = [16 16];
-% stride = wndw;
-% % poolfunc = @(lambda) generalizedMean(lambda, -1);
-% poolfunc = @(lambda) SCA(lambda(:), conductivities, 'plain');
+
+%pooling. keep in mind to use 'global' mode
+wndw = [64 64];
+stride = wndw;
+% poolfunc = @(lambda) generalizedMean(lambda, -1);
+poolfunc = @(lambda) SCA(lambda(:), conductivities, 'plain');
 % %There is much unnecessary overhead here!
 % %Check the number of pooled pixels if you change anything here!
 % for i = 1:((prod(nElf)/prod(nElc))/prod(wndw))
 %     phi{end + 1} = @(lambda) log(poolingFeature(lambda, i, wndw, poolfunc, i, stride));
 % end
+
+phi{end + 1} = @(lambda) pool2d(lambda, wndw, poolfunc, 0, stride);
+
 
 % nRandFilt = 10;
 % w = 2*rand(domainf.nEl/domainc.nEl, nRandFilt) - 1;

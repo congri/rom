@@ -58,7 +58,7 @@ classdef DesignMatrix
             
         end
         
-        function Phi = computeDesignMatrix(Phi, nElc, nElf, condTransOpts)
+        function Phi = computeDesignMatrix(Phi, nElc, nElf, condTransOpts, mode)
             %Actual computation of design matrix
             tic
             disp('Compute design matrices Phi...')
@@ -89,19 +89,32 @@ classdef DesignMatrix
                 else
                     PhiCell{s} = zeros(nElc, nFeatureFunctions);
                 end
-                Phi.lambdak{s} = zeros(nElf/nElc, nElc);
-                for i = 1:nElc
-                    Phi.lambdak{s}(:, i) = conductivity{s}(coarseElement == i);
-                end
-                Phi.xk{s} = log(Phi.lambdak{s});
                 
-                %construct design matrix Phi
-                for i = 1:nElc
-                    for j = 1:nFeatureFunctions
-                        if condTransOpts.anisotropy
-                            PhiCell{s}((1 + (i - 1)*3):(i*3), j) = phi{j}(Phi.lambdak{s}(:, i));
-                        else
-                            PhiCell{s}(i, j) = phi{j}(Phi.lambdak{s}(:, i));                           
+                if strcmp(mode, 'global')
+                    %ATTENTION: ONLY VALID FOR SQUARE MESHES!!!
+                    pooledImage = phi{1}(reshape(conductivity{s}, sqrt(nElf), sqrt(nElf)));
+                    pooledImage = pooledImage(:)';
+                    npi = numel(pooledImage);
+                    PhiCell{s} = zeros(nElc, npi*nElc);
+                    for i = 1:nElc
+                        PhiCell{s}(i, ((i - 1)*npi + 1):(i*npi)) = pooledImage;
+                    end
+                else
+                    Phi.lambdak{s} = zeros(nElf/nElc, nElc);
+                    for i = 1:nElc
+                        Phi.lambdak{s}(:, i) = conductivity{s}(coarseElement == i);
+                    end
+                    Phi.xk{s} = log(Phi.lambdak{s});
+                    
+                    %construct design matrix Phi
+                    for i = 1:nElc
+                        for j = 1:nFeatureFunctions
+                            %only take pixels of corresponding macro-cell as input for features
+                            if condTransOpts.anisotropy
+                                PhiCell{s}((1 + (i - 1)*3):(i*3), j) = phi{j}(Phi.lambdak{s}(:, i));
+                            else
+                                PhiCell{s}(i, j) = phi{j}(Phi.lambdak{s}(:, i));
+                            end
                         end
                     end
                 end

@@ -37,7 +37,7 @@ Tf = Tffile.Tf(:, nStart:(nStart + nTrain - 1));        %Finescale temperatures 
 
 %% Compute design matrices
 Phi = DesignMatrix([domainf.nElX domainf.nElY], [domainc.nElX domainc.nElY], phi, Tffile, nStart:(nStart + nTrain - 1));
-Phi = Phi.computeDesignMatrix(domainc.nEl, domainf.nEl, condTransOpts);
+Phi = Phi.computeDesignMatrix(domainc.nEl, domainf.nEl, condTransOpts, mode);
 %Normalize design matrices
 %Phi = Phi.standardizeDesignMatrix;
 % Phi = Phi.rescaleDesignMatrix;

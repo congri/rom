@@ -19,7 +19,6 @@ log_q = lg_p_cf + lg_p_c;
 
 d_log_q = d_lg_p_c + d_lg_p_cf;
 
-
 %Finite difference gradient check
 FDcheck = false;
 if FDcheck
