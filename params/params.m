@@ -2,7 +2,7 @@
 %CHANGE JOBFILE IF YOU CHANGE LINE NUMBERS!
 %Number of training data samples
 nStart = 1; %start training sample in training data file
-nTrain = 1024;
+nTrain = 16;
 
 %Anisotropy; do NOT use together with limEffCond
 condTransOpts.anisotropy = false;
@@ -28,7 +28,7 @@ genCoarseDomain;
                                                                 
 %% Generate basis function for p_c
 genBasisFunctions;
-mode = 'global'; %useNeighbor, useLocalNeighbor, useDiagNeighbor, useLocalDiagNeighbor, useLocal, global
+mode = 'none'; %useNeighbor, useLocalNeighbor, useDiagNeighbor, useLocalDiagNeighbor, useLocal, global
                                %global: take whole microstructure as feature function input, not
                                %only local window (only recommended for pooling)
 linFiltSeq = false;
@@ -93,12 +93,14 @@ end
 
 %what kind of prior for theta_c
 theta_prior_type = 'gaussian';                  %hierarchical_gamma, hierarchical_laplace, laplace, gaussian, spikeAndSlab or none
-sigma_prior_type = 'none';
+sigma_prior_type = 'expSigSq';                  %expSigSq, delta or none. A delta prior keeps sigma at its initial value
+sigma_prior_type_hold = sigma_prior_type;
+fixSigInit = 0;                                 %number of initial iterations with fixed sigma
 %prior hyperparams; obsolete for no prior
 % theta_prior_hyperparamArray = [0 1e-4];                   %a and b params for Gamma hyperprior
-theta_prior_hyperparamArray = [1000];
+theta_prior_hyperparamArray = [100];
 % theta_prior_hyperparam = 10;
-sigma_prior_hyperparam = 1;
+sigma_prior_hyperparam = 10*ones(domainc.nEl, 1);  %   expSigSq: x*exp(-x*sigmaSq), where x is the hyperparam
 
 %% MCMC options
 MCMC.method = 'MALA';                                %proposal type: randomWalk, nonlocal or MALA
@@ -143,7 +145,7 @@ else
     elseif condTransOpts.anisotropy
         initialParamsArray{1} = [0*ones(1, 3*domainc.nEl) .1*ones(1, 3*domainc.nEl)];
     elseif strcmp(condTransOpts.transform, 'log')
-        initialParamsArray{1} = [log(loCond)*ones(1, domainc.nEl) 1e3*ones(1, domainc.nEl)];
+        initialParamsArray{1} = [log(loCond)*ones(1, domainc.nEl) 0*ones(1, domainc.nEl)];
     elseif strcmp(condTransOpts.transform, 'log_lower_bound')
         initialParamsArray{1} = [log(1*loCond + 0*upCond - condTransOpts.lowerCondLim)*ones(1, domainc.nEl)...
             1*ones(1, domainc.nEl)];
@@ -156,9 +158,9 @@ VIparams.nSamples = 100;    %Gradient samples per iteration
 VIparams.inferenceSamples = 200;
 VIparams.optParams.optType = 'adam';
 VIparams.optParams.dim = domainc.nEl;
-VIparams.optParams.stepWidth = .001;
+VIparams.optParams.stepWidth = .01;
 stepWidthDropRate = 1;    %after each iteration, reduce stepWidth by this factor
-stepWidthLowerBound = 0.001;    %lower bound on the VI step width parameter
+stepWidthLowerBound = 1e-8;    %lower bound on the VI step width parameter
 VIparams.optParams.XWindow = 20;    %Averages dependent variable over last iterations
 VIparams.optParams.offset = 10000;  %Robbins-Monro offset
 VIparams.optParams.relXtol = 1e-12;

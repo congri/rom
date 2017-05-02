@@ -1,4 +1,4 @@
-function [TfMeanArray, TfVarArray, Tf_mean_tot, Tf_sq_mean_tot, meanMahaErr, meanSqDist, sqDist, meanEffCond, meanSqDistErr] =...
+function [Tf_mean, TfVarArray, Tf_mean_tot, Tf_sq_mean_tot, meanMahaErr, meanSqDist, sqDist, meanEffCond, meanSqDistErr] =...
     predictOutput(nSamples_p_c, testSample_lo, testSample_up, testFilePath, modelParamsFolder, mode)
 %Function to predict finescale output from generative model
 
@@ -28,7 +28,7 @@ condTransOpts.anisotropy = false;
 Phi = Phi.computeDesignMatrix(domainc.nEl, domainf.nEl, condTransOpts, mode);
 %Normalize design matrices
 %Phi = Phi.standardizeDesignMatrix(featureFunctionMean, featureFunctionSqMean);
-% Phi = Phi.rescaleDesignMatrix(featureFunctionMin, featureFunctionMax);
+Phi = Phi.rescaleDesignMatrix(featureFunctionMin, featureFunctionMax);
 if strcmp(mode, 'useNeighbor')
     %use feature function information from nearest neighbors
     Phi = Phi.includeNearestNeighborFeatures([domainc.nElX domainc.nElY]);
@@ -86,12 +86,9 @@ disp('done')
 %% Run coarse model and sample from p_cf
 disp('Solving coarse model and sample from p_cf...')
 addpath('./heatFEM')
-TfMeanArray{1} = zeros(domainf.nNodes, 1);
-TfMeanArray = repmat(TfMeanArray, nTest, 1);
-TfVarArray = TfMeanArray;
-%over all training data samples
 Tf_mean{1} = zeros(domainf.nNodes, 1);
 Tf_mean = repmat(Tf_mean, nTest, 1);
+TfVarArray = Tf_mean;
 Tf_sq_mean = Tf_mean;
 parfor j = 1:nTest
     for i = 1:nSamples_p_c
@@ -106,20 +103,19 @@ parfor j = 1:nTest
         mu_cf = theta_cf.mu + theta_cf.W*Tctemp(:);
         %only for diagonal S!!
         %Sequentially compute mean and <Tf^2> to save memory
-        Tf_temp = normrnd(mu_cf, sqrt(theta_cf.S));
-        Tf_mean{j} = ((i - 1)/i)*Tf_mean{j} + (1/i)*Tf_temp;
-        Tf_sq_mean{j} = ((i - 1)/i)*Tf_sq_mean{j} + (1/i)*(Tf_temp.^2);
+        Tf_mean{j} = ((i - 1)/i)*Tf_mean{j} + (1/i)*mu_cf;  %U_f-integration can be done analytically
+        Tf_sq_mean{j} = ((i - 1)/i)*Tf_sq_mean{j} + (1/i)*mu_cf.^2;
     end
+    Tf_sq_mean{j} = Tf_sq_mean{j} + theta_cf.S;
     Tf_var = abs(Tf_sq_mean{j} - Tf_mean{j}.^2);  %abs to avoid negative variance due to numerical error
     meanTf_meanMCErr = mean(sqrt(Tf_var/nSamples_p_c))
-    TfMeanArray{j} = Tf_mean{j};
     TfVarArray{j} = Tf_var;
     
     meanMahaErrTemp{j} = mean(sqrt((.5./(Tf_var)).*(Tf(:, j) - Tf_mean{j}).^2));
     sqDistTemp{j} = (Tf(:, j) - Tf_mean{j}).^2;
     meanSqDistTemp{j} = mean(sqDistTemp{j})
 end
-Tf_mean_tot = mean(cell2mat(TfMeanArray'), 2);
+Tf_mean_tot = mean(cell2mat(Tf_mean'), 2);
 Tf_sq_mean_tot = mean(cell2mat(Tf_sq_mean'), 2);
 meanMahaErr = mean(cell2mat(meanMahaErrTemp));
 meanSqDist = mean(cell2mat(meanSqDistTemp));

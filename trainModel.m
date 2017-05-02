@@ -40,8 +40,8 @@ Phi = DesignMatrix([domainf.nElX domainf.nElY], [domainc.nElX domainc.nElY], phi
 Phi = Phi.computeDesignMatrix(domainc.nEl, domainf.nEl, condTransOpts, mode);
 %Normalize design matrices
 %Phi = Phi.standardizeDesignMatrix;
-% Phi = Phi.rescaleDesignMatrix;
-% Phi.saveNormalization('rescaling'); %'rescaling' if rescaleDesignMatrix is used, 'standardization' if standardizeDesignMatrix is used
+Phi = Phi.rescaleDesignMatrix;
+Phi.saveNormalization('rescaling'); %'rescaling' if rescaleDesignMatrix is used, 'standardization' if standardizeDesignMatrix is used
 %Compute sum_i Phi^T(x_i)^Phi(x_i)
 if strcmp(mode, 'useNeighbor')
     %use feature function information from nearest neighbors
@@ -291,6 +291,13 @@ for k = 2:(maxIterations + 1)
     if(k - 1 <= size(theta_prior_hyperparamArray, 1))
         theta_prior_hyperparam = theta_prior_hyperparamArray(k - 1, :)
     end
+    
+    if(k > fixSigInit)
+        sigma_prior_type = sigma_prior_type_hold;
+    else
+        sigma_prior_type = 'delta';
+    end
+    
     theta_c = optTheta_c(theta_c, nTrain, domainc.nEl, XSqMean,...
         Phi, XMean, theta_prior_type, theta_prior_hyperparam,...
         sigma_prior_type, sigma_prior_hyperparam);

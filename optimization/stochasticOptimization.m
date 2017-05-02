@@ -1,6 +1,6 @@
 function [Xfinal, steps] = stochasticOptimization(Xinit, gradFunc, sampleFunc, optParams)
 %Gradient based stochastic optimization with different update heuristics
-debug = false;
+debug = true;
 
 X = Xinit;
 if strcmp(optParams.optType, 'ASGD')

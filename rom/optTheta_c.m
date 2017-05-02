@@ -164,18 +164,56 @@ while(~converged)
                 sumPhiTSigmaInvPhi = sumPhiTSigmaInvPhi + Phi.designMatrices{i}'*SigmaInv*Phi.designMatrices{i};
                 PhiThetaMat(:, i) = Phi.designMatrices{i}*theta;
             end
-        else
-            error('Prior on diagonal Sigma not yet implemented')
-            gradHessLogSigmaMinus2 = @(lSigmaMinus2) dF_dlogSigmaMinus2(lSigmaMinus2, theta, nCoarse, nTrain, XNormSqMean,...
-                sumPhiTSigmaInvXmean, Phi.sumPhiTPhi, sigma_prior_type, sigma_prior_hyperparam);
-            %     startValueLogSigmaMinus2 = logSigmaMinus2;
-            %     stepSizeSigma = .9; %the larger the faster, the smaller the more stable
-            %     logSigmaMinus2 = newtonRaphsonMaximization(gradHessLogSigmaMinus2, startValueLogSigmaMinus2,...
-            %         normGradientTol, provide_objective, stepSizeSigma, debugNRmax);
-            logSigmaMinus2 = fsolve(gradHessLogSigmaMinus2, logSigmaMinus2, fsolve_options_sigma);
-            sigmaMinus2 = exp(logSigmaMinus2);
-            sigma2_old = sigma2;
-            sigma2 = 1/sigmaMinus2;
+        elseif strcmp(sigma_prior_type, 'expSigSq')
+            %Vector of variances
+            sigmaSqVec = .5*(1./sigma_prior_hyperparam).*...
+                (-.5*nTrain + sqrt(2*nTrain*sigma_prior_hyperparam.*...
+                mean(XSqMean - 2*(PhiThetaMat.*XMean) + PhiThetaMat.^2, 2) + .25*nTrain^2));
+            
+            Sigma = sparse(1:nCoarse, 1:nCoarse, sigmaSqVec);
+            Sigma(Sigma < 0) = eps; %for numerical stability
+            sumPhiTSigmaInvXmean = 0;
+            %Only valid for diagonal Sigma
+            s = diag(Sigma);
+            SigmaInv = sparse(diag(1./s));
+            SigmaInvXMean = SigmaInv*XMean;
+            sumPhiTSigmaInvPhi = 0;
+            PhiThetaMat = zeros(nCoarse, nTrain);
+            
+            for i = 1:nTrain
+                sumPhiTSigmaInvXmean = sumPhiTSigmaInvXmean + Phi.designMatrices{i}'*SigmaInvXMean(:, i);
+                sumPhiTSigmaInvPhi = sumPhiTSigmaInvPhi + Phi.designMatrices{i}'*SigmaInv*Phi.designMatrices{i};
+                PhiThetaMat(:, i) = Phi.designMatrices{i}*theta;
+            end
+%             error('Prior on diagonal Sigma not yet implemented')
+%             gradHessLogSigmaMinus2 = @(lSigmaMinus2) dF_dlogSigmaMinus2(lSigmaMinus2, theta, nCoarse, nTrain, XNormSqMean,...
+%                 sumPhiTSigmaInvXmean, Phi.sumPhiTPhi, sigma_prior_type, sigma_prior_hyperparam);
+%             %     startValueLogSigmaMinus2 = logSigmaMinus2;
+%             %     stepSizeSigma = .9; %the larger the faster, the smaller the more stable
+%             %     logSigmaMinus2 = newtonRaphsonMaximization(gradHessLogSigmaMinus2, startValueLogSigmaMinus2,...
+%             %         normGradientTol, provide_objective, stepSizeSigma, debugNRmax);
+%             logSigmaMinus2 = fsolve(gradHessLogSigmaMinus2, logSigmaMinus2, fsolve_options_sigma);
+%             sigmaMinus2 = exp(logSigmaMinus2);
+%             sigma2_old = sigma2;
+%             sigma2 = 1/sigmaMinus2;
+
+        elseif strcmp(sigma_prior_type, 'delta')
+            %Don't change sigma
+ 
+            %sum_i Phi_i^T Sigma^-1 <X^i>_qi
+            sumPhiTSigmaInvXmean = 0;
+            %Only valid for diagonal Sigma
+            s = diag(Sigma);
+            SigmaInv = sparse(diag(1./s));
+            SigmaInvXMean = SigmaInv*XMean;
+            sumPhiTSigmaInvPhi = 0;
+            PhiThetaMat = zeros(nCoarse, nTrain);
+            
+            for i = 1:nTrain
+                sumPhiTSigmaInvXmean = sumPhiTSigmaInvXmean + Phi.designMatrices{i}'*SigmaInvXMean(:, i);
+                sumPhiTSigmaInvPhi = sumPhiTSigmaInvPhi + Phi.designMatrices{i}'*SigmaInv*Phi.designMatrices{i};
+                PhiThetaMat(:, i) = Phi.designMatrices{i}*theta;
+            end
         end
         
         iter = iter + 1;
