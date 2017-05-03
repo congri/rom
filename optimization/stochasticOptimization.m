@@ -168,13 +168,6 @@ else
                 converged = true;
                 Xfinal = X;
                 disp('Converged because max computation time exceeded')
-                X
-                grad
-                gradient_norm
-                gradient_norm_mean
-                gradient_mean
-                nmg = norm(gradient_mean)
-                relGradErr = gradErr./abs(grad)
             end
         end
         steps = steps + 1;

@@ -1,6 +1,6 @@
 %Generate coarse domain
-nX = 4;
-nY = 4;
+nX = 2;
+nY = 2;
 domainc = Domain(nX, nY);
 domainc = setBoundaries(domainc, [2:(2*nX + 2*nY)], Tb, qb);           %ATTENTION: natural nodes have to be set manually
                                                                 %and consistently in domainc and domainf

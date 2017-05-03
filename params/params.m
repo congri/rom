@@ -33,7 +33,7 @@ mode = 'none'; %useNeighbor, useLocalNeighbor, useDiagNeighbor, useLocalDiagNeig
                                %only local window (only recommended for pooling)
 linFiltSeq = false;
 %load old configuration? (Optimal parameters, optimal variational distributions
-loadOldConf = true;
+loadOldConf = false;
 theta_c.useNeuralNet = false;    %use neural net for p_c
 
 
