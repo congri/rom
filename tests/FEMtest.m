@@ -1,9 +1,9 @@
 %Test for 2d FEM code
 clear all;
 restoredefaultpath;
-addpath('~/matlab/projects/cgrom2d/params')
-addpath('~/matlab/projects/cgrom2d/heatFEM')
-addpath('~/matlab/projects/cgrom2d/plot')
+addpath('./params')
+addpath('./heatFEM')
+addpath('./plot')
 
 patchTest = true;
 if(patchTest)
@@ -18,8 +18,8 @@ if(patchTest)
     
     %domain object. Best not change the order of commands!
     nX = 4;
-    nY = 32;
-    domain = Domain(nX, nY);
+    nY = 4;
+    domain = Domain(nX, nY, [.2 .2 .2 .4], [.1 .3 .4 .2]);
     domain = setBoundaries(domain, (2:(2*nX + 2*nY)), Tbfun, qb);
     
     %heat conductivity tensor for each element

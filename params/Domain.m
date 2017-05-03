@@ -43,19 +43,29 @@ classdef Domain
     
     methods
         
-        function domainObj = Domain(nElX, nElY)
+        function domainObj = Domain(nElX, nElY, lElX, lElY)
             %constructor
+            %nElX andnElY are number of elements in x- and y-direction
+            %lElX, lElY are vectors specifying element lengths in x- and y-directions. i-th element
+            %in lElX: i-th column; j-th element in lElY: j-th row
             if nargin > 0
                 domainObj.nElX = nElX;
                 if nargin > 1
                     domainObj.nElY = nElY;
                 end
             end
-            domainObj.lElX = domainObj.lx/domainObj.nElX;
-            domainObj.lElY = domainObj.ly/domainObj.nElY;
             domainObj.nEl = domainObj.nElX*domainObj.nElY;
+            assert(sum(lElX) == domainObj.lx, 'element lengths do not sum up to lx')
+            assert(sum(lElY) == domainObj.ly, 'element lengths do not sum up to ly')
+            domainObj.lElX = zeros(1, domainObj.nEl);
+            domainObj.lElY = zeros(1, domainObj.nEl);
+            domainObj.AEl = zeros(1, domainObj.nEl);
+            for e = 1:domainObj.nEl
+                domainObj.lElX(e) = lElX(mod((e - 1), domainObj.nElX) + 1);
+                domainObj.lElY(e) = lElY(floor((e - 1)/domainObj.nElY) + 1);
+                domainObj.AEl(e) = domainObj.lElX(e)*domainObj.lElY(e);
+            end
             domainObj.nNodes = (domainObj.nElX + 1)*(domainObj.nElY + 1);
-            domainObj.AEl = domainObj.lElX*domainObj.lElY;
             domainObj.boundaryNodes = int32([1:(domainObj.nElX + 1),...
                 2*(domainObj.nElX + 1):(domainObj.nElX + 1):(domainObj.nElX + 1)*(domainObj.nElY + 1),...
                 ((domainObj.nElX + 1)*(domainObj.nElY + 1) - 1):(-1):((domainObj.nElX + 1)*domainObj.nElY + 1),...
