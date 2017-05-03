@@ -5,24 +5,32 @@ function [W] = shapeInterp(domainc, domainf)
 
     function [N, E] = shapeFunctionValues2(x)
         %coarse element
-        row = floor(x(2)/domainc.lElY) + 1;
+%         row = floor(x(2)/domainc.lElY) + 1;
+        row = sum(domainc.cum_lElY < x(2));
+        if row == 0
+            row = 1;
+        end
         %upper boundary of domain
-        if row > domainc.nElY
-            row = domainc.nElY;
+%         if row > domainc.nElY
+%             row = domainc.nElY;
+%         end
+%         col = floor(x(1)/domainc.lElX) + 1;
+        col = sum(domainc.cum_lElX < x(1));
+        if col == 0
+            col = 1;
         end
-        col = floor(x(1)/domainc.lElX) + 1;
         %right boundary of domain
-        if col > domainc.nElX
-            col = domainc.nElX;
-        end
+%         if col > domainc.nElX
+%             col = domainc.nElX;
+%         end
         %E is coarse element x is in
         E = (row - 1)*(domainc.nElX) + col;
         
         %shape function values
-        N(1) =(1/domainc.AEl)*(x(1) - domainc.lc(E, 2, 1))*(x(2) - domainc.lc(E, 4, 2));
-        N(2,1) = -(1/domainc.AEl)*(x(1) - domainc.lc(E, 1, 1))*(x(2) - domainc.lc(E, 4, 2));
-        N(3) = (1/domainc.AEl)*(x(1) - domainc.lc(E, 1, 1))*(x(2) - domainc.lc(E, 1, 2));
-        N(4) = -(1/domainc.AEl)*(x(1) - domainc.lc(E, 2, 1))*(x(2) - domainc.lc(E, 1, 2));
+        N(1) =(1/domainc.AEl(E))*(x(1) - domainc.lc(E, 2, 1))*(x(2) - domainc.lc(E, 4, 2));
+        N(2,1) = -(1/domainc.AEl(E))*(x(1) - domainc.lc(E, 1, 1))*(x(2) - domainc.lc(E, 4, 2));
+        N(3) = (1/domainc.AEl(E))*(x(1) - domainc.lc(E, 1, 1))*(x(2) - domainc.lc(E, 1, 2));
+        N(4) = -(1/domainc.AEl(E))*(x(1) - domainc.lc(E, 2, 1))*(x(2) - domainc.lc(E, 1, 2));
     end
 
 tic
@@ -48,6 +56,5 @@ for r = 1:domainf.nNodes
 end
 W = sparse(R, C, Nvec);
 W_assembly_time = toc
-
 end
 
