@@ -81,6 +81,7 @@ end
 k = 1;          %EM iteration index
 collectData;    %Write initial parametrizations to disk
 
+epoch = 0;  %Number of times every data point has been seen
 for k = 2:(maxIterations + 1)
 
     %% Establish distribution to sample from
@@ -195,10 +196,13 @@ for k = 2:(maxIterations + 1)
             pstart = pend + 1;
             if pstart > nTrain
                 pstart = 1;
+                epoch = epoch + 1;
             end
             pend = pstart + ppool.NumWorkers - 1;
             if pend > nTrain
                 pend = nTrain;
+            elseif pend < pstart
+                pend = pstart;
             end
         else
             pstart = 1;
@@ -206,10 +210,29 @@ for k = 2:(maxIterations + 1)
         end
         
         disp('Finding optimal variational distributions...')
-        VIparams.optParams.stepWidth = stepWidthDropRate*VIparams.optParams.stepWidth;
+        %Adaptively change stochastic optimization params
+        VIparams.optParams.stepWidth = (stepWidthDropRate^epoch)*VIparams.optParams.stepWidth;
         if(VIparams.optParams.stepWidth < stepWidthLowerBound)
             VIparams.optParams.stepWidth = stepWidthLowerBound;
         end
+        VIparams.optParams.maxIterations = round((maxIterationsGrowthRate^epoch)*VIparams.optParams.maxIterations);
+        if VIparams.optParams.maxIterations > maxIterationsUpperBound
+            VIparams.optParams.maxIterations = maxIterationsUpperBound;
+        end
+        VIparams.optParams.maxCompTime = round((maxCompTimeGrowthRate^epoch)*VIparams.optParams.maxCompTime);
+        if VIparams.optParams.maxCompTime > maxCompTimeUpperBound
+            VIparams.optParams.maxCompTime = maxCompTimeUpperBound;
+        end
+        minSamples = round((gradSamplesGrowthRate^epoch)*minSamples);
+        if minSamples > gradSamplesUpperBound
+            minSamples = gradSamplesUpperBound;
+        end
+        if minSamples > maxSamples
+            minSamples = maxSamples;
+        end
+        VIparams.optParams.nSamples = @(ii) nSamplesIteration(ii, minSamples, maxSamples);    %Gradient samples per iteration; given as a function with input iteration
+
+        
         parfor i = pstart:pend
             [optVarDist{i}, RMsteps{i}] = variationalInference(log_qi{i}, VIparams, initialParamsArray{i});
             initialParamsArray{i} = optVarDist{i}.params;

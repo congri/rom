@@ -1,7 +1,8 @@
 %Generate coarse domain
-nc = 4;
-domainc = Domain(nc, nc);
-domainc = setBoundaries(domainc, [2:(4*nc)], Tb, qb);           %ATTENTION: natural nodes have to be set manually
+nX = 4;
+nY = 4;
+domainc = Domain(nX, nY);
+domainc = setBoundaries(domainc, [2:(2*nX + 2*nY)], Tb, qb);           %ATTENTION: natural nodes have to be set manually
                                                                 %and consistently in domainc and domainf
 if ~exist('./data/', 'dir')
     mkdir('./data/');

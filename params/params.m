@@ -33,7 +33,7 @@ mode = 'none'; %useNeighbor, useLocalNeighbor, useDiagNeighbor, useLocalDiagNeig
                                %only local window (only recommended for pooling)
 linFiltSeq = false;
 %load old configuration? (Optimal parameters, optimal variational distributions
-loadOldConf = false;
+loadOldConf = true;
 theta_c.useNeuralNet = false;    %use neural net for p_c
 
 
@@ -92,7 +92,7 @@ if ~loadOldConf
 end
 
 %what kind of prior for theta_c
-theta_prior_type = 'gaussian';                  %hierarchical_gamma, hierarchical_laplace, laplace, gaussian, spikeAndSlab or none
+theta_prior_type = 'none';                  %hierarchical_gamma, hierarchical_laplace, laplace, gaussian, spikeAndSlab or none
 sigma_prior_type = 'expSigSq';                  %expSigSq, delta or none. A delta prior keeps sigma at its initial value
 sigma_prior_type_hold = sigma_prior_type;
 fixSigInit = 0;                                 %number of initial iterations with fixed sigma
@@ -154,22 +154,31 @@ else
     end
     initialParamsArray = repmat(initialParamsArray, nTrain, 1);
 end
-VIparams.nSamples = 100;    %Gradient samples per iteration
+minSamples = 400;
+maxSamples = 1e4;
+VIparams.optParams.nSamples = @(ii) nSamplesIteration(ii, minSamples, maxSamples);    %Gradient samples per iteration; given as a function with input iteration
+gradSamplesGrowthRate = 1.05;
+gradSamplesUpperBound = 1e3;
 VIparams.inferenceSamples = 200;
 VIparams.optParams.optType = 'adam';
 VIparams.optParams.dim = domainc.nEl;
-VIparams.optParams.stepWidth = .01;
-stepWidthDropRate = 1;    %after each iteration, reduce stepWidth by this factor
-stepWidthLowerBound = 1e-8;    %lower bound on the VI step width parameter
-VIparams.optParams.XWindow = 20;    %Averages dependent variable over last iterations
-VIparams.optParams.offset = 10000;  %Robbins-Monro offset
+VIparams.optParams.stepWidth = 2e-2;
+stepWidthDropRate = 0.95;    %after each iteration, reduce stepWidth by this factor
+stepWidthLowerBound = 1e-4;    %lower bound on the VI step width parameter
+VIparams.optParams.XWindow = 10;    %Averages dependent variable over last iterations
+VIparams.optParams.offset = 1000;  %Robbins-Monro offset
 VIparams.optParams.relXtol = 1e-12;
-VIparams.optParams.maxIterations = 50;
+VIparams.optParams.maxIterations = 1000;
+maxIterationsGrowthRate = 1.05;
+maxIterationsUpperBound = 600;
+VIparams.optParams.maxCompTime = 90;   %max computation time
+maxCompTimeGrowthRate = 1.05;
+maxCompTimeUpperBound = 180;
 VIparams.optParams.meanGradNormTol = 30;    %Converged if norm of mean of grad over last k iterations is smaller
 VIparams.optParams.gradNormTol = 30;    %Converged if average norm of gradient in last gradNormWindow iterations is below
-VIparams.optParams.gradNormWindow = 30;  %gradNormTol
-VIparams.optParams.decayParam = .7;   %only works for diagonal Gaussian
-VIparams.optParams.adam.beta1 = .9;     %The higher this parameter, the more gradient information from previous steps is retained
+VIparams.optParams.gradNormWindow = 10;  %gradNormTol
+VIparams.optParams.decayParam = .7;     %only works for diagonal Gaussian
+VIparams.optParams.adam.beta1 = .85;     %The higher this parameter, the more gradient information from previous steps is retained
 VIparams.optParams.adam.beta2 = .999;
 
 %Randomize among data points?

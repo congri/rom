@@ -49,15 +49,6 @@ classdef Domain
                 domainObj.nElX = nElX;
                 if nargin > 1
                     domainObj.nElY = nElY;
-                    if nargin > 2
-                        domainObj.lx = lx;
-                        if nargin == 4
-                            domainObj.ly = ly;
-                        end
-                    end
-                end
-                if nargin > 4
-                    error('Wrong number of input arguments')
                 end
             end
             domainObj.lElX = domainObj.lx/domainObj.nElX;

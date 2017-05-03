@@ -1,6 +1,9 @@
 function [Xfinal, steps] = stochasticOptimization(Xinit, gradFunc, sampleFunc, optParams)
 %Gradient based stochastic optimization with different update heuristics
-debug = true;
+debug = false;
+if debug
+    figure
+end
 
 X = Xinit;
 if strcmp(optParams.optType, 'ASGD')
@@ -26,10 +29,11 @@ if strcmp(optParams.optType, 'oBFGS')
     %UNSTABLE VERSION!!!
     [Xfinal] = oBFGS(gradFunc, sampleFunc, optParams.stepWidth, optParams.offset, .1, 1, 1e-10, X)
 else
+    tic
     while ~converged
         
-        samples = sampleFunc(X);
-        [grad, gradErr] = gradFunc(samples, X);
+        nSamples = optParams.nSamples(steps);
+        [grad, gradErr] = gradFunc(X, nSamples);
         
         Xold = X;
         
@@ -79,7 +83,12 @@ else
         
         elseif strcmp(optParams.optType, 'adam')
             
-            momentum = optParams.adam.beta1*momentum + (1 - optParams.adam.beta1)*grad;
+            if steps == 0
+                %careful first iteration
+                momentum = .001*grad;
+            else
+                momentum = optParams.adam.beta1*momentum + (1 - optParams.adam.beta1)*grad;
+            end
             uncenteredXVariance = optParams.adam.beta2*uncenteredXVariance...
                 + (1 - optParams.adam.beta2)*grad.^2;
             
@@ -110,7 +119,8 @@ else
             gradient_mean = mean(gradArray);
         end
         
-        if (debug || steps > 500)
+        compTime = toc;
+        if (debug || steps > 1000)
             X
             grad
             gradient_norm
@@ -121,15 +131,15 @@ else
             if debug
                 %Plot X and gradient
                 subplot(1,3,1)
-                plot(steps, X, 'rx', 'linewidth', 1)
+                plot(compTime, X, 'rx', 'linewidth', 1)
                 axis square
                 hold on
                 subplot(1,3,2)
-                plot(steps, grad, 'bx', 'linewidth', 1)
+                plot(compTime, grad, 'bx', 'linewidth', 1)
                 axis square
                 hold on
                 subplot(1,3,3)
-                plot(steps, gradient_norm_mean, 'kx', 'linewidth', 3)
+                plot(compTime, gradient_norm_mean, 'kx', 'linewidth', 3)
                 axis square
                 hold on
                 drawnow
@@ -154,6 +164,17 @@ else
                 converged = true;
                 Xfinal = X;
                 disp('Converged because max number of iterations exceeded')
+            elseif(compTime > optParams.maxCompTime)
+                converged = true;
+                Xfinal = X;
+                disp('Converged because max computation time exceeded')
+                X
+                grad
+                gradient_norm
+                gradient_norm_mean
+                gradient_mean
+                nmg = norm(gradient_mean)
+                relGradErr = gradErr./abs(grad)
             end
         end
         steps = steps + 1;

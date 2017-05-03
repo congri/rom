@@ -112,8 +112,8 @@ parfor j = 1:nTest
     TfVarArray{j} = Tf_var;
     
     meanMahaErrTemp{j} = mean(sqrt((.5./(Tf_var)).*(Tf(:, j) - Tf_mean{j}).^2));
-    sqDistTemp{j} = (Tf(:, j) - Tf_mean{j}).^2;
-    meanSqDistTemp{j} = mean(sqDistTemp{j})
+    sqDist{j} = (Tf(:, j) - Tf_mean{j}).^2;
+    meanSqDistTemp{j} = mean(sqDist{j})
 end
 Tf_mean_tot = mean(cell2mat(Tf_mean'), 2);
 Tf_sq_mean_tot = mean(cell2mat(Tf_sq_mean'), 2);
@@ -121,7 +121,6 @@ meanMahaErr = mean(cell2mat(meanMahaErrTemp));
 meanSqDist = mean(cell2mat(meanSqDistTemp));
 meanSqDistSq = mean(cell2mat(meanSqDistTemp).^2);
 meanSqDistErr = sqrt((meanSqDistSq - meanSqDist^2)/nTest);
-sqDist = mean(cell2mat(sqDistTemp'), 2);
 rmpath('./rom')
 rmpath('./heatFEM')
 

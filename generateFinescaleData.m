@@ -12,7 +12,7 @@ addpath('./computation')
 boundaryConditions;
 
 %% Generate finescale domain
-nf = 256;       %Finescale mesh size, should be 2^n
+nf = 64;       %Finescale mesh size, should be 2^n
 disp('Generate finescale domain...')
 domainf = Domain(nf, nf);
 domainf = setBoundaries(domainf, 2:(4*nf), Tb, qb);       %Only fix lower left corner as essential node
@@ -23,7 +23,7 @@ toc
 disp('Setting up finescale data parameters...')
 FD = FinescaleData(1, 10);
 FD.nSets = 2;
-FD.nSamples = [1024 128];
+FD.nSamples = [10 2];
 FD.distributionType = 'correlated_binary';
 FD.distributionParams = {.3 [5 5] 1};
 
