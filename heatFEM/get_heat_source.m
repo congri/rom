@@ -2,8 +2,8 @@ function [fs] = get_heat_source(s, domain)
 %Gets the elements of the local force due to the heat source (an array with
 %input element number e and local node number i
 
-%Element surface, short hand notation
-Ae = domain.AEl;
+%Element surface array, short hand notation
+A = domain.AEl;
 
 %Gauss points
 xi1 = -1/sqrt(3);
@@ -27,10 +27,10 @@ for e = 1:domain.nEl
     yII = 0.5*(y1 + y4) + 0.5*eta2*(y4 - y1);
 
 
-    fs(1,e) = s(e)*(1/Ae)*((xI - x2)*(yI - y4) + (xII - x2)*(yII - y4) + (xI - x2)*(yII - y4) + (xII - x2)*(yI - y4));
-    fs(2,e) = -s(e)*(1/Ae)*((xI - x1)*(yI - y4) + (xII - x1)*(yII - y4) + (xI - x1)*(yII - y4) + (xII - x1)*(yI - y4));
-    fs(3,e) = s(e)*(1/Ae)*((xI - x1)*(yI - y1) + (xII - x1)*(yII - y1) + (xI - x1)*(yII - y1) + (xII - x1)*(yI - y1));
-    fs(4,e) = -s(e)*(1/Ae)*((xI - x2)*(yI - y1) + (xII - x2)*(yII - y1) + (xI - x2)*(yII - y1) + (xII - x2)*(yI - y1));
+    fs(1,e) = s(e)*(1/A(e))*((xI - x2)*(yI - y4) + (xII - x2)*(yII - y4) + (xI - x2)*(yII - y4) + (xII - x2)*(yI - y4));
+    fs(2,e) = -s(e)*(1/A(e))*((xI - x1)*(yI - y4) + (xII - x1)*(yII - y4) + (xI - x1)*(yII - y4) + (xII - x1)*(yI - y4));
+    fs(3,e) = s(e)*(1/A(e))*((xI - x1)*(yI - y1) + (xII - x1)*(yII - y1) + (xI - x1)*(yII - y1) + (xII - x1)*(yI - y1));
+    fs(4,e) = -s(e)*(1/A(e))*((xI - x2)*(yI - y1) + (xII - x2)*(yII - y1) + (xI - x2)*(yII - y1) + (xII - x2)*(yI - y1));
 end
 
 end

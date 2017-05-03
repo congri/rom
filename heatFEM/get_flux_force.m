@@ -8,7 +8,7 @@ for e = 1:domain.nEl
     xe(2) = domain.lc(e, 2, 1);
     xe(3) = domain.lc(e, 1, 2);
     xe(4) = domain.lc(e, 4, 2);
-    N = @(x,y) elementShapeFunctions(x, y, xe, domain.AEl);
+    N = @(x,y) elementShapeFunctions(x, y, xe, domain.AEl(e));
     if(e <= domain.nElX && domain.naturalBoundaries(e, 1))
         %lower boundary
         q = @(x) qb{1}(x);

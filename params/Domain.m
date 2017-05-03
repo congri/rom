@@ -16,8 +16,10 @@ classdef Domain
         boundaryType                %true for essential, false for natural boundary node
         lx = 1;                     %domain size; not tested for lx, ly ~= 1
         ly = 1;
-        lElX                        %element size
-        lElY
+        lElX                        %element length in X
+        lElY                        %element length in Y
+        cum_lElX                    %grid vectors of FEM mesh
+        cum_lElY                    
         AEl
         nEq                         %number of equations
         lc                          %lc gives node coordinates, taking in element number and local node number
@@ -55,6 +57,8 @@ classdef Domain
                 end
             end
             domainObj.nEl = domainObj.nElX*domainObj.nElY;
+            assert(numel(lElX) == domainObj.nElX, 'incorrect number of elements specified in element length vector')
+            assert(numel(lElY) == domainObj.nElY, 'incorrect number of elements specified in element length vector')
             assert(sum(lElX) == domainObj.lx, 'element lengths do not sum up to lx')
             assert(sum(lElY) == domainObj.ly, 'element lengths do not sum up to ly')
             domainObj.lElX = zeros(1, domainObj.nEl);
@@ -62,9 +66,11 @@ classdef Domain
             domainObj.AEl = zeros(1, domainObj.nEl);
             for e = 1:domainObj.nEl
                 domainObj.lElX(e) = lElX(mod((e - 1), domainObj.nElX) + 1);
-                domainObj.lElY(e) = lElY(floor((e - 1)/domainObj.nElY) + 1);
+                domainObj.lElY(e) = lElY(floor((e - 1)/domainObj.nElX) + 1);
                 domainObj.AEl(e) = domainObj.lElX(e)*domainObj.lElY(e);
             end
+            domainObj.cum_lElX = cumsum([0 lElX]);
+            domainObj.cum_lElY = cumsum([0 lElY]);
             domainObj.nNodes = (domainObj.nElX + 1)*(domainObj.nElY + 1);
             domainObj.boundaryNodes = int32([1:(domainObj.nElX + 1),...
                 2*(domainObj.nElX + 1):(domainObj.nElX + 1):(domainObj.nElX + 1)*(domainObj.nElY + 1),...
@@ -86,10 +92,9 @@ classdef Domain
         function domainObj = setNodalCoordinates(domainObj)
             domainObj.nodalCoordinates = get_coord(domainObj);
             domainObj.lm = domainObj.globalNodeNumber;
-            Sg = size(domainObj.globalNodeNumber);
-            for i = 1:Sg(1)
-                for j = 1:Sg(2)
-                    domainObj.lm(i,j) = domainObj.nodalCoordinates(3,domainObj.globalNodeNumber(i,j));
+            for i = 1:size(domainObj.globalNodeNumber, 1)
+                for j = 1:size(domainObj.globalNodeNumber, 2)
+                    domainObj.lm(i, j) = domainObj.nodalCoordinates(3, domainObj.globalNodeNumber(i, j));
                 end
             end
             domainObj.id = get_id(domainObj.nodalCoordinates);
@@ -132,7 +137,7 @@ classdef Domain
                 
                 %Note:in Gauss quadrature, the differential transforms as dx = (l_x/2) d xi. Hence
                 %we take the additional factor of sqrt(A)/2 onto B
-                domainObj.Bvec(:,:,e) = (1/(2*sqrt(domainObj.AEl)))*[B1; B2; B3; B4];
+                domainObj.Bvec(:,:,e) = (1/(2*sqrt(domainObj.AEl(e))))*[B1; B2; B3; B4];
             end
         end
         
@@ -151,10 +156,13 @@ classdef Domain
             
             %Set essential temperatures
             domainObj.essentialTemperatures = NaN*ones(1, domainObj.nNodes);
-            boundaryCoordinates = [0:domainObj.lElX:1, ones(1, domainObj.nElY),...
-                (1 - domainObj.lElX):(-domainObj.lElX):0, zeros(1, domainObj.nElY - 1);...
-                zeros(1, domainObj.nElX + 1), domainObj.lElY:domainObj.lElY:1,...
-                ones(1, domainObj.nElX), (1 - domainObj.lElY):(-domainObj.lElY):domainObj.lElY];
+            %this is wrong if lx, ly ~= 1 (size of domain)
+            boundaryCoordinates = [[0 cumsum(domainObj.lElX(1:domainObj.nElX))], ones(1, domainObj.nElY - 1),...
+                fliplr([0 cumsum(domainObj.lElX(1:domainObj.nElX))]), zeros(1, domainObj.nElY - 1);...
+                zeros(1, domainObj.nElX + 1),...
+                cumsum(domainObj.lElY(domainObj.nElX:domainObj.nElX:(domainObj.nElX*domainObj.nElY))),...
+                ones(1, domainObj.nElX - 1),...
+                fliplr(cumsum(domainObj.lElY(domainObj.nElX:domainObj.nElX:(domainObj.nElX*domainObj.nElY))))];
             Tess = zeros(1, domainObj.nNodes);
             for i = 1:(2*domainObj.nElX + 2*domainObj.nElY)
                 Tess(i) = Tb(boundaryCoordinates(:, i));

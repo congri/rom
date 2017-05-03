@@ -1,4 +1,4 @@
-function [nc] = get_coord(domain, physical)
+function [nc] = get_coord(domain)
 %Gives nodal coordinates in the first two rows and equation number from
 %global node number in the third row. Temperature of essential boundaries
 %is given in the fourth row, heat flux on natural boundaries in the fifth
@@ -8,11 +8,15 @@ function [nc] = get_coord(domain, physical)
 %belong to the lower boundary, nodes 5, 10, 15, 20 to the right, nodes 25, 24, 23, 22 to the upper
 %and 21, 16, 11, 6 to the left boundary.
 
-x = 0;
-y = 0;
+% x = 0;
+% y = 0;
 j = 1;  %equation number index
 nc = NaN*zeros(3, domain.nNodes);
 for i = 1:domain.nNodes
+    row = floor((i - 1)/(domain.nElX + 1)) + 1;
+    col = mod((i - 1), (domain.nElX + 1)) + 1;
+    x = domain.cum_lElX(col);
+    y = domain.cum_lElY(row);
     nc(1, i) = x;
     nc(2, i) = y;
 
@@ -25,12 +29,12 @@ for i = 1:domain.nNodes
         j = j + 1;
     end
     
-    x = x + domain.lElX;
-    %reset x to 0 on last node of each row; increase y
-    if mod(i, domain.nElX + 1) == 0
-        x = 0;
-        y = y + domain.lElY;
-    end
+%     x = x + domain.lElX;
+%     %reset x to 0 on last node of each row; increase y
+%     if mod(i, domain.nElX + 1) == 0
+%         x = 0;
+%         y = y + domain.lElY;
+%     end
 end
 
 end

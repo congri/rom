@@ -17,9 +17,9 @@ if(patchTest)
     qb{4} = @(y) -(a(2) + a(4)*y);
     
     %domain object. Best not change the order of commands!
-    nX = 4;
-    nY = 4;
-    domain = Domain(nX, nY, [.2 .2 .2 .4], [.1 .3 .4 .2]);
+    nX = 5;
+    nY = 8;
+    domain = Domain(nX, nY, [.2 .1 .3 .1 .3], [.1 .1 .2 .2 .1 .1 .1 .1]);
     domain = setBoundaries(domain, (2:(2*nX + 2*nY)), Tbfun, qb);
     
     %heat conductivity tensor for each element
@@ -49,17 +49,18 @@ if(patchTest)
     if plt
         figure
         subplot(1, 3, 1)
-        pcolor(testTemperatureFieldPlot);
+        [Xgrid, Ygrid] = meshgrid(domain.cum_lElX, domain.cum_lElY);
+        pcolor(Xgrid, Ygrid, testTemperatureField);
         colorbar
         title('true temperature field')
         axis square
         subplot(1, 3, 2);
-        pcolor(FEMtemperatureFieldPlot);
+        pcolor(Xgrid, Ygrid, FEMtemperatureField);
         colorbar
         title('FEM temperature field')
         axis square
         subplot(1, 3, 3);
-        pcolor(diffPlot)
+        pcolor(Xgrid, Ygrid, diff)
         colorbar
         title('difference')
         axis square
