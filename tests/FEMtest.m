@@ -1,9 +1,9 @@
 %Test for 2d FEM code
 clear all;
 restoredefaultpath;
-addpath('~/matlab/projects/cgrom2d/params')
-addpath('~/matlab/projects/cgrom2d/heatFEM')
-addpath('~/matlab/projects/cgrom2d/plot')
+addpath('./params')
+addpath('./heatFEM')
+addpath('./plot')
 
 patchTest = true;
 if(patchTest)
