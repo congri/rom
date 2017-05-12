@@ -40,11 +40,14 @@ classdef Domain
         
         fs                          %local forces due to heat source
         fh                          %local forces due to natural boundary
-  
     end
     
+    
+    
+    
+    
+    
     methods
-        
         function domainObj = Domain(nElX, nElY, lElX, lElY)
             %constructor
             %nElX andnElY are number of elements in x- and y-direction
@@ -91,6 +94,8 @@ classdef Domain
         
         
         
+        
+        
         function domainObj = setLocCoord(domainObj)
             %Gives arrays taking the element and local node number and giving the nodal coordinate
             
@@ -115,6 +120,8 @@ classdef Domain
         
         
         
+        
+        
         function domainObj = setGlobalNodeNumber(domainObj)
             %Get global node number from global element number and local node number
             
@@ -131,20 +138,109 @@ classdef Domain
         
         
         
+        
+        function domainObj = setId(domainObj)
+            %put in equation number, get back global node number
+            
+            [eqs, i] = sort(domainObj.nodalCoordinates(3, :));
+            
+            domainObj.id = [eqs', i'];
+            
+            init = find(eqs == 1);
+            
+            domainObj.id(1:(init-1), :) = [];
+            
+            domainObj.id = domainObj.id(:, 2);
+            domainObj.id = uint32(domainObj.id);
+        end
+        
+        
+        
+        
+        function domainObj = getEquations(domainObj)
+            %Equation number array for sparse global stiffness assembly
+            
+            localNodeInit = 1:4;
+            %preallocate
+            domainObj.Equations = zeros(16*domainObj.nEl, 2);
+            domainObj.LocalNode = zeros(16*domainObj.nEl, 3);
+            eq = 0; %equation number index
+            for e = 1:domainObj.nEl
+                equationslm = domainObj.lm(e, localNodeInit);
+                equations = equationslm(equationslm > 0);
+                localNode = localNodeInit(equationslm > 0);
+                prevnEq = eq;
+                eq = eq + numel(equations)^2;
+                
+                [Equations1, Equations2] = meshgrid(equations);
+                domainObj.Equations((prevnEq + 1):eq, :) = [Equations1(:) Equations2(:)];
+                
+                [LocalNode1, LocalNode2] = meshgrid(localNode);
+                domainObj.LocalNode((prevnEq + 1):eq, :) =...
+                   [LocalNode1(:) LocalNode2(:) repmat(e, length(equations)^2, 1)];
+            end
+            
+            %Shrink to fit
+            domainObj.Equations((eq + 1):end, :) = [];
+            domainObj.LocalNode((eq + 1):end, :) = [];
+        end
+        
+        
+        
+        
+        function domainObj = getCoord(domainObj)
+            %Gives nodal coordinates in the first two rows and equation number from
+            %global node number in the third row. Temperature of essential boundaries
+            %is given in the fourth row, heat flux on natural boundaries in the fifth
+            %Assign global node coordinates and equation numbers
+            %In clockwise direction, the first node of every side is considered to belong to the boundary. The
+            %last node is considered to belong to the next boundary. E.g. on a grid 5x5 nodes, nodes 1 - 4
+            %belong to the lower boundary, nodes 5, 10, 15, 20 to the right, nodes 25, 24, 23, 22 to the upper
+            %and 21, 16, 11, 6 to the left boundary.
+
+            j = 1;  %equation number index
+            domainObj.nodalCoordinates = NaN*zeros(3, domainObj.nNodes);
+            for i = 1:domainObj.nNodes
+                row = floor((i - 1)/(domainObj.nElX + 1)) + 1;
+                col = mod((i - 1), (domainObj.nElX + 1)) + 1;
+                x = domainObj.cum_lElX(col);
+                y = domainObj.cum_lElY(row);
+                domainObj.nodalCoordinates(1, i) = x;
+                domainObj.nodalCoordinates(2, i) = y;
+                
+                if(any(domainObj.essentialNodes == i))
+                    %essential node, no equation number assigned
+                    domainObj.nodalCoordinates(3, i) = 0;
+                else
+                    %Assign equation number j
+                    domainObj.nodalCoordinates(3, i) = j;
+                    j = j + 1;
+                end
+            end 
+        end
+        
+        
+        
+        
+        
         function domainObj = setNodalCoordinates(domainObj)
-            domainObj.nodalCoordinates = get_coord(domainObj);
+            domainObj = getCoord(domainObj);
             domainObj.lm = domainObj.globalNodeNumber;
             for i = 1:size(domainObj.globalNodeNumber, 1)
                 for j = 1:size(domainObj.globalNodeNumber, 2)
                     domainObj.lm(i, j) = domainObj.nodalCoordinates(3, domainObj.globalNodeNumber(i, j));
                 end
             end
-            domainObj.id = get_id(domainObj.nodalCoordinates);
-            [domainObj.Equations, domainObj.LocalNode] = get_equations(domainObj.nEl, domainObj.lm);
+            domainObj = setId(domainObj);
+            domainObj = getEquations(domainObj);
             domainObj.Equations = double(domainObj.Equations);
             domainObj.kIndex = sub2ind([4 4 domainObj.nEl], domainObj.LocalNode(:,1),...
                 domainObj.LocalNode(:,2), domainObj.LocalNode(:,3));
         end
+        
+        
+        
+        
         
         function domainObj = setBvec(domainObj)
             domainObj.nEq = max(domainObj.nodalCoordinates(3,:));
@@ -183,6 +279,10 @@ classdef Domain
             end
         end
         
+        
+        
+        
+        
         function domainObj = setHeatSource(domainObj, heatSourceField)
             %Gets the elements of the local force due to the heat source (an array with
             %input element number e and local node number i
@@ -219,6 +319,67 @@ classdef Domain
                     (yI - y1) + (xII - x2)*(yII - y1) + (xI - x2)*(yII - y1) + (xII - x2)*(yI - y1));
             end
         end
+        
+        function N = elementShapeFunctions(domainObj, x, y, xe, Ael)
+            %Gives values of element shape functions
+            %   x, y:  domain variables
+            %   xe: xe(1) = x_1^e, xe(2) = x_2^e, xe(3) = y_1^e, xe(4) = y_4^e, see Fish&Belytschko p163
+            
+            N = zeros(4, 1);
+            N(1) = (x - xe(2))*(y - xe(4));
+            N(2) = -(x - xe(1))*(y - xe(4));
+            N(3) = (x - xe(1))*(y - xe(3));
+            N(4) = -(x - xe(2))*(y - xe(3));
+            N = N/Ael;
+        end
+        
+        
+        function domainObj = setFluxForce(domainObj, qb)
+            %Contribution to local force due to heat flux
+            
+            domainObj.fh = zeros(4, domainObj.nEl);
+            
+            for e = 1:domainObj.nEl
+                xe(1) = domainObj.lc(e, 1, 1);
+                xe(2) = domainObj.lc(e, 2, 1);
+                xe(3) = domainObj.lc(e, 1, 2);
+                xe(4) = domainObj.lc(e, 4, 2);
+                N = @(x, y) domainObj.elementShapeFunctions(x, y, xe, domainObj.AEl(e));
+                if(e <= domainObj.nElX && domainObj.naturalBoundaries(e, 1))
+                    %lower boundary
+                    q = @(x) qb{1}(x);
+                    Nlo = @(x) N(x, 0);
+                    fun = @(x) q(x)*Nlo(x);
+                    domainObj.fh(:, e) = domainObj.fh(:, e) + integral(fun, xe(1), xe(2), 'ArrayValued', true);
+                end
+                if(mod(e, domainObj.nElX) == 0 && domainObj.naturalBoundaries(e, 2))
+                    %right boundary
+                    q = @(y) qb{2}(y);
+                    Nr = @(y) N(1, y);
+                    fun = @(y) q(y)*Nr(y);
+                    domainObj.fh(:, e) = domainObj.fh(:, e) + integral(fun, xe(3), xe(4), 'ArrayValued', true);
+                end
+                if(e > (domainObj.nElY - 1)*domainObj.nElX && domainObj.naturalBoundaries(e, 3))
+                    %upper boundary
+                    q = @(x) qb{3}(x);
+                    Nu = @(x) N(x, 1);
+                    fun = @(x) q(x)*Nu(x);
+                    domainObj.fh(:, e) = domainObj.fh(:, e) + integral(fun, xe(1), xe(2), 'ArrayValued', true);
+                end
+                if(mod(e, domainObj.nElX) == 1 && domainObj.naturalBoundaries(e, 4))
+                    %left boundary
+                    q = @(y) qb{4}(y);
+                    Nle = @(y) N(0, y);
+                    fun = @(y) q(y)*Nle(y);
+                    domainObj.fh(:, e) = domainObj.fh(:, e) + integral(fun, xe(3), xe(4), 'ArrayValued', true);
+                end
+                
+            end
+        end
+        
+        
+        
+        
         
         function domainObj = setBoundaries(domainObj, natNodes, Tb, qb)    
             %natNodes holds natural nodes counted counterclockwise around domain, starting in lower
@@ -298,10 +459,14 @@ classdef Domain
             end
             
             %Finally set local forces due to natural boundaries
-            domainObj.fh = get_flux_force(domainObj, qb);
+            domainObj = setFluxForce(domainObj, qb);
             domainObj = setNodalCoordinates(domainObj);
             domainObj = setBvec(domainObj);
         end
+        
+        
+        
+        
         
         function domainObj = shrink(domainObj)
             %To save memory. We use that on finescale domain to save memory
@@ -330,7 +495,6 @@ classdef Domain
             domainObj.fh = [];
         end
     end
-    
 end
 
 
