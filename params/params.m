@@ -61,7 +61,7 @@ if loadOldConf
 else
     theta_cf.S = 1e-4*ones(domainf.nNodes, 1);
     theta_cf.mu = zeros(domainf.nNodes, 1);
-    theta_c.theta = 1e-2*ones(nBasis, 1);
+    theta_c.theta = 0*ones(nBasis, 1);
     theta_c.Sigma = 1e-4*speye(domainc.nEl);
     s = diag(theta_c.Sigma);
     theta_c.SigmaInv = sparse(diag(1./s));
@@ -100,7 +100,7 @@ fixSigInit = 0;                                 %number of initial iterations wi
 % theta_prior_hyperparamArray = [0 1e-4];                   %a and b params for Gamma hyperprior
 theta_prior_hyperparamArray = [100];
 % theta_prior_hyperparam = 10;
-sigma_prior_hyperparam = 10*ones(domainc.nEl, 1);  %   expSigSq: x*exp(-x*sigmaSq), where x is the hyperparam
+sigma_prior_hyperparam = 1e6*ones(domainc.nEl, 1);  %   expSigSq: x*exp(-x*sigmaSq), where x is the hyperparam
 
 %% MCMC options
 MCMC.method = 'MALA';                                %proposal type: randomWalk, nonlocal or MALA
@@ -171,7 +171,7 @@ VIparams.optParams.relXtol = 1e-12;
 VIparams.optParams.maxIterations = 1000;
 maxIterationsGrowthRate = 1.05;
 maxIterationsUpperBound = 600;
-VIparams.optParams.maxCompTime = 90;   %max computation time
+VIparams.optParams.maxCompTime = 60;   %max computation time
 maxCompTimeGrowthRate = 1.05;
 maxCompTimeUpperBound = 180;
 VIparams.optParams.meanGradNormTol = 30;    %Converged if norm of mean of grad over last k iterations is smaller

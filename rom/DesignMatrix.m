@@ -27,35 +27,57 @@ classdef DesignMatrix
     methods
         
         %constructor
-        function Phi = DesignMatrix(nf, nc, featureFunctions, dataFile, dataSamples)
+        function Phi = DesignMatrix(domainf, domainc, featureFunctions, dataFile, dataSamples)
             %Set up mapping from fine to coarse element
-            Phi = getCoarseElement(Phi, nf, nc);
+            Phi = getCoarseElement(Phi, domainc, domainf);
             Phi.featureFunctions = featureFunctions;
             Phi.dataFile = dataFile;
             Phi.dataSamples = dataSamples;
             
         end
         
-        function Phi = getCoarseElement(Phi, nf, nc)
-            %Takes element number of full order model, gives element number of
-            %coarse model
-            %nf, nc are 2D vectors holding the element numbers in x- and y-direction
+        function Phi = getCoarseElement(Phi, domainc, domainf)
+%             %Takes element number of full order model, gives element number of
+%             %coarse model
+%             %nf, nc are 2D vectors holding the element numbers in x- and y-direction
+%             
+%             fineElements = 1:(prod(nf));
+%             
+%             %fine elements per coarse mesh
+%             fine_per_coarse = nf./nc;
+%             %must be integer
+%             assert(~any(mod(nf, nc)), 'Error: no integer number of fine elements within a coarse element')
+%             
+%             row_fine = floor((fineElements - 1)/nf(1) + 1);
+%             col_fine = mod((fineElements - 1), nf(1)) + 1;
+%             
+%             row_coarse = floor((row_fine - 1)/fine_per_coarse(2) + 1);
+%             col_coarse = floor((col_fine - 1)/fine_per_coarse(1) + 1);
+%             
+%             Phi.E = (row_coarse - 1)*nc(1) + col_coarse;
+
+            Phi.E = zeros(domainf.nEl, 1);
+            e = 1;  %element number
+            for row_fine = 1:domainf.nElY
+                %coordinate of lower boundary of fine element
+                y_coord = domainf.cum_lElY(row_fine);
+                row_coarse = sum(y_coord >= domainc.cum_lElY);
+                for col_fine = 1:domainf.nElX
+                    %coordinate of left boundary of fine element
+                    x_coord = domainf.cum_lElX(col_fine);
+                    col_coarse = sum(x_coord >= domainc.cum_lElX);
+                    Phi.E(e) = (row_coarse - 1)*domainc.nElX + col_coarse;
+                    e = e + 1;
+                end
+            end
             
-            fineElements = 1:(prod(nf));
-            
-            %fine elements per coarse mesh
-            fine_per_coarse = nf./nc;
-            %must be integer
-            assert(~any(mod(nf, nc)), 'Error: no integer number of fine elements within a coarse element')
-            
-            row_fine = floor((fineElements - 1)/nf(1) + 1);
-            col_fine = mod((fineElements - 1), nf(1)) + 1;
-            
-            row_coarse = floor((row_fine - 1)/fine_per_coarse(2) + 1);
-            col_coarse = floor((col_fine - 1)/fine_per_coarse(1) + 1);
-            
-            Phi.E = (row_coarse - 1)*nc(1) + col_coarse;
-            
+            pltFineToCoarse = false;
+            if pltFineToCoarse
+                Etemp = reshape(Phi.E, domainf.nElX, domainf.nElY);
+                figure
+                imagesc(Etemp)
+                pause
+            end
         end
         
         function Phi = computeDesignMatrix(Phi, nElc, nElf, condTransOpts, mode)
@@ -100,20 +122,19 @@ classdef DesignMatrix
                         PhiCell{s}(i, ((i - 1)*npi + 1):(i*npi)) = pooledImage;
                     end
                 else
-                    Phi.lambdak{s} = zeros(nElf/nElc, nElc);
                     for i = 1:nElc
-                        Phi.lambdak{s}(:, i) = conductivity{s}(coarseElement == i);
+                        Phi.lambdak{s, i} = conductivity{s}(coarseElement == i);
+                        Phi.xk{s, i} = log(Phi.lambdak{s, i});
                     end
-                    Phi.xk{s} = log(Phi.lambdak{s});
                     
                     %construct design matrix Phi
                     for i = 1:nElc
                         for j = 1:nFeatureFunctions
                             %only take pixels of corresponding macro-cell as input for features
                             if condTransOpts.anisotropy
-                                PhiCell{s}((1 + (i - 1)*3):(i*3), j) = phi{j}(Phi.lambdak{s}(:, i));
+                                PhiCell{s}((1 + (i - 1)*3):(i*3), j) = phi{j}(Phi.lambdak{s, i});
                             else
-                                PhiCell{s}(i, j) = phi{j}(Phi.lambdak{s}(:, i));
+                                PhiCell{s}(i, j) = phi{j}(Phi.lambdak{s, i});
                             end
                         end
                     end
