@@ -1,4 +1,4 @@
-classdef Domain
+classdef Domain_old
     %class describing the finite element domain
 
     properties (SetAccess = public)
@@ -20,7 +20,7 @@ classdef Domain
         lElY                        %element length in Y
         cum_lElX                    %grid vectors of FEM mesh
         cum_lElY                    
-        AEl                         %Element surface
+        AEl
         nEq                         %number of equations
         lc                          %lc gives node coordinates, taking in element number and local node number
         nodalCoordinates            %Nodal coordiante array
@@ -45,7 +45,7 @@ classdef Domain
     
     methods
         
-        function domainObj = Domain(nElX, nElY, lElX, lElY)
+        function domainObj = Domain_old(nElX, nElY, lElX, lElY)
             %constructor
             %nElX andnElY are number of elements in x- and y-direction
             %lElX, lElY are vectors specifying element lengths in x- and y-directions. i-th element
@@ -82,54 +82,12 @@ classdef Domain
                 (domainObj.nElX)*((domainObj.nElY - 2):(-1):1) + 1]);
             
             %local coordinate array. First index is element number, 2 is local node, 3 is x or y
-            domainObj = domainObj.setLocCoord;
-            domainObj = domainObj.setGlobalNodeNumber;
+            domainObj.lc = get_loc_coord(domainObj);
+            domainObj.globalNodeNumber = get_glob(domainObj);
             
             domainObj = setHeatSource(domainObj, zeros(domainObj.nEl, 1));  %zero as default
 
         end
-        
-        
-        
-        function domainObj = setLocCoord(domainObj)
-            %Gives arrays taking the element and local node number and giving the nodal coordinate
-            
-            domainObj.lc = zeros(domainObj.nEl, 4, 2);
-            for e = 1:domainObj.nEl
-                row = floor((e - 1)/domainObj.nElX) + 1;
-                col = mod((e - 1), domainObj.nElX) + 1;
-
-                %x-coordinates
-                domainObj.lc(e, 1, 1) = domainObj.cum_lElX(col);
-                domainObj.lc(e, 2, 1) = domainObj.cum_lElX(col + 1);
-                domainObj.lc(e, 3, 1) = domainObj.lc(e, 2, 1);
-                domainObj.lc(e, 4, 1) = domainObj.lc(e, 1, 1);
-                
-                %y-coordinates
-                domainObj.lc(e, 1, 2) = domainObj.cum_lElY(row);
-                domainObj.lc(e, 2, 2) = domainObj.lc(e, 1, 2);
-                domainObj.lc(e, 3, 2) = domainObj.cum_lElY(row + 1);
-                domainObj.lc(e, 4, 2) = domainObj.lc(e, 3, 2);
-            end
-        end
-        
-        
-        
-        function domainObj = setGlobalNodeNumber(domainObj)
-            %Get global node number from global element number and local node number
-            
-            domainObj.globalNodeNumber = zeros(domainObj.nEl, 4, 'int32');
-            for e = 1:domainObj.nEl
-                for l = 1:4
-                    domainObj.globalNodeNumber(e,1) = e + floor((e - 1)/domainObj.nElX);
-                    domainObj.globalNodeNumber(e,2) = e + floor((e - 1)/domainObj.nElX) + 1;
-                    domainObj.globalNodeNumber(e,3) = domainObj.globalNodeNumber(e,1) + domainObj.nElX + 2;
-                    domainObj.globalNodeNumber(e,4) = domainObj.globalNodeNumber(e,1) + domainObj.nElX + 1;
-                end
-            end
-        end
-        
-        
         
         function domainObj = setNodalCoordinates(domainObj)
             domainObj.nodalCoordinates = get_coord(domainObj);
@@ -184,40 +142,7 @@ classdef Domain
         end
         
         function domainObj = setHeatSource(domainObj, heatSourceField)
-            %Gets the elements of the local force due to the heat source (an array with
-            %input element number e and local node number i
-            
-            %Gauss points
-            xi1 = -1/sqrt(3);
-            xi2 = 1/sqrt(3);
-            eta1 = -1/sqrt(3);
-            eta2 = 1/sqrt(3);
-            
-            domainObj.fs = zeros(4, domainObj.nEl);
-
-            for e = 1:domainObj.nEl
-                %short hand notation. Coordinates of local nodes
-                x1 = domainObj.lc(e, 1, 1);
-                x2 = domainObj.lc(e, 2, 1);
-                y1 = domainObj.lc(e, 1, 2);
-                y4 = domainObj.lc(e, 4, 2);
-                
-                %Coordinate transformation
-                xI = 0.5*(x1 + x2) + 0.5*xi1*(x2 - x1);
-                xII = 0.5*(x1 + x2) + 0.5*xi2*(x2 - x1);
-                yI = 0.5*(y1 + y4) + 0.5*eta1*(y4 - y1);
-                yII = 0.5*(y1 + y4) + 0.5*eta2*(y4 - y1);
-                
-                
-                domainObj.fs(1, e) = heatSourceField(e)*(1/domainObj.AEl(e))*((xI - x2)*...
-                    (yI - y4) + (xII - x2)*(yII - y4) + (xI - x2)*(yII - y4) + (xII - x2)*(yI - y4));
-                domainObj.fs(2, e) = -heatSourceField(e)*(1/domainObj.AEl(e))*((xI - x1)*...
-                    (yI - y4) + (xII - x1)*(yII - y4) + (xI - x1)*(yII - y4) + (xII - x1)*(yI - y4));
-                domainObj.fs(3, e) = heatSourceField(e)*(1/domainObj.AEl(e))*((xI - x1)*...
-                    (yI - y1) + (xII - x1)*(yII - y1) + (xI - x1)*(yII - y1) + (xII - x1)*(yI - y1));
-                domainObj.fs(4, e) = -heatSourceField(e)*(1/domainObj.AEl(e))*((xI - x2)*...
-                    (yI - y1) + (xII - x2)*(yII - y1) + (xI - x2)*(yII - y1) + (xII - x2)*(yI - y1));
-            end
+            domainObj.fs = get_heat_source(heatSourceField, domainObj);
         end
         
         function domainObj = setBoundaries(domainObj, natNodes, Tb, qb)    
