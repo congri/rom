@@ -2,7 +2,7 @@
 %CHANGE JOBFILE IF YOU CHANGE LINE NUMBERS!
 %Number of training data samples
 nStart = 1; %start training sample in training data file
-nTrain = 16;
+nTrain = 128;
 
 %Anisotropy; do NOT use together with limEffCond
 condTransOpts.anisotropy = false;
@@ -28,12 +28,12 @@ genCoarseDomain;
                                                                 
 %% Generate basis function for p_c
 genBasisFunctions;
-mode = 'none'; %useNeighbor, useLocalNeighbor, useDiagNeighbor, useLocalDiagNeighbor, useLocal, global
+mode = 'useLocal'; %useNeighbor, useLocalNeighbor, useDiagNeighbor, useLocalDiagNeighbor, useLocal, global
                                %global: take whole microstructure as feature function input, not
                                %only local window (only recommended for pooling)
 linFiltSeq = false;
 %load old configuration? (Optimal parameters, optimal variational distributions
-loadOldConf = false;
+loadOldConf = true;
 theta_c.useNeuralNet = false;    %use neural net for p_c
 
 
@@ -59,10 +59,10 @@ if loadOldConf
     theta_c.Sigma = sparse(diag(s));
     theta_c.SigmaInv = sparse(diag(1./s));
 else
-    theta_cf.S = 1e-4*ones(domainf.nNodes, 1);
+    theta_cf.S = 1e0*ones(domainf.nNodes, 1);
     theta_cf.mu = zeros(domainf.nNodes, 1);
     theta_c.theta = 0*ones(nBasis, 1);
-    theta_c.Sigma = 1e-4*speye(domainc.nEl);
+    theta_c.Sigma = 1e0*speye(domainc.nEl);
     s = diag(theta_c.Sigma);
     theta_c.SigmaInv = sparse(diag(1./s));
 end
@@ -100,7 +100,7 @@ fixSigInit = 0;                                 %number of initial iterations wi
 % theta_prior_hyperparamArray = [0 1e-4];                   %a and b params for Gamma hyperprior
 theta_prior_hyperparamArray = [100];
 % theta_prior_hyperparam = 10;
-sigma_prior_hyperparam = 1e6*ones(domainc.nEl, 1);  %   expSigSq: x*exp(-x*sigmaSq), where x is the hyperparam
+sigma_prior_hyperparam = 1e3*ones(domainc.nEl, 1);  %   expSigSq: x*exp(-x*sigmaSq), where x is the hyperparam
 
 %% MCMC options
 MCMC.method = 'MALA';                                %proposal type: randomWalk, nonlocal or MALA
@@ -116,7 +116,7 @@ if condTransOpts.anisotropy
     MCMC.Xi_start = ones(3*domainc.nEl, 1);
 end
 %only for random walk
-MCMC.MALA.stepWidth = .01;
+MCMC.MALA.stepWidth = 1e-6;
 stepWidth = 2e-0;
 MCMC.randomWalk.proposalCov = stepWidth*eye(domainc.nEl);   %random walk proposal covariance
 MCMC = repmat(MCMC, nTrain, 1);
