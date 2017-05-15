@@ -21,7 +21,7 @@ addpath('./rom')
 addpath('./aux')
 
 %% Compute design matrices
-Phi = DesignMatrix([domainf.nElX domainf.nElY], [domainc.nElX domainc.nElY], phi, Tffile, testSample_lo:testSample_up);
+Phi = DesignMatrix(domainf, domainc, phi, Tffile, testSample_lo:testSample_up);
 load('./data/conductivityTransformation.mat');
 %change here for anisotropy!
 condTransOpts.anisotropy = false;

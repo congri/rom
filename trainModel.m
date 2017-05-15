@@ -36,7 +36,7 @@ XNormSqMean = ones(1, nTrain);
 Tf = Tffile.Tf(:, nStart:(nStart + nTrain - 1));        %Finescale temperatures - load partially to save memory
 
 %% Compute design matrices
-Phi = DesignMatrix([domainf.nElX domainf.nElY], [domainc.nElX domainc.nElY], phi, Tffile, nStart:(nStart + nTrain - 1));
+Phi = DesignMatrix(domainf, domainc, phi, Tffile, nStart:(nStart + nTrain - 1));
 Phi = Phi.computeDesignMatrix(domainc.nEl, domainf.nEl, condTransOpts, mode);
 %Normalize design matrices
 %Phi = Phi.standardizeDesignMatrix;

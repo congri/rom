@@ -40,5 +40,11 @@ paramFileName = strcat('params','.mat');
 %load data params
 load(strcat(fineDataPath, paramFileName));
 
+%there is no cum_lEl (cumulated finite element length) in old data files
+if(~numel(domainf.cum_lElX) || ~numel(domainf.cum_lElX))
+    domainf.cum_lElX = linspace(0, 1, domainf.nElX + 1);
+    domainf.cum_lElY = linspace(0, 1, domainf.nElY + 1);
+end
+
 %load finescale temperatures partially
 Tffile = matfile(strcat(fineDataPath, trainFileName));

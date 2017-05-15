@@ -58,7 +58,7 @@ if nargout > 1
     FDcheck = false;
     if FDcheck
         disp('Gradient check log p_cf')
-        d = 1e-4;
+        d = 1e-7;
         FDgrad = zeros(domainc.nEl, 1);
         for e = 1:domainc.nEl
             conductivityFD = conductivity;
@@ -73,7 +73,7 @@ if nargout > 1
             TcFD = TcFD(:);
             
             WTcFD = W*TcFD;
-            log_pFD = -.5*sum(log(S)) - .5*(Tf_i_minus_mu - WTcFD)'*(Sinv_vec.*(Tf_i_minus_mu - WTcFD));
+            log_pFD = -.5*(sum(log(S)) + (Tf_i_minus_mu - WTcFD)'*(Sinv_vec.*(Tf_i_minus_mu - WTcFD)));
             if strcmp(condTransOpts.transform, 'log')
                 FDgrad(e) = conductivity(e)*(log_pFD - log_p)/d;
             elseif strcmp(condTransOpts.transform, 'logit')
@@ -85,6 +85,14 @@ if nargout > 1
             end
         end
         relgrad = FDgrad./d_log_p
+        if(norm(relgrad - 1) > 1e-1)
+            log_p
+            log_pFD
+            d_log_p
+            FDgrad
+%             diff = log_pFD - log_p
+            pause
+        end
 %         d_r
 %         d_rx
 %         adjoints

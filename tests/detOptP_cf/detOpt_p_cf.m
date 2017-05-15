@@ -22,6 +22,7 @@ loadTrainingData;
 genCoarseDomain;
 
 
+%don't change these!
 theta_cf.S = 1;
 theta_cf.Sinv = 1;
 theta_cf.Sinv_vec = ones(domainf.nNodes, 1);
@@ -43,7 +44,7 @@ for i = nStart:(nStart + nTrain -1)
     LambdaOpt(:, j) = LambdaOptTemp;
     
     %s2 is the squared distance of truth to optimal coarse averaged over all nodes
-    s2(j) = (2*fvalTemp)/domainf.nNodes
+    s2(j) = fvalTemp/domainf.nNodes
     j = j + 1;
 end
 
