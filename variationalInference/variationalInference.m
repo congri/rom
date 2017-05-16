@@ -73,9 +73,8 @@ elseif strcmp(params.family, 'diagonalGaussian')
     variationalParameters = initialParams;
     
     gradFunc = @(varParam, nSamples) ELBOgrad(varParam, logTrueCondDist, params, nSamples);
-    sampleFunc = @(varParam) normrnd(0, 1, 1, length(varParam)/2);
     [variationalParameters, steps] = ...
-        stochasticOptimization(variationalParameters, gradFunc, sampleFunc, params.optParams);
+        stochasticOptimization(variationalParameters, gradFunc, params.optParams);
     
     %Construct function handle to optimal variational distribution
     variationalGaussSigma = exp(-.5*variationalParameters((params.optParams.dim + 1):end));
