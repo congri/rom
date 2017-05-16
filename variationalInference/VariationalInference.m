@@ -11,7 +11,8 @@ classdef VariationalInference
         ELBOgradErr
         ELBOgradParams                          %Holding parameters of estimation of ELBO gradient;
                                                 %nSamples
-                                                
+        moments                                 %to store moments if they are given analytically
+        inferenceSamples = 200;
     end
     
     
@@ -151,14 +152,55 @@ classdef VariationalInference
                 VIobj.varDistParams.mu = params.mu;
                 VIobj.varDistParams.sigma = params.sigma;
                 VIobj.varDistParams.logSigmaMinus2 = -2*log(params.sigma);
+                VIobj.moments{1} = params.mu;
+                VIobj.moments{2} = diag(params.sigma);
             elseif strcmp(VIobj.variationalDist, 'fullRankGauss')
                 %Keep in mind that all forms of parameters need to be in struct params here,
                 %i.e. Sigma, mu, L, LT, LMinusT
                 VIobj.varDistParams = params;
+                VIobj.moments{1} = params.mu;
+                VIobj.moments{2} = params.Sigma + params.mu'*params.mu;
+            else
+                error('Unknown variational distribution')
+            end
+        end
+        
+        
+        
+        
+        
+        
+        function grad = gradientHandle(VIobj, paramsVec)
+            %Serves as a function handle for stochastic optimization
+            paramsStruc = VIobj.params_vec2struc(paramsVec);
+            VIobj = VIobj.setVarDistParams(paramsStruc);
+            grad = VIobj.sampleELBOgrad;
+        end
+        
+        
+        
+        
+        function paramsStruc = params_vec2struc(VIobj, paramsVec)
+            if strcmp(VIobj.variationalDist, 'diagonalGauss')
+                paramsStruc.mu = paramsVec(1:VIobj.dim);
+                paramsStruc.sigma = exp(-.5*paramsVec((VIobj.dim + 1):end));
+            elseif strcmp(VIobj.variationalDist, 'fullRankGauss')
+                paramsStruc.mu = paramsVec(1:VIobj.dim);
+                %lower triangular cholesky factor L
+                paramsStruc.L = reshape(paramsVec((VIobj.dim + 1):end), VIobj.dim, VIobj.dim);
+                paramsStruc.LT = paramsStruc.L';
+                paramsStruc.LInv = inv(paramsStruc.L);
+                paramsStruc.Sigma = paramsStruc.L*paramsStruc.LT;
             else
                 error('Unknown variational distribution')
             end
         end
     end 
 end
+
+
+
+
+
+
 

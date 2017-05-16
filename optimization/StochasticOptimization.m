@@ -4,6 +4,7 @@ classdef StochasticOptimization
     properties
         x = 0;                           %current best X
         gradient                         %current estimated gradient
+        gradientHandle                   %handle to gradient function
         momentum                         %current momentum (for e.g. adam update rule)
         steps = 0;                       %Number of performed update steps
         stepOffset = 100;                %Robbins-Monro step offset
@@ -59,6 +60,23 @@ classdef StochasticOptimization
             end
             SOobj.steps = SOobj.steps + 1;
             
+        end
+        
+        
+        
+        
+        function SOobj = converge(SOobj)
+            %Run stochastic optimization till convergence criterion is met
+            
+            converged = false;
+            while ~converged
+                SOobj.gradient = SOobj.gradientHandle(SOobj.x);
+                SOobj = SOobj.update;
+                if SOobj.steps > 1000
+                    converged = true;
+                    disp('converged!')
+                end
+            end
         end
     end
     

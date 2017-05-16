@@ -31,7 +31,6 @@ pend = 0;       %for sequential qi-updates
 %prealloc
 XMean = zeros(domainc.nEl, nTrain);
 XSqMean = ones(domainc.nEl, nTrain);
-XNormSqMean = ones(1, nTrain);
 
 Tf = Tffile.Tf(:, nStart:(nStart + nTrain - 1));        %Finescale temperatures - load partially to save memory
 
@@ -76,6 +75,8 @@ if theta_c.useNeuralNet
 end
 
 
+MonteCarlo = false;
+VI = true;
 
 %% EM optimization - main body
 k = 1;          %EM iteration index
@@ -94,12 +95,14 @@ for k = 2:(maxIterations + 1)
         end
         log_qi{i} = @(Xi) log_q_i(Xi, Tf_i_minus_mu, theta_cf, theta_c,...
             PhiMat, domainc, condTransOpts);
+        if VI
+            vi{i} = VariationalInference(log_qi{i}, 'fullRankGauss', varDistParams, ELBOgradParams);
+            so{i}.gradientHandle = @(x) vi.gradientHandle(x);
+        end
     end
     clear PhiMat;
     
     
-    MonteCarlo = false;
-    VI = true;
 
     if MonteCarlo
         for i = 1:nTrain
@@ -178,7 +181,6 @@ for k = 2:(maxIterations + 1)
             end
             
             XMean(:, i) = mean(out(i).samples, 2);
-            XNormSqMean(i) = mean(sum(out(i).samples.^2));
             
             %for S
             %Tc_samples(:,:,i) contains coarse nodal temperature samples (1 sample == 1 column) for full order data
@@ -210,46 +212,51 @@ for k = 2:(maxIterations + 1)
         end
         
         disp('Finding optimal variational distributions...')
-        %Adaptively change stochastic optimization params
-        VIparams.optParams.stepWidth = (stepWidthDropRate^epoch)*VIparams.optParams.stepWidth;
-        if(VIparams.optParams.stepWidth < stepWidthLowerBound)
-            VIparams.optParams.stepWidth = stepWidthLowerBound;
-        end
-        VIparams.optParams.maxIterations = round((maxIterationsGrowthRate^epoch)*VIparams.optParams.maxIterations);
-        if VIparams.optParams.maxIterations > maxIterationsUpperBound
-            VIparams.optParams.maxIterations = maxIterationsUpperBound;
-        end
-        VIparams.optParams.maxCompTime = round((maxCompTimeGrowthRate^epoch)*VIparams.optParams.maxCompTime);
-        if VIparams.optParams.maxCompTime > maxCompTimeUpperBound
-            VIparams.optParams.maxCompTime = maxCompTimeUpperBound;
-        end
-        minSamples = round((gradSamplesGrowthRate^epoch)*minSamples);
-        if minSamples > gradSamplesUpperBound
-            minSamples = gradSamplesUpperBound;
-        end
-        if minSamples > maxSamples
-            minSamples = maxSamples;
-        end
-        VIparams.optParams.nSamples = @(ii) nSamplesIteration(ii, minSamples, maxSamples);    %Gradient samples per iteration; given as a function with input iteration
+%         %Adaptively change stochastic optimization params
+%         VIparams.optParams.stepWidth = (stepWidthDropRate^epoch)*VIparams.optParams.stepWidth;
+%         if(VIparams.optParams.stepWidth < stepWidthLowerBound)
+%             VIparams.optParams.stepWidth = stepWidthLowerBound;
+%         end
+%         VIparams.optParams.maxIterations = round((maxIterationsGrowthRate^epoch)*VIparams.optParams.maxIterations);
+%         if VIparams.optParams.maxIterations > maxIterationsUpperBound
+%             VIparams.optParams.maxIterations = maxIterationsUpperBound;
+%         end
+%         VIparams.optParams.maxCompTime = round((maxCompTimeGrowthRate^epoch)*VIparams.optParams.maxCompTime);
+%         if VIparams.optParams.maxCompTime > maxCompTimeUpperBound
+%             VIparams.optParams.maxCompTime = maxCompTimeUpperBound;
+%         end
+%         minSamples = round((gradSamplesGrowthRate^epoch)*minSamples);
+%         if minSamples > gradSamplesUpperBound
+%             minSamples = gradSamplesUpperBound;
+%         end
+%         if minSamples > maxSamples
+%             minSamples = maxSamples;
+%         end
+%         VIparams.optParams.nSamples = @(ii) nSamplesIteration(ii, minSamples, maxSamples);    %Gradient samples per iteration; given as a function with input iteration
 
         
         parfor i = pstart:pend
-            [optVarDist{i}, RMsteps{i}] = variationalInference(log_qi{i}, VIparams, initialParamsArray{i});
-            initialParamsArray{i} = optVarDist{i}.params;
-            if(strcmp(VIparams.family, 'diagonalGaussian'))
-                VIdim = length(optVarDist{i}.params);
-                XMean(:, i) = optVarDist{i}.params(1:(VIdim/2));
-                XSqMean(:, i) = optVarDist{i}.params(1:(VIdim/2)).^2 + exp(-optVarDist{i}.params(((VIdim/2) + 1):end));
-                XNormSqMean(i) = sum([optVarDist{i}.params(1:(VIdim/2)).^2 exp(-optVarDist{i}.params(((VIdim/2) + 1):end))]);
-            else
-                error('VI not implemented for this family of functions')
-            end
+            
+            so{i} = so{i}.converge;
+            vi{i} = vi{i}.setVarDistParams(vi{i}.params_vec2struc(so{i}.x));
+%             [optVarDist{i}, RMsteps{i}] = variationalInference(log_qi{i}, VIparams, initialParamsArray{i});
+%             initialParamsArray{i} = optVarDist{i}.params;
+%             if(strcmp(VIparams.family, 'diagonalGaussian'))
+%                 VIdim = length(optVarDist{i}.params);
+%                 XMean(:, i) = optVarDist{i}.params(1:(VIdim/2));
+%                 XSqMean(:, i) = optVarDist{i}.params(1:(VIdim/2)).^2 + exp(-optVarDist{i}.params(((VIdim/2) + 1):end));
+%             else
+%                 error('VI not implemented for this family of functions')
+%             end
+
+        XMean(:, i) = vi{i}.moments{1}';
+        XSqMean(:, i) = diag(vi{i}.moments{2});
         end
-        save('./data/initialParamsArray.mat', 'initialParamsArray');
+        save('./data/variationalDistributions.mat', 'vi');
         %Set start values for next iteration
-        for i = pstart:pend
-            VIparams.initialParams{i} = optVarDist{i}.params;
-        end
+%         for i = pstart:pend
+%             VIparams.initialParams{i} = optVarDist{i}.params;
+%         end
         disp('done')
         %Sample from VI distributions and solve coarse model
         for i = pstart:pend
@@ -533,7 +540,7 @@ for k = 2:(maxIterations + 1)
     collectData;
 end
 %tidy up
-clear i j k m Wa Wa_mean Tc_dyadic_mean log_qi p_cf_exponent curr_theta XMean XNormSqMean;
+clear i j k m Wa Wa_mean Tc_dyadic_mean log_qi p_cf_exponent curr_theta XMean;
 runtime = toc
 
 
