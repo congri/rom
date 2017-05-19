@@ -12,7 +12,9 @@ classdef VariationalInference
         ELBOgradParams                          %Holding parameters of estimation of ELBO gradient;
                                                 %nSamples
         moments                                 %to store moments if they are given analytically
-        inferenceSamples = 200;
+        inferenceSamples = 100;                 %number of samples to compute expected values under variational dist.
+        
+        varDistParamsContainer                  %to store all parameters during optimization
     end
     
     
@@ -147,19 +149,63 @@ classdef VariationalInference
         
         
         
+        function E = mcInference(VIobj, functionHandle)
+            %Samples expected value of function in function handle under variational dist.
+            if strcmp(VIobj.variationalDist, 'diagonalGauss')
+                %individual samples are rows of 'samples'
+                %sigma is std
+                samples = mvnrnd(VIobj.varDistParams.mu, VIobj.varDistParams.sigma, VIobj.inferenceSamples);
+                E = 0;
+                for i = 1:VIobj.inferenceSamples
+                    E = (1/i)*((i - 1)*E + functionHandle(samples(i, :)));
+                end
+            elseif strcmp(VIobj.variationalDist, 'fullRankGauss')
+                %individual samples are rows of 'samples'
+                %Sigma is covariance
+                samples = mvnrnd(VIobj.varDistParams.mu, VIobj.varDistParams.Sigma, VIobj.inferenceSamples);
+                E = 0;
+                for i = 1:VIobj.inferenceSamples
+                    E = (1/i)*((i - 1)*E + functionHandle(samples(i, :)));
+                end
+            else
+                error('Unknown variational distribution')
+            end
+        end
+        
+        
+        
+        
         function VIobj = setVarDistParams(VIobj, params)
             if strcmp(VIobj.variationalDist, 'diagonalGauss')
                 VIobj.varDistParams.mu = params.mu;
                 VIobj.varDistParams.sigma = params.sigma;
                 VIobj.varDistParams.logSigmaMinus2 = -2*log(params.sigma);
                 VIobj.moments{1} = params.mu;
-                VIobj.moments{2} = diag(params.sigma);
+                VIobj.moments{2} = diag(params.sigma.^2 + params.mu.^2);
+                
+                %store parameters for debugging purposes
+                if isempty(VIobj.varDistParamsContainer)
+                    VIobj.varDistParamsContainer.mu = params.mu;
+                    VIobj.varDistParamsContainer.sigma = params.sigma;
+                else
+                    VIobj.varDistParamsContainer.mu = [VIobj.varDistParamsContainer.mu; params.mu];
+                    VIobj.varDistParamsContainer.sigma = [VIobj.varDistParamsContainer.sigma; params.sigma];
+                end
             elseif strcmp(VIobj.variationalDist, 'fullRankGauss')
                 %Keep in mind that all forms of parameters need to be in struct params here,
                 %i.e. Sigma, mu, L, LT, LMinusT
                 VIobj.varDistParams = params;
                 VIobj.moments{1} = params.mu;
                 VIobj.moments{2} = params.Sigma + params.mu'*params.mu;
+                
+                %store parameters for debugging purposes
+                if isempty(VIobj.varDistParamsContainer)
+                    VIobj.varDistParamsContainer.mu = params.mu;
+                    VIobj.varDistParamsContainer.Sigma = params.Sigma(:)';
+                else
+                    VIobj.varDistParamsContainer.mu = [VIobj.varDistParamsContainer.mu; params.mu];
+                    VIobj.varDistParamsContainer.Sigma = [VIobj.varDistParamsContainer.Sigma; params.Sigma(:)'];
+                end
             else
                 error('Unknown variational distribution')
             end

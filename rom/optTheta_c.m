@@ -130,6 +130,11 @@ while(~converged)
             theta = theta_temp;
         end
         
+        PhiThetaMat = zeros(nCoarse, nTrain);
+        for i = 1:nTrain
+            PhiThetaMat(:, i) = Phi.designMatrices{i}*theta;
+        end
+        
         %     theta = .5*theta + .5*theta_old;    %for stability
         
         if strcmp(sigma_prior_type, 'none')
@@ -157,12 +162,10 @@ while(~converged)
             SigmaInv = sparse(diag(1./s));
             SigmaInvXMean = SigmaInv*XMean;
             sumPhiTSigmaInvPhi = 0;
-            PhiThetaMat = zeros(nCoarse, nTrain);
             
             for i = 1:nTrain
                 sumPhiTSigmaInvXmean = sumPhiTSigmaInvXmean + Phi.designMatrices{i}'*SigmaInvXMean(:, i);
                 sumPhiTSigmaInvPhi = sumPhiTSigmaInvPhi + Phi.designMatrices{i}'*SigmaInv*Phi.designMatrices{i};
-                PhiThetaMat(:, i) = Phi.designMatrices{i}*theta;
             end
         elseif strcmp(sigma_prior_type, 'expSigSq')
             %Vector of variances
@@ -178,12 +181,10 @@ while(~converged)
             SigmaInv = sparse(diag(1./s));
             SigmaInvXMean = SigmaInv*XMean;
             sumPhiTSigmaInvPhi = 0;
-            PhiThetaMat = zeros(nCoarse, nTrain);
             
             for i = 1:nTrain
                 sumPhiTSigmaInvXmean = sumPhiTSigmaInvXmean + Phi.designMatrices{i}'*SigmaInvXMean(:, i);
                 sumPhiTSigmaInvPhi = sumPhiTSigmaInvPhi + Phi.designMatrices{i}'*SigmaInv*Phi.designMatrices{i};
-                PhiThetaMat(:, i) = Phi.designMatrices{i}*theta;
             end
 %             error('Prior on diagonal Sigma not yet implemented')
 %             gradHessLogSigmaMinus2 = @(lSigmaMinus2) dF_dlogSigmaMinus2(lSigmaMinus2, theta, nCoarse, nTrain, XNormSqMean,...
@@ -207,12 +208,10 @@ while(~converged)
             SigmaInv = sparse(diag(1./s));
             SigmaInvXMean = SigmaInv*XMean;
             sumPhiTSigmaInvPhi = 0;
-            PhiThetaMat = zeros(nCoarse, nTrain);
             
             for i = 1:nTrain
                 sumPhiTSigmaInvXmean = sumPhiTSigmaInvXmean + Phi.designMatrices{i}'*SigmaInvXMean(:, i);
                 sumPhiTSigmaInvPhi = sumPhiTSigmaInvPhi + Phi.designMatrices{i}'*SigmaInv*Phi.designMatrices{i};
-                PhiThetaMat(:, i) = Phi.designMatrices{i}*theta;
             end
         end
         
@@ -229,6 +228,9 @@ if ~theta_c.useNeuralNet
     % theta_c.sigma = sqrt(sigma2);
     theta_c.Sigma = Sigma;
     theta_c.SigmaInv = SigmaInv;
+    %Value which could be used to refine mesh
+    noPriorSigma = mean(XSqMean - 2*(PhiThetaMat.*XMean) + PhiThetaMat.^2, 2)
+    save('./data/noPriorSigma.mat', 'noPriorSigma');
 end
 
 end

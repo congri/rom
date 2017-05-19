@@ -39,7 +39,7 @@ Phi = DesignMatrix(domainf, domainc, phi, Tffile, nStart:(nStart + nTrain - 1));
 Phi = Phi.computeDesignMatrix(domainc.nEl, domainf.nEl, condTransOpts, mode);
 %Normalize design matrices
 %Phi = Phi.standardizeDesignMatrix;
-Phi = Phi.rescaleDesignMatrix;
+% Phi = Phi.rescaleDesignMatrix;
 Phi.saveNormalization('rescaling'); %'rescaling' if rescaleDesignMatrix is used, 'standardization' if standardizeDesignMatrix is used
 %Compute sum_i Phi^T(x_i)^Phi(x_i)
 if strcmp(mode, 'useNeighbor')
@@ -82,9 +82,17 @@ VI = true;
 k = 1;          %EM iteration index
 collectData;    %Write initial parametrizations to disk
 
+if ~loadOldConf
+    for i = 1:nTrain
+        vi{i} = VariationalInference([], 'diagonalGauss', varDistParams, ELBOgradParams);
+    end
+else
+    load('./data/variationalDistributions.mat');
+end
+
 epoch = 0;  %Number of times every data point has been seen
 for k = 2:(maxIterations + 1)
-
+    
     %% Establish distribution to sample from
     for i = 1:nTrain
         Tf_i_minus_mu = Tf(:, i) - theta_cf.mu;
@@ -96,8 +104,15 @@ for k = 2:(maxIterations + 1)
         log_qi{i} = @(Xi) log_q_i(Xi, Tf_i_minus_mu, theta_cf, theta_c,...
             PhiMat, domainc, condTransOpts);
         if VI
-            vi{i} = VariationalInference(log_qi{i}, 'fullRankGauss', varDistParams, ELBOgradParams);
-            so{i}.gradientHandle = @(x) vi.gradientHandle(x);
+            if(k == 2 && ~loadOldConf)
+                %Initialize VI distributions from maximum of q_i's
+                Xmax{i} = max_qi(log_qi{i}, vi{i}.varDistParams.mu');
+                varDistParams.mu = Xmax{i}';
+                so{i}.x(1:length(Xmax{i})) = Xmax{i};
+                vi{i} = vi{i}.setVarDistParams(varDistParams);
+            end
+            vi{i}.log_empiricalDist = log_qi{i};
+            so{i}.gradientHandle = @(x) vi{i}.gradientHandle(x);
         end
     end
     clear PhiMat;
@@ -187,7 +202,7 @@ for k = 2:(maxIterations + 1)
             %sample i
             Tc_samples(:, :, i) = reshape(cell2mat(out(i).data), domainc.nNodes, MCMC(i).nSamples);
             %only valid for diagonal S here!
-            p_cf_exponent(:, i) = mean((repmat(Tf_i_minus_mu, 1, MCMC(i).nSamples) - theta_cf.W*Tc_samples(:, :, i)).^2, 2);
+            varExpect_p_cf_exp(:, i) = mean((repmat(Tf_i_minus_mu, 1, MCMC(i).nSamples) - theta_cf.W*Tc_samples(:, :, i)).^2, 2);
             
         end
         clear Tc_samples;
@@ -261,41 +276,45 @@ for k = 2:(maxIterations + 1)
         %Sample from VI distributions and solve coarse model
         for i = pstart:pend
             Tf_i_minus_mu = Tf(:, i) - theta_cf.mu;
-            if(strcmp(VIparams.family, 'diagonalGaussian'))
-                VIdim = length(optVarDist{1}.params);
-                VImean = optVarDist{i}.params(1:(VIdim/2));
-                VIsigma = exp(-.5*optVarDist{i}.params(((VIdim/2) + 1):end));
-                %Samples of conductivity
-                samples = conductivityBackTransform(mvnrnd(VImean, VIsigma, VIparams.inferenceSamples),...
-                    condTransOpts);
-                if condTransOpts.anisotropy
-                    for j = 1:domainc.nEl
-                        VIsamples{j} = mvnrnd(VImean((1 + (j - 1)*3):(j*3)),...
-                            VIsigma((1 + (j - 1)*3):(j*3)), VIparams.inferenceSamples);
-                    end
-                else
-                    % samples = logCond2Cond(mvnrnd(VImean, VIsigma, VIparams.inferenceSamples), 1e-10, 1e10);
-                end
-                
-                for s = 1:VIparams.inferenceSamples
-                    for j = 1:domainc.nEl
-                        if condTransOpts.anisotropy
-                            D(:, :, j) = conductivityBackTransform(VIsamples{j}(s, :)', condTransOpts);
-                        else
-                            D(:, :, j) =  samples(s, j)*eye(2);
-                        end
-                    end
-                    FEMout = heat2d(domainc, D);
-                    
-                    Tc = FEMout.Tff';
-                    Tc_samples(:, s, i) = Tc(:);
-                end
-%                 infRelErr = (std(Tc_samples, 0, 2)/sqrt(VIparams.inferenceSamples))./mean(Tc_samples, 2)
-                p_cf_exponent(:, i) = mean((repmat(Tf_i_minus_mu, 1, VIparams.inferenceSamples)...
-                        - theta_cf.W*Tc_samples(:, :, i)).^2, 2);
-            else
-                error('VI not implemented for this family of functions')
-            end
+%             if(strcmp(VIparams.family, 'diagonalGaussian'))
+%                 VIdim = length(optVarDist{1}.params);
+%                 VImean = optVarDist{i}.params(1:(VIdim/2));
+%                 VIsigma = exp(-.5*optVarDist{i}.params(((VIdim/2) + 1):end));
+%                 %Samples of conductivity
+%                 samples = conductivityBackTransform(mvnrnd(VImean, VIsigma, VIparams.inferenceSamples),...
+%                     condTransOpts);
+%                 if condTransOpts.anisotropy
+%                     for j = 1:domainc.nEl
+%                         VIsamples{j} = mvnrnd(VImean((1 + (j - 1)*3):(j*3)),...
+%                             VIsigma((1 + (j - 1)*3):(j*3)), VIparams.inferenceSamples);
+%                     end
+%                 else
+%                     % samples = logCond2Cond(mvnrnd(VImean, VIsigma, VIparams.inferenceSamples), 1e-10, 1e10);
+%                 end
+%                 
+%                 for s = 1:VIparams.inferenceSamples
+%                     for j = 1:domainc.nEl
+%                         if condTransOpts.anisotropy
+%                             D(:, :, j) = conductivityBackTransform(VIsamples{j}(s, :)', condTransOpts);
+%                         else
+%                             D(:, :, j) =  samples(s, j)*eye(2);
+%                         end
+%                     end
+%                     FEMout = heat2d(domainc, D);
+%                     
+%                     Tc = FEMout.Tff';
+%                     Tc_samples(:, s, i) = Tc(:);
+%                 end
+% %                 infRelErr = (std(Tc_samples, 0, 2)/sqrt(VIparams.inferenceSamples))./mean(Tc_samples, 2)
+%                 varExpect_p_cf_exp(:, i) = mean((repmat(Tf_i_minus_mu, 1, VIparams.inferenceSamples)...
+%                         - theta_cf.W*Tc_samples(:, :, i)).^2, 2);
+%             else
+%                 error('VI not implemented for this family of functions')
+%             end
+
+            p_cf_expHandle{i} = @(logCond) p_cf_expfun(logCond, condTransOpts, domainc, Tf_i_minus_mu, theta_cf);
+            %Expectations under variational distributions
+            varExpect_p_cf_exp(:, i) = vi{i}.mcInference(p_cf_expHandle{i});
         end
         
         
@@ -307,9 +326,8 @@ for k = 2:(maxIterations + 1)
     disp('M-step: find optimal params')
     %Optimal S (decelerated convergence)
     lowerBoundS = eps;
-    theta_cf.S = (1 - mix_S)*mean(p_cf_exponent, 2)...
+    theta_cf.S = (1 - mix_S)*mean(varExpect_p_cf_exp, 2)...
         + mix_S*theta_cf.S + lowerBoundS*ones(domainf.nNodes, 1);
-%     clear p_cf_exponent;
     theta_cf.Sinv = sparse(1:domainf.nNodes, 1:domainf.nNodes, 1./theta_cf.S);
     theta_cf.Sinv_vec = 1./theta_cf.S;
     theta_cf.WTSinv = theta_cf.W'*theta_cf.Sinv;        %Precomputation for efficiency
@@ -500,7 +518,11 @@ for k = 2:(maxIterations + 1)
             else
                 sigmaArray = [sigmaArray; diag(theta_c.Sigma)'];
             end
-            figure(1)
+            if exist('figureTheta')
+                figure(figureTheta);
+            else
+                figureTheta = figure;
+            end
             subplot(2,2,1)
             plot(thetaArray, 'linewidth', 1)
             axis tight;

@@ -5,15 +5,15 @@ clear all
 
 %Take a diagonal Gaussian as the true distribution
 trueMu = [1 2 -3];
-truePrecision = inv([3 0 1; 0 5 0; 1 0 2]);
+truePrecision = inv([3 0 0; 0 5 0; 0 0 2]);
 logTrueCondDist = @(x) testGaussian(x, truePrecision, trueMu);
 
 
-testDiag = false;
+testDiag = true;
 if testDiag
     %Test new VI and stochastic optimization class
-    so = StochasticOptimization('adam');
-    so.stepWidth = 2e-1;
+    so = StochasticOptimization('robbinsMonro');
+    so.stepWidth = 1e-2;
     varDistParams.mu = [0, 0, 0];
     varDistParams.sigma = [1, 1, 1];
     so.x = [varDistParams.mu, -2*log(varDistParams.sigma)];
@@ -27,7 +27,7 @@ if testDiag
 end
 
 
-testFull = true;
+testFull = false;
 if testFull
     %Test new VI and stochastic optimization class
     so = StochasticOptimization('adam');

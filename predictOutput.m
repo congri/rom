@@ -28,7 +28,7 @@ condTransOpts.anisotropy = false;
 Phi = Phi.computeDesignMatrix(domainc.nEl, domainf.nEl, condTransOpts, mode);
 %Normalize design matrices
 %Phi = Phi.standardizeDesignMatrix(featureFunctionMean, featureFunctionSqMean);
-Phi = Phi.rescaleDesignMatrix(featureFunctionMin, featureFunctionMax);
+% Phi = Phi.rescaleDesignMatrix(featureFunctionMin, featureFunctionMax);
 if strcmp(mode, 'useNeighbor')
     %use feature function information from nearest neighbors
     Phi = Phi.includeNearestNeighborFeatures([domainc.nElX domainc.nElY]);

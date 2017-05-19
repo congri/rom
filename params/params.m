@@ -28,12 +28,12 @@ genCoarseDomain;
                                                                 
 %% Generate basis function for p_c
 genBasisFunctions;
-mode = 'useLocal'; %useNeighbor, useLocalNeighbor, useDiagNeighbor, useLocalDiagNeighbor, useLocal, global
+mode = 'none'; %useNeighbor, useLocalNeighbor, useDiagNeighbor, useLocalDiagNeighbor, useLocal, global
                                %global: take whole microstructure as feature function input, not
                                %only local window (only recommended for pooling)
 linFiltSeq = false;
 %load old configuration? (Optimal parameters, optimal variational distributions
-loadOldConf = true;
+loadOldConf = false;
 theta_c.useNeuralNet = false;    %use neural net for p_c
 
 
@@ -62,7 +62,7 @@ else
     theta_cf.S = 1e0*ones(domainf.nNodes, 1);
     theta_cf.mu = zeros(domainf.nNodes, 1);
     theta_c.theta = 0*ones(nBasis, 1);
-    theta_c.Sigma = 1e0*speye(domainc.nEl);
+    theta_c.Sigma = 1e-6*speye(domainc.nEl);
     s = diag(theta_c.Sigma);
     theta_c.SigmaInv = sparse(diag(1./s));
 end
@@ -93,7 +93,7 @@ end
 
 %what kind of prior for theta_c
 theta_prior_type = 'none';                  %hierarchical_gamma, hierarchical_laplace, laplace, gaussian, spikeAndSlab or none
-sigma_prior_type = 'expSigSq';                  %expSigSq, delta or none. A delta prior keeps sigma at its initial value
+sigma_prior_type = 'none';                  %expSigSq, delta or none. A delta prior keeps sigma at its initial value
 sigma_prior_type_hold = sigma_prior_type;
 fixSigInit = 0;                                 %number of initial iterations with fixed sigma
 %prior hyperparams; obsolete for no prior
@@ -110,8 +110,8 @@ nSamplesBeginning = [40];
 MCMC.nSamples = 40;                                 %number of samples
 MCMC.nGap = 40;                                     %decorrelation gap
 
-MCMC.Xi_start = conductivityTransform(.5*condTransOpts.upperCondLim +...
-    .5*condTransOpts.lowerCondLim, condTransOpts)*ones(domainc.nEl, 1);
+MCMC.Xi_start = conductivityTransform(.1*condTransOpts.upperCondLim +...
+    .9*condTransOpts.lowerCondLim, condTransOpts)*ones(domainc.nEl, 1);
 if condTransOpts.anisotropy
     MCMC.Xi_start = ones(3*domainc.nEl, 1);
 end
@@ -183,12 +183,19 @@ dim = domainc.nEl;
 
 varDistParams.mu = zeros(1, domainc.nEl);   %row vector
 varDistParams.Sigma = 1e0*eye(length(varDistParams.mu));
+varDistParams.sigma = ones(size(varDistParams.mu));
 varDistParams.LT = chol(varDistParams.Sigma);
 varDistParams.L = varDistParams.LT';
 varDistParams.LInv = inv(varDistParams.L);
-so.x = [varDistParams.mu, varDistParams.L(:)'];
 
-ELBOgradParams.nSamples = 100;
+so{1} = StochasticOptimization('adam');
+% so{1}.x = [varDistParams.mu, varDistParams.L(:)'];
+% so{1}.stepWidth = [1e-2*ones(1, domainc.nEl) 1e-1*ones(1, domainc.nEl^2)];
+so{1}.x = [varDistParams.mu, -2*log(varDistParams.sigma)];
+so{1}.stepWidth = [1e-2*ones(1, domainc.nEl) 3*ones(1, domainc.nEl)];
+so = repmat(so, nTrain, 1);
+
+ELBOgradParams.nSamples = 10;
 
 %Randomize among data points?
 update_qi = 'sequential';    %'randomize' to randomize among data points, 'all' to update all qi's in one E-step
