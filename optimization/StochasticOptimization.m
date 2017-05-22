@@ -7,7 +7,7 @@ classdef StochasticOptimization
         gradientHandle                   %handle to gradient function
         momentum                         %current momentum (for e.g. adam update rule)
         steps = 0;                       %Number of performed update steps
-        stepOffset = 50;                %Robbins-Monro step offset
+        stepOffset = 10000;                %Robbins-Monro step offset
         stepWidth = 1e-3;                %step width parameter
         
         uncenteredXVariance = 0;         %for adam only

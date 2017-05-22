@@ -28,7 +28,7 @@ genCoarseDomain;
                                                                 
 %% Generate basis function for p_c
 genBasisFunctions;
-mode = 'none'; %useNeighbor, useLocalNeighbor, useDiagNeighbor, useLocalDiagNeighbor, useLocal, global
+mode = 'useLocalDiagNeighbor'; %useNeighbor, useLocalNeighbor, useDiagNeighbor, useLocalDiagNeighbor, useLocal, global
                                %global: take whole microstructure as feature function input, not
                                %only local window (only recommended for pooling)
 linFiltSeq = false;
@@ -134,53 +134,9 @@ mix_S = 0;
 mix_W = 0;
 mix_theta = 0;    %to damp oscillations/ drive convergence?
 
-%% Variational inference params
-dim = domainc.nEl;
-% VIparams.family = 'diagonalGaussian';
-% if loadOldConf
-%     load('./data/initialParamsArray.mat');
-% else
-%     if strcmp(condTransOpts.transform, 'logit')
-%         initialParamsArray{1} = [-20*ones(1, domainc.nEl) 10*ones(1, domainc.nEl)];
-%     elseif condTransOpts.anisotropy
-%         initialParamsArray{1} = [0*ones(1, 3*domainc.nEl) .1*ones(1, 3*domainc.nEl)];
-%     elseif strcmp(condTransOpts.transform, 'log')
-%         initialParamsArray{1} = [log(loCond)*ones(1, domainc.nEl) 0*ones(1, domainc.nEl)];
-%     elseif strcmp(condTransOpts.transform, 'log_lower_bound')
-%         initialParamsArray{1} = [log(1*loCond + 0*upCond - condTransOpts.lowerCondLim)*ones(1, domainc.nEl)...
-%             1*ones(1, domainc.nEl)];
-%     else
-%         error('Which conductivity transformation?');
-%     end
-%     initialParamsArray = repmat(initialParamsArray, nTrain, 1);
-% end
-% minSamples = 400;
-% maxSamples = 1e4;
-% VIparams.optParams.nSamples = @(ii) nSamplesIteration(ii, minSamples, maxSamples);    %Gradient samples per iteration; given as a function with input iteration
-% gradSamplesGrowthRate = 1.05;
-% gradSamplesUpperBound = 1e3;
-% VIparams.inferenceSamples = 200;
-% VIparams.optParams.optType = 'adam';
-% VIparams.optParams.dim = domainc.nEl;
-% VIparams.optParams.stepWidth = 2e-2;
-% stepWidthDropRate = 0.95;    %after each iteration, reduce stepWidth by this factor
-% stepWidthLowerBound = 1e-4;    %lower bound on the VI step width parameter
-% VIparams.optParams.XWindow = 10;    %Averages dependent variable over last iterations
-% VIparams.optParams.offset = 1000;  %Robbins-Monro offset
-% VIparams.optParams.relXtol = 1e-12;
-% VIparams.optParams.maxIterations = 1000;
-% maxIterationsGrowthRate = 1.05;
-% maxIterationsUpperBound = 600;
-% VIparams.optParams.maxCompTime = 60;   %max computation time
-% maxCompTimeGrowthRate = 1.05;
-% maxCompTimeUpperBound = 180;
-% VIparams.optParams.meanGradNormTol = 30;    %Converged if norm of mean of grad over last k iterations is smaller
-% VIparams.optParams.gradNormTol = 30;    %Converged if average norm of gradient in last gradNormWindow iterations is below
-% VIparams.optParams.gradNormWindow = 10;  %gradNormTol
-% VIparams.optParams.decayParam = .7;     %only works for diagonal Gaussian
-% VIparams.optParams.adam.beta1 = .85;     %The higher this parameter, the more gradient information from previous steps is retained
-% VIparams.optParams.adam.beta2 = .999;
 
+
+%% Variational inference params
 varDistParams.mu = zeros(1, domainc.nEl);   %row vector
 varDistParams.Sigma = 1e0*eye(length(varDistParams.mu));
 varDistParams.sigma = ones(size(varDistParams.mu));
@@ -192,7 +148,7 @@ so{1} = StochasticOptimization('adam');
 % so{1}.x = [varDistParams.mu, varDistParams.L(:)'];
 % so{1}.stepWidth = [1e-2*ones(1, domainc.nEl) 1e-1*ones(1, domainc.nEl^2)];
 so{1}.x = [varDistParams.mu, -2*log(varDistParams.sigma)];
-so{1}.stepWidth = [1e-2*ones(1, domainc.nEl) 3*ones(1, domainc.nEl)];
+so{1}.stepWidth = [1e-2*ones(1, domainc.nEl) 1*ones(1, domainc.nEl)];
 so = repmat(so, nTrain, 1);
 
 ELBOgradParams.nSamples = 10;

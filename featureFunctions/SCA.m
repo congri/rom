@@ -1,6 +1,8 @@
 function [out] = SCA(lambda, conductivities, transform)
 %Self-consistent approximation for effective conductivity, see e.g. Torquato eq. 18.14
 
+lambda = lambda(:);
+
 %Binary conductivity vector
 lambdaBin = (lambda > conductivities(1));
 hiCondVolFrac = sum(lambdaBin)/length(lambdaBin);

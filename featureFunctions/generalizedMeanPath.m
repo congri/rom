@@ -1,4 +1,4 @@
-function [out] = generalizedMeanPath(lambdak, dir, nElc, nElf, meanParam, mode)
+function [out] = generalizedMeanPath(lambdak, dir, meanParam, mode)
 %Generalized mean on a straight path from left to right/ top to bottom
 %   lambdak:        fine conductivities in coarse element k
 %   dir:            x or y direction
@@ -12,12 +12,6 @@ function [out] = generalizedMeanPath(lambdak, dir, nElc, nElf, meanParam, mode)
 
 %Check
 % assert(strcmp(fineData.dist, 'binary'), 'Error: linealPath is only a possible basis function if conductivities are binary')
-
-%Fine elements per coarse element in x and y directions
-xc = nElf(1)/nElc(1);
-yc = nElf(2)/nElc(2);
-
-lambdak = reshape(lambdak, xc, yc);
 
 if dir == 'x'
     m = zeros(1, size(lambdak, 2));

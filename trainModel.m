@@ -3,7 +3,6 @@
 tic;    %measure runtime
 clear all;
 datestr(now, 'mmddHHMMSS')  %Print datestring to pipe
-
 restoredefaultpath
 addpath('./params')
 addpath('./aux')
@@ -19,8 +18,12 @@ addpath('./featureFunctions')
 
 rng('shuffle')  %system time seed
 
+%initialize reduced order model object
+romObj = ROM_SPDE;
+
 %% Load training data
-loadTrainingData;
+% loadTrainingData;
+romObj = romObj.loadTrainingData;
 %Get model and training parameters
 params;
 
@@ -226,92 +229,20 @@ for k = 2:(maxIterations + 1)
             pend = nTrain;
         end
         
-        disp('Finding optimal variational distributions...')
-%         %Adaptively change stochastic optimization params
-%         VIparams.optParams.stepWidth = (stepWidthDropRate^epoch)*VIparams.optParams.stepWidth;
-%         if(VIparams.optParams.stepWidth < stepWidthLowerBound)
-%             VIparams.optParams.stepWidth = stepWidthLowerBound;
-%         end
-%         VIparams.optParams.maxIterations = round((maxIterationsGrowthRate^epoch)*VIparams.optParams.maxIterations);
-%         if VIparams.optParams.maxIterations > maxIterationsUpperBound
-%             VIparams.optParams.maxIterations = maxIterationsUpperBound;
-%         end
-%         VIparams.optParams.maxCompTime = round((maxCompTimeGrowthRate^epoch)*VIparams.optParams.maxCompTime);
-%         if VIparams.optParams.maxCompTime > maxCompTimeUpperBound
-%             VIparams.optParams.maxCompTime = maxCompTimeUpperBound;
-%         end
-%         minSamples = round((gradSamplesGrowthRate^epoch)*minSamples);
-%         if minSamples > gradSamplesUpperBound
-%             minSamples = gradSamplesUpperBound;
-%         end
-%         if minSamples > maxSamples
-%             minSamples = maxSamples;
-%         end
-%         VIparams.optParams.nSamples = @(ii) nSamplesIteration(ii, minSamples, maxSamples);    %Gradient samples per iteration; given as a function with input iteration
-
-        
+        disp('Finding optimal variational distributions...')       
         parfor i = pstart:pend
-            
             so{i} = so{i}.converge;
             vi{i} = vi{i}.setVarDistParams(vi{i}.params_vec2struc(so{i}.x));
-%             [optVarDist{i}, RMsteps{i}] = variationalInference(log_qi{i}, VIparams, initialParamsArray{i});
-%             initialParamsArray{i} = optVarDist{i}.params;
-%             if(strcmp(VIparams.family, 'diagonalGaussian'))
-%                 VIdim = length(optVarDist{i}.params);
-%                 XMean(:, i) = optVarDist{i}.params(1:(VIdim/2));
-%                 XSqMean(:, i) = optVarDist{i}.params(1:(VIdim/2)).^2 + exp(-optVarDist{i}.params(((VIdim/2) + 1):end));
-%             else
-%                 error('VI not implemented for this family of functions')
-%             end
-
-        XMean(:, i) = vi{i}.moments{1}';
-        XSqMean(:, i) = diag(vi{i}.moments{2});
+            
+            XMean(:, i) = vi{i}.moments{1}';
+            XSqMean(:, i) = diag(vi{i}.moments{2});
         end
         save('./data/variationalDistributions.mat', 'vi');
-        %Set start values for next iteration
-%         for i = pstart:pend
-%             VIparams.initialParams{i} = optVarDist{i}.params;
-%         end
         disp('done')
+        
         %Sample from VI distributions and solve coarse model
         for i = pstart:pend
             Tf_i_minus_mu = Tf(:, i) - theta_cf.mu;
-%             if(strcmp(VIparams.family, 'diagonalGaussian'))
-%                 VIdim = length(optVarDist{1}.params);
-%                 VImean = optVarDist{i}.params(1:(VIdim/2));
-%                 VIsigma = exp(-.5*optVarDist{i}.params(((VIdim/2) + 1):end));
-%                 %Samples of conductivity
-%                 samples = conductivityBackTransform(mvnrnd(VImean, VIsigma, VIparams.inferenceSamples),...
-%                     condTransOpts);
-%                 if condTransOpts.anisotropy
-%                     for j = 1:domainc.nEl
-%                         VIsamples{j} = mvnrnd(VImean((1 + (j - 1)*3):(j*3)),...
-%                             VIsigma((1 + (j - 1)*3):(j*3)), VIparams.inferenceSamples);
-%                     end
-%                 else
-%                     % samples = logCond2Cond(mvnrnd(VImean, VIsigma, VIparams.inferenceSamples), 1e-10, 1e10);
-%                 end
-%                 
-%                 for s = 1:VIparams.inferenceSamples
-%                     for j = 1:domainc.nEl
-%                         if condTransOpts.anisotropy
-%                             D(:, :, j) = conductivityBackTransform(VIsamples{j}(s, :)', condTransOpts);
-%                         else
-%                             D(:, :, j) =  samples(s, j)*eye(2);
-%                         end
-%                     end
-%                     FEMout = heat2d(domainc, D);
-%                     
-%                     Tc = FEMout.Tff';
-%                     Tc_samples(:, s, i) = Tc(:);
-%                 end
-% %                 infRelErr = (std(Tc_samples, 0, 2)/sqrt(VIparams.inferenceSamples))./mean(Tc_samples, 2)
-%                 varExpect_p_cf_exp(:, i) = mean((repmat(Tf_i_minus_mu, 1, VIparams.inferenceSamples)...
-%                         - theta_cf.W*Tc_samples(:, :, i)).^2, 2);
-%             else
-%                 error('VI not implemented for this family of functions')
-%             end
-
             p_cf_expHandle{i} = @(logCond) p_cf_expfun(logCond, condTransOpts, domainc, Tf_i_minus_mu, theta_cf);
             %Expectations under variational distributions
             varExpect_p_cf_exp(:, i) = vi{i}.mcInference(p_cf_expHandle{i});

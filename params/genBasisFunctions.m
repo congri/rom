@@ -924,44 +924,44 @@ phi{end + 1} = @(lambda) SCA(lambda, conductivities, 'log');
 % 
 % 
 % %% Generalized means along straight lines
-% phi{end + 1} = @(lambda) generalizedMeanPath(lambda, 'x', nElc, nElf, -1, 'mean');
-% phi{end + 1} = @(lambda) generalizedMeanPath(lambda, 'y', nElc, nElf, -1, 'mean');
-% phi{end + 1} = @(lambda) generalizedMeanPath(lambda, 'x', nElc, nElf, -1, 'max');
-% phi{end + 1} = @(lambda) generalizedMeanPath(lambda, 'y', nElc, nElf, -1, 'max');
-% phi{end + 1} = @(lambda) generalizedMeanPath(lambda, 'x', nElc, nElf, -1, 'min');
-% phi{end + 1} = @(lambda) generalizedMeanPath(lambda, 'y', nElc, nElf, -1, 'min');
+% phi{end + 1} = @(lambda) generalizedMeanPath(lambda, 'x', -1, 'mean');
+% phi{end + 1} = @(lambda) generalizedMeanPath(lambda, 'y', -1, 'mean');
+% phi{end + 1} = @(lambda) generalizedMeanPath(lambda, 'x', -1, 'max');
+% phi{end + 1} = @(lambda) generalizedMeanPath(lambda, 'y', -1, 'max');
+% phi{end + 1} = @(lambda) generalizedMeanPath(lambda, 'x', -1, 'min');
+% phi{end + 1} = @(lambda) generalizedMeanPath(lambda, 'y', -1, 'min');
 % 
-% phi{end + 1} = @(lambda) generalizedMeanPath(lambda, 'x', nElc, nElf, 0, 'mean');
-% phi{end + 1} = @(lambda) generalizedMeanPath(lambda, 'y', nElc, nElf, 0, 'mean');
-% phi{end + 1} = @(lambda) generalizedMeanPath(lambda, 'x', nElc, nElf, 0, 'max');
-% phi{end + 1} = @(lambda) generalizedMeanPath(lambda, 'y', nElc, nElf, 0, 'max');
-% phi{end + 1} = @(lambda) generalizedMeanPath(lambda, 'x', nElc, nElf, 0, 'min');
-% phi{end + 1} = @(lambda) generalizedMeanPath(lambda, 'y', nElc, nElf, 0, 'min');
+% phi{end + 1} = @(lambda) generalizedMeanPath(lambda, 'x', 0, 'mean');
+% phi{end + 1} = @(lambda) generalizedMeanPath(lambda, 'y', 0, 'mean');
+% phi{end + 1} = @(lambda) generalizedMeanPath(lambda, 'x', 0, 'max');
+% phi{end + 1} = @(lambda) generalizedMeanPath(lambda, 'y', 0, 'max');
+% phi{end + 1} = @(lambda) generalizedMeanPath(lambda, 'x', 0, 'min');
+% phi{end + 1} = @(lambda) generalizedMeanPath(lambda, 'y', 0, 'min');
 % 
-% phi{end + 1} = @(lambda) generalizedMeanPath(lambda, 'x', nElc, nElf, 1, 'max');
-% phi{end + 1} = @(lambda) generalizedMeanPath(lambda, 'y', nElc, nElf, 1, 'max');
-% phi{end + 1} = @(lambda) generalizedMeanPath(lambda, 'x', nElc, nElf, 1, 'min');
-% phi{end + 1} = @(lambda) generalizedMeanPath(lambda, 'y', nElc, nElf, 1, 'min');
+% phi{end + 1} = @(lambda) generalizedMeanPath(lambda, 'x', 1, 'max');
+% phi{end + 1} = @(lambda) generalizedMeanPath(lambda, 'y', 1, 'max');
+% phi{end + 1} = @(lambda) generalizedMeanPath(lambda, 'x', 1, 'min');
+% phi{end + 1} = @(lambda) generalizedMeanPath(lambda, 'y', 1, 'min');
 % 
 % 
-% phi{end + 1} = @(lambda) log(generalizedMeanPath(lambda, 'x', nElc, nElf, -1, 'mean'));
-% phi{end + 1} = @(lambda) log(generalizedMeanPath(lambda, 'y', nElc, nElf, -1, 'mean'));
-% phi{end + 1} = @(lambda) log(generalizedMeanPath(lambda, 'x', nElc, nElf, -1, 'max'));
-% phi{end + 1} = @(lambda) log(generalizedMeanPath(lambda, 'y', nElc, nElf, -1, 'max'));
-% phi{end + 1} = @(lambda) log(generalizedMeanPath(lambda, 'x', nElc, nElf, -1, 'min'));
-% phi{end + 1} = @(lambda) log(generalizedMeanPath(lambda, 'y', nElc, nElf, -1, 'min'));
+% phi{end + 1} = @(lambda) log(generalizedMeanPath(lambda, 'x', -1, 'mean'));
+% phi{end + 1} = @(lambda) log(generalizedMeanPath(lambda, 'y', -1, 'mean'));
+% phi{end + 1} = @(lambda) log(generalizedMeanPath(lambda, 'x', -1, 'max'));
+% phi{end + 1} = @(lambda) log(generalizedMeanPath(lambda, 'y', -1, 'max'));
+% phi{end + 1} = @(lambda) log(generalizedMeanPath(lambda, 'x', -1, 'min'));
+% phi{end + 1} = @(lambda) log(generalizedMeanPath(lambda, 'y', -1, 'min'));
 % 
-% phi{end + 1} = @(lambda) log(generalizedMeanPath(lambda, 'x', nElc, nElf, 0, 'mean'));
-% phi{end + 1} = @(lambda) log(generalizedMeanPath(lambda, 'y', nElc, nElf, 0, 'mean'));
-% phi{end + 1} = @(lambda) log(generalizedMeanPath(lambda, 'x', nElc, nElf, 0, 'max'));
-% phi{end + 1} = @(lambda) log(generalizedMeanPath(lambda, 'y', nElc, nElf, 0, 'max'));
-% phi{end + 1} = @(lambda) log(generalizedMeanPath(lambda, 'x', nElc, nElf, 0, 'min'));
-% phi{end + 1} = @(lambda) log(generalizedMeanPath(lambda, 'y', nElc, nElf, 0, 'min'));
+% phi{end + 1} = @(lambda) log(generalizedMeanPath(lambda, 'x', 0, 'mean'));
+% phi{end + 1} = @(lambda) log(generalizedMeanPath(lambda, 'y', 0, 'mean'));
+% phi{end + 1} = @(lambda) log(generalizedMeanPath(lambda, 'x', 0, 'max'));
+% phi{end + 1} = @(lambda) log(generalizedMeanPath(lambda, 'y', 0, 'max'));
+% phi{end + 1} = @(lambda) log(generalizedMeanPath(lambda, 'x', 0, 'min'));
+% phi{end + 1} = @(lambda) log(generalizedMeanPath(lambda, 'y', 0, 'min'));
 % 
-% phi{end + 1} = @(lambda) log(generalizedMeanPath(lambda, 'x', nElc, nElf, 1, 'max'));
-% phi{end + 1} = @(lambda) log(generalizedMeanPath(lambda, 'y', nElc, nElf, 1, 'max'));
-% phi{end + 1} = @(lambda) log(generalizedMeanPath(lambda, 'x', nElc, nElf, 1, 'min'));
-% phi{end + 1} = @(lambda) log(generalizedMeanPath(lambda, 'y', nElc, nElf, 1, 'min'));
+% phi{end + 1} = @(lambda) log(generalizedMeanPath(lambda, 'x', 1, 'max'));
+% phi{end + 1} = @(lambda) log(generalizedMeanPath(lambda, 'y', 1, 'max'));
+% phi{end + 1} = @(lambda) log(generalizedMeanPath(lambda, 'x', 1, 'min'));
+% phi{end + 1} = @(lambda) log(generalizedMeanPath(lambda, 'y', 1, 'min'));
 % 
 % % Generalized means along boundaries of coarse element
 % phi{end + 1} = @(lambda) generalizedMeanBoundary(lambda, nElc, nElf, -1, 'left');

@@ -16,6 +16,7 @@ classdef DesignMatrix
         featureFunctionMax
         
         E                       %gives the coarse element a fine element belongs to
+        EMat                    %fine to coarse index map as a matrix
         lambdak
         xk
         sumPhiTPhi
@@ -37,25 +38,6 @@ classdef DesignMatrix
         end
         
         function Phi = getCoarseElement(Phi, domainc, domainf)
-%             %Takes element number of full order model, gives element number of
-%             %coarse model
-%             %nf, nc are 2D vectors holding the element numbers in x- and y-direction
-%             
-%             fineElements = 1:(prod(nf));
-%             
-%             %fine elements per coarse mesh
-%             fine_per_coarse = nf./nc;
-%             %must be integer
-%             assert(~any(mod(nf, nc)), 'Error: no integer number of fine elements within a coarse element')
-%             
-%             row_fine = floor((fineElements - 1)/nf(1) + 1);
-%             col_fine = mod((fineElements - 1), nf(1)) + 1;
-%             
-%             row_coarse = floor((row_fine - 1)/fine_per_coarse(2) + 1);
-%             col_coarse = floor((col_fine - 1)/fine_per_coarse(1) + 1);
-%             
-%             Phi.E = (row_coarse - 1)*nc(1) + col_coarse;
-
             Phi.E = zeros(domainf.nEl, 1);
             e = 1;  %element number
             for row_fine = 1:domainf.nElY
@@ -71,11 +53,11 @@ classdef DesignMatrix
                 end
             end
             
+            Phi.EMat = reshape(Phi.E, domainf.nElX, domainf.nElY);
             pltFineToCoarse = false;
             if pltFineToCoarse
-                Etemp = reshape(Phi.E, domainf.nElX, domainf.nElY);
                 figure
-                imagesc(Etemp)
+                imagesc(Phi.EMat)
                 pause
             end
         end
@@ -122,8 +104,16 @@ classdef DesignMatrix
                         PhiCell{s}(i, ((i - 1)*npi + 1):(i*npi)) = pooledImage;
                     end
                 else
+                    %only for square finescale meshes!!
+                    conductivityMat = reshape(conductivity{s}, sqrt(nElf), sqrt(nElf));
                     for i = 1:nElc
-                        Phi.lambdak{s, i} = conductivity{s}(coarseElement == i);
+                        indexMat = (Phi.EMat == i);
+                        lambdakTemp = conductivityMat.*indexMat;
+                        %Cut elements from matrix that do not belong to coarse cell
+                        lambdakTemp(~any(lambdakTemp, 2), :) = [];
+                        lambdakTemp(:, ~any(lambdakTemp, 1)) = [];
+                        Phi.lambdak{s, i} = lambdakTemp;
+%                         Phi.lambdak{s, i} = conductivity{s}(coarseElement == i);
                         Phi.xk{s, i} = log(Phi.lambdak{s, i});
                     end
                     
