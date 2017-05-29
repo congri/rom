@@ -34,7 +34,7 @@ end
 saveW = true;
 if saveW
     filename = './data/Wmat';
-    [rowW, colW, valW] = find(theta_cf.W);
+    [rowW, colW, valW] = find(romObj.theta_cf.W);
     WArray = [rowW, colW, valW]';
     onlyFinal = true;
     if onlyFinal
@@ -48,19 +48,19 @@ end
 
 %theta
 filename = './data/theta';
-theta = theta_c.theta';
+theta = romObj.theta_c.theta';
 save(filename, 'theta', '-ascii', '-append');
 
 %sigma
 filename = './data/sigma';
-sigma = full(diag(theta_c.Sigma))';
+sigma = full(diag(romObj.theta_c.Sigma))';
 save(filename, 'sigma', '-ascii', '-append');
 
 %S
 saveS = true;
 if saveS
     filename = './data/S';
-    S = theta_cf.S';
+    S = romObj.theta_cf.S';
     onlyFinal = true;
     if onlyFinal
         save(filename, 'S', '-ascii');
@@ -72,7 +72,7 @@ end
 %mu
 saveMu = true;
 if saveMu
-    mu = theta_cf.mu';
+    mu = romObj.theta_cf.mu';
     filename = './data/mu';
     onlyFinal = true;
     if onlyFinal

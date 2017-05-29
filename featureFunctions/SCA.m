@@ -1,4 +1,4 @@
-function [out] = SCA(lambda, conductivities, transform)
+function [out] = SCA(lambda, conductivities, conductivityTransformation)
 %Self-consistent approximation for effective conductivity, see e.g. Torquato eq. 18.14
 
 lambda = lambda(:);
@@ -12,16 +12,9 @@ alpha = conductivities(1)*(2*loCondVolFrac - 1) + conductivities(2)*(2*hiCondVol
 
 lambdaEff = .5*(alpha + sqrt(alpha^2 + 4*conductivities(1)*conductivities(2)));
 
-if strcmp(transform, 'log')
-    out = log(lambdaEff);
-elseif strcmp(transform, 'logit')
-    %Limitation of effective conductivity
-    %Upper and lower limit on effective conductivity
-    condTransOpts.upperCondLim = conductivities(2);
-    condTransOpts.lowerCondLim = conductivities(1);
-    condTransOpts.transform = 'logit';
-    out = conductivityTransform(lambdaEff, condTransOpts);
-elseif strcmp(transform, 'plain')
+if (strcmp(conductivityTransformation.type, 'log') || strcmp(conductivityTransformation.type, 'logit'))
+    out = conductivityTransform(lambdaEff, conductivityTransformation);
+elseif strcmp(conductivityTransformation.type, 'plain')
     out = lambdaEff;
 else
     error('Which transformation for effective conductivity in SCA?')

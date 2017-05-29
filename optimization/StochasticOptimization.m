@@ -99,14 +99,18 @@ classdef StochasticOptimization
                 if SOobj.debug
                     if(mod(SOobj.steps, 1) == 0)
                         figure(f)
-                        subplot(1,2,1)
+                        subplot(1,3,1)
                         hold on;
                         plot(SOobj.steps, SOobj.x, 'xb')
                         axis tight
-                        subplot(1,2,2)
+                        subplot(1,3,2)
                         hold on;
                         plot(SOobj.steps, SOobj.gradient, 'xb')
                         axis tight
+                        subplot(1,3,3)
+                        hold on;
+                        free_mem = java.lang.Runtime.getRuntime.freeMemory
+                        plot(SOobj.steps, free_mem, 'xb')
                         drawnow
                         norm_gradient = norm(SOobj.gradient)
                         norm_momentum = norm(SOobj.momentum)

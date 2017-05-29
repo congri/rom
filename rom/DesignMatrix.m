@@ -214,9 +214,6 @@ classdef DesignMatrix
 %             PhiCell = repmat(PhiCell, nTrain, 1);
             
             for s = 1:nTrain
-                %The first columns contain feature function information of the original cell
-                PhiCell{s}(:, 1:nFeatureFunctions) = Phi.designMatrices{s};
-                
                 %Only assign nonzero values to design matrix for neighboring elements if
                 %neighbor in respective direction exists
                 k = 0;
@@ -369,8 +366,6 @@ classdef DesignMatrix
 %             PhiCell = repmat(PhiCell, nTrain, 1);
             
             for s = 1:nTrain
-                %The first columns contain feature function information of the original cell
-                PhiCell{s}(:, 1:nFeatureFunctions) = Phi.designMatrices{s}; %unnecessary?
                 %Only assign nonzero values to design matrix for neighboring elements if
                 %neighbor in respective direction exists
                 k = 0;
@@ -667,11 +662,11 @@ classdef DesignMatrix
             end
         end
         
-        function Phi = saveNormalization(Phi, type)
-            if(numel(Phi.featureFunctionMean) == 0)
+        function saveNormalization(Phi, type)
+            if(isempty(Phi.featureFunctionMean))
                 Phi = Phi.computeFeatureFunctionMean;
             end
-            if(numel(Phi.featureFunctionSqMean) == 0)
+            if(isempty(Phi.featureFunctionSqMean))
                 Phi = Phi.computeFeatureFunctionSqMean;
             end
             if strcmp(type, 'standardization')

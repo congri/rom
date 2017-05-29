@@ -6,10 +6,10 @@ function [conductivity] = conductivityBackTransform(x, opts)
 %The output is then a 3-dimensional array, holding the 2x2 conductivity tensors in the first 2
 %indices and the 3rd index runs from 1 to N, i.e. input size of x
 
-if strcmp(opts.transform, 'logit')
+if strcmp(opts.type, 'logit')
     %Logistic sigmoid transformation
-    conductivity = (opts.upperCondLim - opts.lowerCondLim)./(1 + exp(-x)) + opts.lowerCondLim;
-elseif strcmp(opts.transform, 'log_cholesky')
+    conductivity = (opts.limits(2) - opts.limits(1))./(1 + exp(-x)) + opts.limits(1);
+elseif strcmp(opts.type, 'log_cholesky')
     %conductivity is a 2x2 tensor now, store in 3-dim array
     N = size(x, 2);
     if(~(size(x, 1) == 3))
@@ -21,24 +21,24 @@ elseif strcmp(opts.transform, 'log_cholesky')
         L = [exp(x(1, i)), x(2, i); 0, exp(x(3, i))];
         conductivity(:, :, i) = L'*L;
     end
-elseif strcmp(opts.transform, 'log')
+elseif strcmp(opts.type, 'log')
     conductivity = exp(x);
-    if any(any(conductivity < opts.lowerCondLim))
+    if any(any(conductivity < opts.limits(1)))
         %lower bound on conductivity for stability
-        conductivity(conductivity < opts.lowerCondLim) = opts.lowerCondLim;
+        conductivity(conductivity < opts.limits(1)) = opts.limits(1);
 %         warning('Effective conductivity is below lower bound')
     end
-    if any(any(conductivity > opts.upperCondLim))
+    if any(any(conductivity > opts.limits(2)))
         %upper bound on conductivity for stability
-        conductivity(conductivity > opts.upperCondLim) = opts.upperCondLim;
+        conductivity(conductivity > opts.limits(2)) = opts.limits(2);
 %         warning('Effective conductivity is above upper bound')
     end
-elseif strcmp(opts.transform, 'log_lower_bound')
+elseif strcmp(opts.type, 'log_lower_bound')
     %log transformation, where the eff. cond. lower bound is non-zero 
-    conductivity = exp(x) + opts.lowerCondLim;
-    if any(any(conductivity > opts.upperCondLim))
+    conductivity = exp(x) + opts.limits(1);
+    if any(any(conductivity > opts.limits(2)))
         %upper bound on conductivity for stability
-        conductivity(conductivity > opts.upperCondLim) = opts.upperCondLim;
+        conductivity(conductivity > opts.limits(2)) = opts.limits(2);
         warning('Effective conductivity is above upper bound')
     end
 else

@@ -4,11 +4,6 @@ function [log_p, d_log_p, Tc] = log_p_cf(Tf_i_minus_mu, domainc, conductivity, t
 %log_p = -.5*logdet(S, 'chol') - .5*(Tf - mu)'*(S\(Tf - mu));
 %diagonal S
 
-%short hand notation
-W = theta_cf.W;
-S = theta_cf.S;
-Sinv_vec = theta_cf.Sinv_vec;
-
 if condTransOpts.anisotropy
     FEMout = heat2d(domainc, conductivity);
 else
@@ -22,10 +17,9 @@ end
 
 Tc = FEMout.Tff';
 Tc = Tc(:);
-WTc = W*Tc;
-Tf_i_minus_mu_minus_WTc = Tf_i_minus_mu - WTc;
+Tf_i_minus_mu_minus_WTc = Tf_i_minus_mu - theta_cf.W*Tc;
 %only for diagonal S!
-log_p = -.5*(sum(log(S)) + (Tf_i_minus_mu_minus_WTc)'*(Sinv_vec.*(Tf_i_minus_mu_minus_WTc)));
+log_p = -.5*(theta_cf.sumLogS + (Tf_i_minus_mu_minus_WTc)'*(theta_cf.Sinv_vec.*(Tf_i_minus_mu_minus_WTc)));
 
 if nargout > 1
     %Gradient of FEM equation system w.r.t. conductivities
@@ -35,17 +29,17 @@ if nargout > 1
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     
     d_r = FEMgrad(FEMout, domainc, conductivity);
-    if strcmp(condTransOpts.transform, 'log')
+    if strcmp(condTransOpts.type, 'log')
         %We need gradient of r w.r.t. log conductivities X, multiply each row with resp. conductivity
         d_rx = diag(conductivity)*d_r;
-    elseif strcmp(condTransOpts.transform, 'logit')
+    elseif strcmp(condTransOpts.type, 'logit')
         %We need gradient w.r.t. x, where x is - log((lambda_up - lambda_lo)/(lambda - lambda_lo) - 1)
         X = conductivityTransform(conductivity, condTransOpts);
-        dLambda_dX = (condTransOpts.upperCondLim - condTransOpts.lowerCondLim)./(exp(X) + 2 + exp(-X));
+        dLambda_dX = (condTransOpts.limits(2) - condTransOpts.limits(1))./(exp(X) + 2 + exp(-X));
         d_rx = diag(dLambda_dX)*d_r;
-    elseif strcmp(condTransOpts.transform, 'log_lower_bound')
+    elseif strcmp(condTransOpts.type, 'log_lower_bound')
         %transformation is X = log(Lambda - lambda_lo)
-        dLambda_dX = conductivity - condTransOpts.lowerCondLim;
+        dLambda_dX = conductivity - condTransOpts.limits(1);
         d_rx = diag(dLambda_dX)*d_r;
     else
         error('Unknown conductivity transformation')
@@ -73,12 +67,12 @@ if nargout > 1
             TcFD = TcFD(:);
             
             WTcFD = W*TcFD;
-            log_pFD = -.5*(sum(log(S)) + (Tf_i_minus_mu - WTcFD)'*(Sinv_vec.*(Tf_i_minus_mu - WTcFD)));
-            if strcmp(condTransOpts.transform, 'log')
+            log_pFD = -.5*(theta_cf.sumLogS + (Tf_i_minus_mu - WTcFD)'*(theta_cf.Sinv_vec.*(Tf_i_minus_mu - WTcFD)));
+            if strcmp(condTransOpts.type, 'log')
                 FDgrad(e) = conductivity(e)*(log_pFD - log_p)/d;
-            elseif strcmp(condTransOpts.transform, 'logit')
+            elseif strcmp(condTransOpts.type, 'logit')
                 FDgrad(e) = dLambda_dX(e)*(log_pFD - log_p)/d;
-            elseif strcmp(condTransOpts.transform, 'log_lower_bound')
+            elseif strcmp(condTransOpts.type, 'log_lower_bound')
                 FDgrad(e) = dLambda_dX(e)*(log_pFD - log_p)/d;
             else
                 error('Unknown conductivity transformation')

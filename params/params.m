@@ -1,93 +1,62 @@
 %main parameter file for 2d coarse-graining
 %CHANGE JOBFILE IF YOU CHANGE LINE NUMBERS!
-%Number of training data samples
-nStart = 1; %start training sample in training data file
-nTrain = 16;
 
-%Anisotropy; do NOT use together with limEffCond
-condTransOpts.anisotropy = false;
-%Upper and lower limit on effective conductivity
-% condTransOpts.upperCondLim = 1.1*upCond;
-% condTransOpts.lowerCondLim = .96*loCond;
-% condTransOpts.shift = 4;    %controls eff. cond. for all theta_c = 0
-condTransOpts.upperCondLim = 1e8;
-condTransOpts.lowerCondLim = 1e-8;
-%options:
-%log: x = log lambda
-%log_lower_bound: x = log(lambda - lower_bound), i.e. lambda > lower_bound
-%logit: lambda = logit(x), s.t. lowerCondLim < lambda < upperCondLim
-%log_cholesky: unique cholesky decomposition for anisotropy
-condTransOpts.transform = 'log';
-if ~exist('./data/', 'dir')
-    mkdir('./data/');
-end
-save('./data/conductivityTransformation', 'condTransOpts');
-
-%% Initialize coarse domain
-genCoarseDomain;
-                                                                
-%% Generate basis function for p_c
-genBasisFunctions;
-mode = 'useLocalDiagNeighbor'; %useNeighbor, useLocalNeighbor, useDiagNeighbor, useLocalDiagNeighbor, useLocal, global
-                               %global: take whole microstructure as feature function input, not
-                               %only local window (only recommended for pooling)
-linFiltSeq = false;
 %load old configuration? (Optimal parameters, optimal variational distributions
 loadOldConf = false;
-theta_c.useNeuralNet = false;    %use neural net for p_c
+romObj.theta_c.useNeuralNet = false;    %use neural net for p_c
 
 
 %% EM params
-initialIterations = 50;
+initialIterations = 1;
 basisFunctionUpdates = 10;
-basisUpdateGap = 80;
+basisUpdateGap = 10;
 maxIterations = (basisFunctionUpdates + 1)*basisUpdateGap - 1 + initialIterations;
 
 %% Start value of model parameters
 %Shape function interpolate in W
-theta_cf.W = shapeInterp(domainc, domainf);
+romObj.theta_cf.W = shapeInterp(romObj.coarseScaleDomain, romObj.fineScaleDomain);
 %shrink finescale domain object to save memory
-domainf = domainf.shrink();
+romObj.fineScaleDomain = romObj.fineScaleDomain.shrink();
 if loadOldConf
     disp('Loading old configuration...')
-    theta_cf.S = dlmread('./data/S')';
-    theta_cf.mu = dlmread('./data/mu')';
-    theta_c.theta = dlmread('./data/theta');
-    theta_c.theta = theta_c.theta(end, :)';
+    romObj.theta_cf.S = dlmread('./data/S')';
+    romObj.theta_cf.mu = dlmread('./data/mu')';
+    romObj.theta_c.theta = dlmread('./data/theta');
+    romObj.theta_c.theta = romObj.theta_c.theta(end, :)';
     s = dlmread('./data/sigma');
     s = s(end, :);
-    theta_c.Sigma = sparse(diag(s));
-    theta_c.SigmaInv = sparse(diag(1./s));
+    romObj.theta_c.Sigma = sparse(diag(s));
+    romObj.theta_c.SigmaInv = sparse(diag(1./s));
 else
-    theta_cf.S = 1e0*ones(domainf.nNodes, 1);
-    theta_cf.mu = zeros(domainf.nNodes, 1);
-    theta_c.theta = 0*ones(nBasis, 1);
-    theta_c.Sigma = 1e-6*speye(domainc.nEl);
-    s = diag(theta_c.Sigma);
-    theta_c.SigmaInv = sparse(diag(1./s));
+    romObj.theta_cf.S = 1e0*ones(romObj.fineScaleDomain.nNodes, 1);
+    romObj.theta_cf.mu = zeros(romObj.fineScaleDomain.nNodes, 1);
+    romObj.theta_c.theta = 0*ones(numel(romObj.featureFunctions), 1);
+    romObj.theta_c.Sigma = 1e-6*speye(romObj.coarseScaleDomain.nEl);
+    s = diag(romObj.theta_c.Sigma);
+    romObj.theta_c.SigmaInv = sparse(diag(1./s));
 end
-theta_cf.Sinv = sparse(1:domainf.nNodes, 1:domainf.nNodes, 1./theta_cf.S);
-theta_cf.Sinv_vec = 1./theta_cf.S;
+romObj.theta_cf.Sinv = sparse(1:romObj.fineScaleDomain.nNodes, 1:romObj.fineScaleDomain.nNodes, 1./romObj.theta_cf.S);
+romObj.theta_cf.Sinv_vec = 1./romObj.theta_cf.S;
 %precomputation to save resources
-theta_cf.WTSinv = theta_cf.W'*theta_cf.Sinv;
+romObj.theta_cf.WTSinv = romObj.theta_cf.W'*romObj.theta_cf.Sinv;
 
 if ~loadOldConf
-    if strcmp(mode, 'useNeighbor')
-        theta_c.theta = repmat(theta_c.theta, 5, 1);
-    elseif strcmp(mode, 'useLocalNeighbor')
-        nNeighbors = 12 + 8*(domainc.nElX - 2) + 8*(domainc.nElY - 2) +...
-            5*(domainc.nElX - 2)*(domainc.nElX - 2);
-        theta_c.theta = repmat(theta_c.theta, nNeighbors, 1);
-    elseif strcmp(mode, 'useLocalDiagNeighbor')
-        nNeighbors = 16 + 12*(domainc.nElX - 2) + 12*(domainc.nElY - 2) +...
-            9*(domainc.nElX - 2)*(domainc.nElX - 2);
-        theta_c.theta = repmat(theta_c.theta, nNeighbors, 1);
-    elseif strcmp(mode, 'useDiagNeighbor')
-        theta_c.theta = repmat(theta_c.theta, 9, 1);
-    elseif strcmp(mode, 'useLocal')
-        theta_c.theta = repmat(theta_c.theta, domainc.nEl, 1);
-    elseif strcmp(mode, 'global')
-        theta_c.theta = zeros(domainf.nEl*domainc.nEl/prod(wndw), 1); %wndw is set in genBasisFunctions
+    if strcmp(romObj.mode, 'useNeighbor')
+        romObj.theta_c.theta = repmat(romObj.theta_c.theta, 5, 1);
+    elseif strcmp(romObj.mode, 'useLocalNeighbor')
+        nNeighbors = 12 + 8*(romObj.coarseScaleDomain.nElX - 2) + 8*(romObj.coarseScaleDomain.nElY - 2) +...
+            5*(romObj.coarseScaleDomain.nElX - 2)*(romObj.coarseScaleDomain.nElX - 2);
+        romObj.theta_c.theta = repmat(romObj.theta_c.theta, nNeighbors, 1);
+    elseif strcmp(romObj.mode, 'useLocalDiagNeighbor')
+        nNeighbors = 16 + 12*(romObj.coarseScaleDomain.nElX - 2) + 12*(romObj.coarseScaleDomain.nElY - 2) +...
+            9*(romObj.coarseScaleDomain.nElX - 2)*(romObj.coarseScaleDomain.nElX - 2);
+        romObj.theta_c.theta = repmat(romObj.theta_c.theta, nNeighbors, 1);
+    elseif strcmp(romObj.mode, 'useDiagNeighbor')
+        romObj.theta_c.theta = repmat(romObj.theta_c.theta, 9, 1);
+    elseif strcmp(romObj.mode, 'useLocal')
+        romObj.theta_c.theta = repmat(romObj.theta_c.theta, romObj.coarseScaleDomain.nEl, 1);
+    elseif strcmp(romObj.mode, 'global')
+        romObj.theta_c.theta = zeros(romObj.fineScaleDomain.nEl*romObj.coarseScaleDomain.nEl/prod(wndw), 1); %wndw is set in genBasisFunctions
     end
 end
 
@@ -100,7 +69,7 @@ fixSigInit = 0;                                 %number of initial iterations wi
 % theta_prior_hyperparamArray = [0 1e-4];                   %a and b params for Gamma hyperprior
 theta_prior_hyperparamArray = [100];
 % theta_prior_hyperparam = 10;
-sigma_prior_hyperparam = 1e3*ones(domainc.nEl, 1);  %   expSigSq: x*exp(-x*sigmaSq), where x is the hyperparam
+sigma_prior_hyperparam = 1e4*ones(romObj.coarseScaleDomain.nEl, 1);  %   expSigSq: x*exp(-x*sigmaSq), where x is the hyperparam
 
 %% MCMC options
 MCMC.method = 'MALA';                                %proposal type: randomWalk, nonlocal or MALA
@@ -110,20 +79,20 @@ nSamplesBeginning = [40];
 MCMC.nSamples = 40;                                 %number of samples
 MCMC.nGap = 40;                                     %decorrelation gap
 
-MCMC.Xi_start = conductivityTransform(.1*condTransOpts.upperCondLim +...
-    .9*condTransOpts.lowerCondLim, condTransOpts)*ones(domainc.nEl, 1);
-if condTransOpts.anisotropy
-    MCMC.Xi_start = ones(3*domainc.nEl, 1);
+MCMC.Xi_start = conductivityTransform(.1*romObj.conductivityTransformation.limits(2) +...
+    .9*romObj.conductivityTransformation.limits(1), romObj.conductivityTransformation)*ones(romObj.coarseScaleDomain.nEl, 1);
+if romObj.conductivityTransformation.anisotropy
+    MCMC.Xi_start = ones(3*romObj.coarseScaleDomain.nEl, 1);
 end
 %only for random walk
 MCMC.MALA.stepWidth = 1e-6;
 stepWidth = 2e-0;
-MCMC.randomWalk.proposalCov = stepWidth*eye(domainc.nEl);   %random walk proposal covariance
-MCMC = repmat(MCMC, nTrain, 1);
+MCMC.randomWalk.proposalCov = stepWidth*eye(romObj.coarseScaleDomain.nEl);   %random walk proposal covariance
+MCMC = repmat(MCMC, romObj.nTrain, 1);
 
 %% MCMC options for test chain to find step width
 MCMCstepWidth = MCMC;
-for i = 1:nTrain
+for i = 1:romObj.nTrain
     MCMCstepWidth(i).nSamples = 2;
     MCMCstepWidth(i).nGap = 100;
 end
@@ -137,7 +106,7 @@ mix_theta = 0;    %to damp oscillations/ drive convergence?
 
 
 %% Variational inference params
-varDistParams.mu = zeros(1, domainc.nEl);   %row vector
+varDistParams.mu = zeros(1, romObj.coarseScaleDomain.nEl);   %row vector
 varDistParams.Sigma = 1e0*eye(length(varDistParams.mu));
 varDistParams.sigma = ones(size(varDistParams.mu));
 varDistParams.LT = chol(varDistParams.Sigma);
@@ -146,10 +115,11 @@ varDistParams.LInv = inv(varDistParams.L);
 
 so{1} = StochasticOptimization('adam');
 % so{1}.x = [varDistParams.mu, varDistParams.L(:)'];
-% so{1}.stepWidth = [1e-2*ones(1, domainc.nEl) 1e-1*ones(1, domainc.nEl^2)];
+% so{1}.stepWidth = [1e-2*ones(1, romObj.coarseScaleDomain.nEl) 1e-1*ones(1, romObj.coarseScaleDomain.nEl^2)];
 so{1}.x = [varDistParams.mu, -2*log(varDistParams.sigma)];
-so{1}.stepWidth = [1e-2*ones(1, domainc.nEl) 1*ones(1, domainc.nEl)];
-so = repmat(so, nTrain, 1);
+sw = [1e-2*ones(1, romObj.coarseScaleDomain.nEl) 1*ones(1, romObj.coarseScaleDomain.nEl)];
+so{1}.stepWidth = sw;
+so = repmat(so, romObj.nTrain, 1);
 
 ELBOgradParams.nSamples = 10;
 

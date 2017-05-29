@@ -59,6 +59,11 @@ classdef Domain
                     domainObj.nElY = nElY;
                 end
             end
+            %Set square mesh as default
+            if nargin < 3
+                lElX = domainObj.lx/domainObj.nElX*ones(1, domainObj.nElX);
+                lElY = domainObj.ly/domainObj.nElY*ones(1, domainObj.nElY);
+            end
             domainObj.nEl = domainObj.nElX*domainObj.nElY;
             assert(numel(lElX) == domainObj.nElX, 'incorrect number of elements specified in element length vector')
             assert(numel(lElY) == domainObj.nElY, 'incorrect number of elements specified in element length vector')
@@ -89,7 +94,6 @@ classdef Domain
             domainObj = domainObj.setGlobalNodeNumber;
             
             domainObj = setHeatSource(domainObj, zeros(domainObj.nEl, 1));  %zero as default
-
         end
         
         

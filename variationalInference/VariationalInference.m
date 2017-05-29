@@ -14,6 +14,7 @@ classdef VariationalInference
         moments                                 %to store moments if they are given analytically
         inferenceSamples = 100;                 %number of samples to compute expected values under variational dist.
         
+        storeParams = false;                    %store params in array
         varDistParamsContainer                  %to store all parameters during optimization
     end
     
@@ -48,8 +49,13 @@ classdef VariationalInference
         
         
         
-        function [ELBOgrad, ELBOgradErr] = sampleELBOgrad(VIobj)
+        function [ELBOgrad, ELBOgradErr] = sampleELBOgrad(VIobj, log_emp_dist)
             %Estimation of gradient of evidence lower bound (ELBO)
+            %log_emp_dist is a function handle to the log empirical distribution and gradient
+            if nargin < 2
+                log_emp_dist = VIobj.log_empiricalDist;
+            end
+            
             if strcmp(VIobj.variationalDist, 'diagonalGauss')
                 d_mu_mean = 0;
                 d_sigma_mean = 0;
@@ -63,7 +69,7 @@ classdef VariationalInference
                     variationalSample = VIobj.varDistParams.mu + VIobj.varDistParams.sigma.*sample;
                     
                     %Gradient w.r.t. dependent variable x
-                    [~, d_log_empirical] = VIobj.log_empiricalDist(variationalSample);
+                    [~, d_log_empirical] = log_emp_dist(variationalSample);
                     d_log_empirical = d_log_empirical';
                     
                     %Mean gradient w.r.t. mu; d/dmu = (dX/dmu)*d/dX, X = mu + sigma*sample
@@ -108,7 +114,7 @@ classdef VariationalInference
                     variationalSample = VIobj.varDistParams.mu + sample*VIobj.varDistParams.LT;
                     
                     %Gradient w.r.t. dependent variable x
-                    [~, d_log_empirical] = VIobj.log_empiricalDist(variationalSample);
+                    [~, d_log_empirical] = log_emp_dist(variationalSample);
                     d_log_empirical = d_log_empirical';
                     
                     %Mean gradient w.r.t. mu; d/dmu = (dX/dmu)*d/dX, X = mu + sigma*sample
@@ -184,12 +190,14 @@ classdef VariationalInference
                 VIobj.moments{2} = diag(params.sigma.^2 + params.mu.^2);
                 
                 %store parameters for debugging purposes
-                if isempty(VIobj.varDistParamsContainer)
-                    VIobj.varDistParamsContainer.mu = params.mu;
-                    VIobj.varDistParamsContainer.sigma = params.sigma;
-                else
-                    VIobj.varDistParamsContainer.mu = [VIobj.varDistParamsContainer.mu; params.mu];
-                    VIobj.varDistParamsContainer.sigma = [VIobj.varDistParamsContainer.sigma; params.sigma];
+                if VIobj.storeParams
+                    if isempty(VIobj.varDistParamsContainer)
+                        VIobj.varDistParamsContainer.mu = params.mu;
+                        VIobj.varDistParamsContainer.sigma = params.sigma;
+                    else
+                        VIobj.varDistParamsContainer.mu = [VIobj.varDistParamsContainer.mu; params.mu];
+                        VIobj.varDistParamsContainer.sigma = [VIobj.varDistParamsContainer.sigma; params.sigma];
+                    end
                 end
             elseif strcmp(VIobj.variationalDist, 'fullRankGauss')
                 %Keep in mind that all forms of parameters need to be in struct params here,
@@ -199,12 +207,14 @@ classdef VariationalInference
                 VIobj.moments{2} = params.Sigma + params.mu'*params.mu;
                 
                 %store parameters for debugging purposes
-                if isempty(VIobj.varDistParamsContainer)
-                    VIobj.varDistParamsContainer.mu = params.mu;
-                    VIobj.varDistParamsContainer.Sigma = params.Sigma(:)';
-                else
-                    VIobj.varDistParamsContainer.mu = [VIobj.varDistParamsContainer.mu; params.mu];
-                    VIobj.varDistParamsContainer.Sigma = [VIobj.varDistParamsContainer.Sigma; params.Sigma(:)'];
+                if VIobj.storeParams
+                    if isempty(VIobj.varDistParamsContainer)
+                        VIobj.varDistParamsContainer.mu = params.mu;
+                        VIobj.varDistParamsContainer.Sigma = params.Sigma(:)';
+                    else
+                        VIobj.varDistParamsContainer.mu = [VIobj.varDistParamsContainer.mu; params.mu];
+                        VIobj.varDistParamsContainer.Sigma = [VIobj.varDistParamsContainer.Sigma; params.Sigma(:)'];
+                    end
                 end
             else
                 error('Unknown variational distribution')
