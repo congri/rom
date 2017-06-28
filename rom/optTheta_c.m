@@ -1,6 +1,5 @@
 function [theta_c] = optTheta_c(theta_c, nTrain, nCoarse, XSqMean,...
-    Phi, XMean, theta_prior_type, theta_prior_hyperparam,...
-    sigma_prior_type, sigma_prior_hyperparam)
+    Phi, XMean, sigma_prior_type, sigma_prior_hyperparam)
 %Find optimal theta_c and sigma
 
 %% set options for iterative methods
@@ -13,7 +12,6 @@ fsolve_options_sigma = optimoptions('fsolve', 'SpecifyObjectiveGradient', true,.
 dim_theta = numel(theta_c.theta);
 XNormSqMean = sum(XSqMean);
 sumXNormSqMean = sum(XNormSqMean);
-
 
 %% Solve self-consistently: compute optimal sigma2, then theta, then sigma2 again and so on
 % theta = .1*ones(size(theta_c.theta));
@@ -54,6 +52,39 @@ for i = 1:nTrain
     end 
 end
 
+%Find prior hyperparameter
+converged = false;
+iter = 0;
+while(~converged)
+    if strcmp(theta_c.thetaPriorType, 'gaussian')
+        SigmaTilde = inv(sumPhiTSigmaInvPhi + theta_c.priorHyperparam*I);
+        muTilde = SigmaTilde*sumPhiTSigmaInvXmean;
+        theta_prior_hyperparam_old = theta_c.priorHyperparam;
+        theta_c.priorHyperparam = dim_theta/(muTilde'*muTilde + trace(SigmaTilde));
+        if(abs(theta_c.priorHyperparam - theta_prior_hyperparam_old)/abs(theta_c.priorHyperparam) < 1e-5 || iter > 100)
+            converged = true;
+        elseif(~isfinite(theta_c.priorHyperparam) || theta_c.priorHyperparam <= 0)
+            converged = true;
+            theta_c.priorHyperparam = 1;
+            warning('Gaussian hyperparameter precision is negative or not a number. Setting it to 1.')
+        end
+        
+    elseif strcmp(theta_c.thetaPriorType, 'diagonalGaussian')
+        SigmaTilde = inv(sumPhiTSigmaInvPhi + diag(theta_c.priorHyperparam));
+        muTilde = SigmaTilde*sumPhiTSigmaInvXmean;
+        theta_prior_hyperparam_old = theta_c.priorHyperparam;
+        theta_c.priorHyperparam = 1./(muTilde.^2 + diag(SigmaTilde));
+        if(norm(theta_c.priorHyperparam - theta_prior_hyperparam_old)/norm(theta_c.priorHyperparam) < 1e-5 || iter > 100)
+            converged = true;
+        elseif(any(~isfinite(theta_c.priorHyperparam)) || any(theta_c.priorHyperparam <= 0))
+            converged = true;
+            theta_c.priorHyperparam = ones(dim_theta, 1);
+            warning('Gaussian hyperparameter precision is negative or not a number. Setting it to 1.')
+        end
+    end
+    iter = iter + 1;
+end
+
 iter = 0;
 converged = false;
 while(~converged)
@@ -82,24 +113,27 @@ while(~converged)
         theta_old_old = theta;  %to check for iterative convergence
         theta_old = theta;
         
-        if strcmp(theta_prior_type, 'hierarchical_laplace')
+        if strcmp(theta_c.thetaPriorType, 'hierarchical_laplace')
             %Matrix M is pos. def., invertible even if badly conditioned
             %       warning('off', 'MATLAB:nearlySingularMatrix');
             offset = 1e-30;
-            U = diag(sqrt((abs(theta_old) + offset)/theta_prior_hyperparam(1)));
-        elseif strcmp(theta_prior_type, 'hierarchical_gamma')
+            U = diag(sqrt((abs(theta_old) + offset)/theta_c.priorHyperparam(1)));
+        elseif strcmp(theta_c.thetaPriorType, 'hierarchical_gamma')
             %Matrix M is pos. def., invertible even if badly conditioned
             %       warning('off', 'MATLAB:nearlySingularMatrix');
-            U = diag(sqrt((.5*abs(theta_old).^2 + theta_prior_hyperparam(2))./(theta_prior_hyperparam(1) + .5)));
-        elseif strcmp(theta_prior_type, 'gaussian')
-            sumPhiTSigmaInvPhi = sumPhiTSigmaInvPhi + theta_prior_hyperparam(1)*I;
-        elseif strcmp(theta_prior_type, 'none')
+            U = diag(sqrt((.5*abs(theta_old).^2 + theta_c.priorHyperparam(2))./(theta_c.priorHyperparam(1) + .5)));
+        elseif strcmp(theta_c.thetaPriorType, 'gaussian')
+            sumPhiTSigmaInvPhi = sumPhiTSigmaInvPhi + theta_c.priorHyperparam(1)*I;
+        elseif strcmp(theta_c.thetaPriorType, 'diagonalGaussian')
+            sumPhiTSigmaInvPhi = sumPhiTSigmaInvPhi + diag(theta_c.priorHyperparam);
+        elseif strcmp(theta_c.thetaPriorType, 'none')
             
         else
             error('Unknown prior on theta_c')
         end
         
-        if (strcmp(theta_prior_type, 'gaussian') || strcmp(theta_prior_type, 'none'))
+        if (strcmp(theta_c.thetaPriorType, 'gaussian') || strcmp(theta_c.thetaPriorType, 'diagonalGaussian') ||...
+                strcmp(theta_c.thetaPriorType, 'none'))
             theta_temp = sumPhiTSigmaInvPhi\sumPhiTSigmaInvXmean;
         else
             %         theta_temp = U*((sigma2*I + U*Phi.sumPhiTPhi*U)\U)*sumPhiTSigmaInvXmean;
@@ -110,10 +144,10 @@ while(~converged)
         %Catch instabilities
         %     if(norm(theta_temp)/length(theta_temp) > 5e1 || any(~isfinite(theta_temp)))
         
-        gradHessTheta = @(theta) dF_dtheta(theta, theta_old, theta_prior_type, theta_prior_hyperparam, nTrain,...
+        gradHessTheta = @(theta) dF_dtheta(theta, theta_old, theta_c.thetaPriorType, theta_c.priorHyperparam, nTrain,...
             sumPhiTSigmaInvXmean, sumPhiTSigmaInvPhi);
         if(strcmp(msgid, 'MATLAB:singularMatrix') || strcmp(msgid, 'MATLAB:nearlySingularMatrix')...
-                || strcmp(msgid, 'MATLAB:illConditionedMatrix') || norm(theta_temp)/length(theta) > 100)
+                || strcmp(msgid, 'MATLAB:illConditionedMatrix') || norm(theta_temp)/length(theta) > 1e8)
             warning('theta_c is assuming unusually large values. Do not update theta.')
             %         theta = fsolve(gradHessTheta, theta, fsolve_options_theta);
             theta = theta_old
@@ -228,6 +262,7 @@ if ~theta_c.useNeuralNet
     % theta_c.sigma = sqrt(sigma2);
     theta_c.Sigma = Sigma;
     theta_c.SigmaInv = SigmaInv;
+    theta_c.priorHyperparam = theta_c.priorHyperparam;
     %Value which could be used to refine mesh
     noPriorSigma = mean(XSqMean - 2*(PhiThetaMat.*XMean) + PhiThetaMat.^2, 2)
     save('./data/noPriorSigma.mat', 'noPriorSigma');

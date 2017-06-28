@@ -11,7 +11,7 @@ if strcmp(romObj.mode, 'useLocal')
                 plot(Phi.designMatrices{s}(k, 2*k), XMean(k, s), 'xb')
                 hold on;
             end
-            x = linspace(min(min(cell2mat(Phi.designMatrices))), max(max(cell2mat(Phi.designMatrices))), 100);
+            x = linspace(-7, 1, 100);
             y = romObj.theta_c.theta(2*k - 1) + romObj.theta_c.theta(2*k)*x;
             plot(x, y);
             axis tight;

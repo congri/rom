@@ -1,10 +1,10 @@
-function [s] = specificSurface(lambda, phase, conductivities, nElc, nElf)
+function [s] = specificSurface(lambda, phase, conductivities, nElf)
 %The specific surface is given by the derivative of the 2-point correlation function at 0, see
 %Torquato 2.2.5, in particular equations 2.32 and 2.36.
 
-S0 = twoPointCorrelation(lambda, 0, 'x', phase, conductivities, nElc, nElf);
-S1 = .5*twoPointCorrelation(lambda, 1, 'x', phase, conductivities, nElc, nElf) +...
-        .5*twoPointCorrelation(lambda, 1, 'y', phase, conductivities, nElc, nElf);
+S0 = twoPointCorrelation(lambda, 0, 'x', phase, conductivities);
+S1 = .5*twoPointCorrelation(lambda, 1, 'x', phase, conductivities) +...
+        .5*twoPointCorrelation(lambda, 1, 'y', phase, conductivities);
 
 %pixel edge length
 %Wrong if domain length ~=1!!!

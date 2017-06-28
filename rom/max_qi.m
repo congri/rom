@@ -8,7 +8,8 @@ function [Xmax] = max_qi(qi, startValue)
     end
 
 log_qi_neg_handle = @(X) log_qi_neg(X);
-options = optimoptions('fminunc', 'GradObj', 'on', 'Algorithm', 'quasi-newton', 'Display', 'off');
+options = optimoptions('fminunc', 'SpecifyObjectiveGradient', true,...
+    'Algorithm', 'trust-region', 'Display', 'off');
 Xmax = fminunc(log_qi_neg_handle, startValue, options);
 
 

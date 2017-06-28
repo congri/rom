@@ -1,14 +1,9 @@
-function [conPath] = connectedPathExist(lambdak, phase, phaseConductivity, dir, nElf, nElc, mode)
+function [conPath] = connectedPathExist(lambdak, phase, phaseConductivity, dir, mode)
 %Is there a connected path within phase phase from left to right (dir == x) or top to bottom (dir == y)?
 %If yes, the output is 1 (or 1/min(dist), depending on mode), 0 if not
 
-%Fine elements per coarse element in x and y directions
-xc = nElf(1)/nElc(1);
-yc = nElf(2)/nElc(2);
-
 %Transform lambda to binary
 lambdakBin = (lambdak == phaseConductivity(phase));
-lambdakBin = reshape(lambdakBin, xc, yc);
 
 if(dir == 'x')
     %Check first if there are true elements on the relevant boundaries (left/right for x)

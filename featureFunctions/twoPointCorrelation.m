@@ -1,4 +1,4 @@
-function [p] = twoPointCorrelation(lambdak, distance, dir, phase, phaseConductivity, nElc, nElf)
+function [p] = twoPointCorrelation(lambdak, distance, dir, phase, phaseConductivity)
 %two-point correlation function of materials
 %   lambdak:        fine conductivities in coarse element k
 %   distance:     length of distance in units of fine elements (pixels). Must be smaller than sqrt(nFine/nCoarse)
@@ -13,8 +13,8 @@ function [p] = twoPointCorrelation(lambdak, distance, dir, phase, phaseConductiv
 % assert(strcmp(fineData.dist, 'binary'), 'Error: 2-point correlation is only a possible basis function if conductivities are binary')
 
 %Fine elements per coarse element in x and y directions
-xc = nElf(1)/nElc(1);
-yc = nElf(2)/nElc(2);
+xc = size(lambdak, 1);
+yc = size(lambdak, 2);
 
 if dir == 'x'
     %Maximal number of line segments of length distance that can be dropped in a single row/column in

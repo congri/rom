@@ -1,4 +1,4 @@
-function [L] = linealPath(lambdak, pathLength, dir, phase, phaseConductivity, nElc, nElf)
+function [L] = linealPath(lambdak, pathLength, dir, phase, phaseConductivity)
 %Lineal path function to use as a basis function phi in p_c
 %   lambdak:        fine conductivities in coarse element k
 %   pathLength:     length of path in units of fine elements. Must be smaller than sqrt(nFine/nCoarse)
@@ -15,8 +15,8 @@ function [L] = linealPath(lambdak, pathLength, dir, phase, phaseConductivity, nE
 lambdakBin = (lambdak == phaseConductivity(phase));
 
 %Fine elements per coarse element in x and y directions
-xc = nElf(1)/nElc(1);
-yc = nElf(2)/nElc(2);
+xc = size(lambdak, 1);
+yc = size(lambdak, 2);
 
 if dir == 'x'
     %Maximal number of line segments of length pathLength that can be dropped in a single row/column in

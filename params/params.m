@@ -7,10 +7,10 @@ romObj.theta_c.useNeuralNet = false;    %use neural net for p_c
 
 
 %% EM params
-initialIterations = 1;
-basisFunctionUpdates = 10;
-basisUpdateGap = 10;
-maxIterations = (basisFunctionUpdates + 1)*basisUpdateGap - 1 + initialIterations;
+initialEpochs = 100;
+basisFunctionUpdates = 2;
+basisUpdateGap = 12;     %given in epochs, i.e. how often every data point has been seen
+maxEpochs = (basisFunctionUpdates + 1)*basisUpdateGap - 2 + initialEpochs;
 
 %% Start value of model parameters
 %Shape function interpolate in W
@@ -30,8 +30,8 @@ if loadOldConf
 else
     romObj.theta_cf.S = 1e0*ones(romObj.fineScaleDomain.nNodes, 1);
     romObj.theta_cf.mu = zeros(romObj.fineScaleDomain.nNodes, 1);
-    romObj.theta_c.theta = 0*ones(numel(romObj.featureFunctions), 1);
-    romObj.theta_c.Sigma = 1e-6*speye(romObj.coarseScaleDomain.nEl);
+    romObj.theta_c.theta = 0*ones(size(romObj.featureFunctions, 2) + size(romObj.globalFeatureFunctions, 2), 1);
+    romObj.theta_c.Sigma = 1e0*speye(romObj.coarseScaleDomain.nEl);
     s = diag(romObj.theta_c.Sigma);
     romObj.theta_c.SigmaInv = sparse(diag(1./s));
 end
@@ -61,15 +61,17 @@ if ~loadOldConf
 end
 
 %what kind of prior for theta_c
-theta_prior_type = 'none';                  %hierarchical_gamma, hierarchical_laplace, laplace, gaussian, spikeAndSlab or none
+romObj.theta_c.thetaPriorType = 'diagonalGaussian';              %hierarchical_gamma, hierarchical_laplace, laplace,
+                                                         %gaussian, diagonalGaussian or none
 sigma_prior_type = 'none';                  %expSigSq, delta or none. A delta prior keeps sigma at its initial value
 sigma_prior_type_hold = sigma_prior_type;
 fixSigInit = 0;                                 %number of initial iterations with fixed sigma
 %prior hyperparams; obsolete for no prior
 % theta_prior_hyperparamArray = [0 1e-4];                   %a and b params for Gamma hyperprior
-theta_prior_hyperparamArray = [100];
+romObj.theta_c.priorHyperparam = 1;
+romObj.theta_c.priorHyperparam = ones(size(romObj.theta_c.theta));     %start value. this is adjusted using max marginal likelihood
 % theta_prior_hyperparam = 10;
-sigma_prior_hyperparam = 1e4*ones(romObj.coarseScaleDomain.nEl, 1);  %   expSigSq: x*exp(-x*sigmaSq), where x is the hyperparam
+sigma_prior_hyperparam = 1e0*ones(romObj.coarseScaleDomain.nEl, 1);  %   expSigSq: x*exp(-x*sigmaSq), where x is the hyperparam
 
 %% MCMC options
 MCMC.method = 'MALA';                                %proposal type: randomWalk, nonlocal or MALA
@@ -106,18 +108,28 @@ mix_theta = 0;    %to damp oscillations/ drive convergence?
 
 
 %% Variational inference params
-varDistParams.mu = zeros(1, romObj.coarseScaleDomain.nEl);   %row vector
-varDistParams.Sigma = 1e0*eye(length(varDistParams.mu));
-varDistParams.sigma = ones(size(varDistParams.mu));
-varDistParams.LT = chol(varDistParams.Sigma);
-varDistParams.L = varDistParams.LT';
-varDistParams.LInv = inv(varDistParams.L);
+variationalDist = 'diagonalGauss';
+varDistParams{1}.mu = conductivityTransform((romObj.conductivityDistributionParams{1}*romObj.upperConductivity + ...
+    (1 - romObj.conductivityDistributionParams{1})*romObj.lowerConductivity)*...
+    ones(1, romObj.coarseScaleDomain.nEl), romObj.conductivityTransformation);   %row vector
+if strcmp(variationalDist, 'diagonalGauss')
+    varDistParams{1}.sigma = ones(size(varDistParams{1}.mu));
+elseif strcmp(variationalDist, 'fullRankGauss')
+    varDistParams{1}.Sigma = 1e0*eye(length(varDistParams{1}.mu));
+    varDistParams{1}.LT = chol(varDistParams{1}.Sigma);
+    varDistParams{1}.L = varDistParams{1}.LT';
+    varDistParams{1}.LInv = inv(varDistParams{1}.L);
+end
+varDistParams = repmat(varDistParams, romObj.nTrain, 1);
+
+varDistParamsVec{1} = [varDistParams{1}.mu, -2*log(varDistParams{1}.sigma)];
+varDistParamsVec = repmat(varDistParamsVec, romObj.nTrain, 1);
 
 so{1} = StochasticOptimization('adam');
 % so{1}.x = [varDistParams.mu, varDistParams.L(:)'];
 % so{1}.stepWidth = [1e-2*ones(1, romObj.coarseScaleDomain.nEl) 1e-1*ones(1, romObj.coarseScaleDomain.nEl^2)];
-so{1}.x = [varDistParams.mu, -2*log(varDistParams.sigma)];
-sw = [1e-2*ones(1, romObj.coarseScaleDomain.nEl) 1*ones(1, romObj.coarseScaleDomain.nEl)];
+so{1}.x = [varDistParams{1}.mu, -2*log(varDistParams{1}.sigma)];
+sw = [1.2e-2*ones(1, romObj.coarseScaleDomain.nEl) 3*ones(1, romObj.coarseScaleDomain.nEl)];
 so{1}.stepWidth = sw;
 so = repmat(so, romObj.nTrain, 1);
 

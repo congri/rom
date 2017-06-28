@@ -2,7 +2,7 @@ NF=256
 CORRLENGTH=0.1
 NSET1=1024
 NSET2=256
-VOLFRAC=0.2	#Theoretical volume fraction
+VOLFRAC=-1	#Theoretical volume fraction; negative value leads to uniform random volume fraction
 LOCOND=1
 UPCOND=100
 BC1=0
@@ -17,6 +17,7 @@ JOBNAME="genDataNf${NF}contrast${LOCOND}-${UPCOND}corrlength${CORRLENGTH}volfrac
 JOBDIR="/home/constantin/matlab/data/$JOBNAME"
 
 #Create job directory and copy source code
+rm -r $JOBDIR
 mkdir $JOBDIR
 cp -r $PROJECTDIR/* $JOBDIR
 #Remove existing data folder - we generate new data
@@ -37,11 +38,11 @@ printf "#PBS -N $JOBNAME
 #Switch to job directory
 cd $JOBDIR
 #Set parameters
-sed -i \"4s/.*/ro.conductivityDistributionParams = \{$VOLFRAC \[$CORRLENGTH $CORRLENGTH\] 1};/\" ./generateFinescaleData.m
-sed -i \"5s/.*/ro.nElFX = $NF;/\" ./generateFinescaleData.m
-sed -i \"6s/.*/ro.nElFY = $NF;/\" ./generateFinescaleData.m
-sed -i \"7s/.*/ro.lowerConductivity = $LOCOND;/\" ./generateFinescaleData.m
-sed -i \"8s/.*/ro.upperConductivity = $UPCOND/\" ./generateFinescaleData.m
+sed -i \"74s/.*/\        conductivityDistributionParams = {$VOLFRAC \[$CORRLENGTH $CORRLENGTH\] 1\};/\" ./ROM_SPDE.m
+sed -i \"4s/.*/ro.nElFX = $NF;/\" ./generateFinescaleData.m
+sed -i \"5s/.*/ro.nElFY = $NF;/\" ./generateFinescaleData.m
+sed -i \"6s/.*/ro.lowerConductivity = $LOCOND;/\" ./generateFinescaleData.m
+sed -i \"7s/.*/ro.upperConductivity = $UPCOND/\" ./generateFinescaleData.m
 
 
 #Run Matlab

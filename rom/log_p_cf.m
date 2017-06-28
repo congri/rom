@@ -4,16 +4,12 @@ function [log_p, d_log_p, Tc] = log_p_cf(Tf_i_minus_mu, domainc, conductivity, t
 %log_p = -.5*logdet(S, 'chol') - .5*(Tf - mu)'*(S\(Tf - mu));
 %diagonal S
 
-if condTransOpts.anisotropy
-    FEMout = heat2d(domainc, conductivity);
-else
-    D = zeros(2, 2, domainc.nEl);
-    %Conductivity matrix D, only consider isotropic materials here
-    for j = 1:domainc.nEl
-        D(:, :, j) =  conductivity(j)*eye(2);
-    end
-    FEMout = heat2d(domainc, D);
+D = zeros(2, 2, domainc.nEl);
+%Conductivity matrix D, only consider isotropic materials here
+for j = 1:domainc.nEl
+    D(:, :, j) =  conductivity(j)*eye(2);
 end
+FEMout = heat2d(domainc, D);
 
 Tc = FEMout.Tff';
 Tc = Tc(:);
@@ -66,7 +62,7 @@ if nargout > 1
             TcFD = FEMoutFD.Tff';
             TcFD = TcFD(:);
             
-            WTcFD = W*TcFD;
+            WTcFD = theta_cf.W*TcFD;
             log_pFD = -.5*(theta_cf.sumLogS + (Tf_i_minus_mu - WTcFD)'*(theta_cf.Sinv_vec.*(Tf_i_minus_mu - WTcFD)));
             if strcmp(condTransOpts.type, 'log')
                 FDgrad(e) = conductivity(e)*(log_pFD - log_p)/d;
@@ -84,7 +80,7 @@ if nargout > 1
             log_pFD
             d_log_p
             FDgrad
-%             diff = log_pFD - log_p
+            diff = log_pFD - log_p
             pause
         end
 %         d_r

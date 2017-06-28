@@ -1,4 +1,4 @@
-function [N] = nPixelCross(lambdak, dir, phase, phaseConductivity, nElc, nElf, mode)
+function [N] = nPixelCross(lambdak, dir, phase, phaseConductivity, mode)
 %Number of pixels with phase phase going from left to right/ top to bottom on a straight line
 %   lambdak:        fine conductivities in coarse element k
 %   dir:            x or y direction
@@ -13,11 +13,10 @@ function [N] = nPixelCross(lambdak, dir, phase, phaseConductivity, nElc, nElf, m
 % assert(strcmp(fineData.dist, 'binary'), 'Error: linealPath is only a possible basis function if conductivities are binary')
 
 %Fine elements per coarse element in x and y directions
-xc = nElf(1)/nElc(1);
-yc = nElf(2)/nElc(2);
+xc = size(lambdak, 1);
+yc = size(lambdak, 2);
 
 lambdakBin = (lambdak == phaseConductivity(phase));
-lambdakBin = reshape(lambdakBin, xc, yc);
 
 if dir == 'x'
     N_vec = sum(lambdakBin)/xc;

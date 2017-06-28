@@ -1,6 +1,7 @@
-function [out] = differentialEffectiveMedium(lambda, conductivities, transform, matrixPhase)
+function [out] = differentialEffectiveMedium(lambda, conductivities, conductivityTransformation, matrixPhase)
 %DEM approximation, Torquato eq. 18.23
 
+lambda = lambda(:);
 %Binary conductivity vector
 lambdaBin = (lambda > conductivities(1));
 volFrac(2) = sum(lambdaBin)/length(lambdaBin);
@@ -19,16 +20,12 @@ end
 lambdaEff = fzero(f, [conductivities(1) conductivities(2)]);
 
 
-if strcmp(transform, 'log')
+if strcmp(conductivityTransformation.type, 'log')
     out = log(lambdaEff);
-elseif strcmp(transform, 'logit')
+elseif strcmp(conductivityTransformation.type, 'logit')
     %Limitation of effective conductivity
-    %Upper and lower limit on effective conductivity
-    condTransOpts.upperCondLim = conductivities(2);
-    condTransOpts.lowerCondLim = conductivities(1);
-    condTransOpts.transform = 'logit';
-    out = conductivityTransform(lambdaEff, condTransOpts);
-elseif strcmp(transform, 'plain')
+    out = conductivityTransform(lambdaEff, conductivityTransformation);
+elseif strcmp(conductivityTransformation.type, 'plain')
     out = lambdaEff;
 else
     error('Which transformation for effective conductivity in differentialEffectiveMedium?')

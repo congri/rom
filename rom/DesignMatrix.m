@@ -8,7 +8,8 @@ classdef DesignMatrix
         dataFile                %mat file holding the training/test data
         dataSamples             %vector with data sample indices
         
-        featureFunctions        %Cell array of handles to feature functions
+        featureFunctions        %Cell array of handles to local feature functions
+        globalFeatureFunctions = [];  %feature functions that take the whole microstructure as input
         featureFunctionMean  %mean absolute output of feature function over training set BEFORE normalization
         featureFunctionSqMean
         featureFunctionStd
@@ -17,8 +18,9 @@ classdef DesignMatrix
         
         E                       %gives the coarse element a fine element belongs to
         EMat                    %fine to coarse index map as a matrix
-        lambdak
-        xk
+        lambdak                 %conductivities in macro-cell k
+        xk                      %transformed conductivities in macro-cell k
+        transformedConductivity %transformed conductivity matrices
         sumPhiTPhi
         
         neighborDictionary      %This array holds the index of theta, the corresponding feature function number, coarse element and neighboring number
@@ -28,10 +30,11 @@ classdef DesignMatrix
     methods
         
         %constructor
-        function Phi = DesignMatrix(domainf, domainc, featureFunctions, dataFile, dataSamples)
+        function Phi = DesignMatrix(domainf, domainc, featureFunctions, globalFeatureFunctions, dataFile, dataSamples)
             %Set up mapping from fine to coarse element
             Phi = getCoarseElement(Phi, domainc, domainf);
             Phi.featureFunctions = featureFunctions;
+            Phi.globalFeatureFunctions = globalFeatureFunctions;
             Phi.dataFile = dataFile;
             Phi.dataSamples = dataSamples;
             
@@ -62,7 +65,7 @@ classdef DesignMatrix
             end
         end
         
-        function Phi = computeDesignMatrix(Phi, nElc, nElf, condTransOpts, mode)
+        function Phi = computeDesignMatrix(Phi, nElc, nElf, condTransOpts)
             %Actual computation of design matrix
             tic
             disp('Compute design matrices Phi...')
@@ -71,66 +74,57 @@ classdef DesignMatrix
             conductivity = Phi.dataFile.cond(:, Phi.dataSamples);
             conductivity = num2cell(conductivity, 1);   %to avoid parallelization communication overhead
             nTrain = length(Phi.dataSamples);
-            nFeatureFunctions = numel(Phi.featureFunctions);
+            nFeatureFunctions = size(Phi.featureFunctions, 2);
+            Phi.globalFeatureFunctions;
+            nGlobalFeatureFunctions = size(Phi.globalFeatureFunctions, 2);
             phi = Phi.featureFunctions;
-            coarseElement = Phi.E;
+            phiGlobal = Phi.globalFeatureFunctions;
+%             coarseElement = Phi.E;
             
             %Open parallel pool
             addpath('./computation')
             parPoolInit(nTrain);
-            if condTransOpts.anisotropy
-                PhiCell{1} = zeros(3*nElc, nFeatureFunctions);
-            else
-                PhiCell{1} = zeros(nElc, nFeatureFunctions);
-            end
+            PhiCell{1} = zeros(nElc, nFeatureFunctions + nGlobalFeatureFunctions);
             PhiCell = repmat(PhiCell, nTrain, 1);
+            EMatHold = Phi.EMat;
+            lambdakHold = cell(nTrain, nElc);
+            xkHold = cell(nTrain, nElc);
+            transformedConductivityHold = cell(nTrain, 1);
 %             parfor s = 1:nTrain
             for s = 1:nTrain    %for very cheap features, serial evaluation might be more efficient
                 %inputs belonging to same coarse element are in the same column of xk. They are ordered in
                 %x-direction.
-                if condTransOpts.anisotropy
-                    PhiCell{s} = zeros(3*nElc, nFeatureFunctions);
-                else
-                    PhiCell{s} = zeros(nElc, nFeatureFunctions);
+                %Get conductivity fields in coarse cell windows
+                conductivityMat = reshape(conductivity{s}, sqrt(nElf), sqrt(nElf));
+                for i = 1:nElc
+                    indexMat = (EMatHold == i);
+                    lambdakTemp = conductivityMat.*indexMat;
+                    %Cut elements from matrix that do not belong to coarse cell
+                    lambdakTemp(~any(lambdakTemp, 2), :) = [];
+                    lambdakTemp(:, ~any(lambdakTemp, 1)) = [];
+                    lambdakHold{s, i} = lambdakTemp;
+                    xkHold{s, i} = conductivityTransform(lambdakHold{s, i}, condTransOpts);
                 end
-                
-                if strcmp(mode, 'global')
-                    %ATTENTION: ONLY VALID FOR SQUARE MESHES!!!
-                    pooledImage = phi{1}(reshape(conductivity{s}, sqrt(nElf), sqrt(nElf)));
-                    pooledImage = pooledImage(:)';
-                    npi = numel(pooledImage);
-                    PhiCell{s} = zeros(nElc, npi*nElc);
-                    for i = 1:nElc
-                        PhiCell{s}(i, ((i - 1)*npi + 1):(i*npi)) = pooledImage;
+                transformedConductivityHold{s} = conductivityTransform(conductivityMat, condTransOpts);
+
+                %construct design matrix Phi
+                for i = 1:nElc
+                    %local features
+                    for j = 1:nFeatureFunctions
+                        %only take pixels of corresponding macro-cell as input for features
+                        PhiCell{s}(i, j) = phi{i, j}(lambdakHold{s, i});
                     end
-                else
-                    %only for square finescale meshes!!
-                    conductivityMat = reshape(conductivity{s}, sqrt(nElf), sqrt(nElf));
-                    for i = 1:nElc
-                        indexMat = (Phi.EMat == i);
-                        lambdakTemp = conductivityMat.*indexMat;
-                        %Cut elements from matrix that do not belong to coarse cell
-                        lambdakTemp(~any(lambdakTemp, 2), :) = [];
-                        lambdakTemp(:, ~any(lambdakTemp, 1)) = [];
-                        Phi.lambdak{s, i} = lambdakTemp;
-%                         Phi.lambdak{s, i} = conductivity{s}(coarseElement == i);
-                        Phi.xk{s, i} = log(Phi.lambdak{s, i});
-                    end
-                    
-                    %construct design matrix Phi
-                    for i = 1:nElc
-                        for j = 1:nFeatureFunctions
-                            %only take pixels of corresponding macro-cell as input for features
-                            if condTransOpts.anisotropy
-                                PhiCell{s}((1 + (i - 1)*3):(i*3), j) = phi{j}(Phi.lambdak{s, i});
-                            else
-                                PhiCell{s}(i, j) = phi{j}(Phi.lambdak{s, i});
-                            end
-                        end
+                    %global features
+                    for j = 1:nGlobalFeatureFunctions
+                        %Take whole microstructure as input for feature function
+                        PhiCell{s}(i, nFeatureFunctions + j) = phiGlobal{i, j}(conductivityMat);
                     end
                 end
             end
             
+            Phi.lambdak = lambdakHold;
+            Phi.xk = xkHold;
+            Phi.transformedConductivity = transformedConductivityHold;
             Phi.designMatrices = PhiCell;
             %Check for real finite inputs
             for i = 1:nTrain
@@ -160,7 +154,7 @@ classdef DesignMatrix
             %nc/nf: coarse/fine elements in x/y direction
             disp('Including nearest neighbor feature function information...')
             nElc = prod(nc);
-            nFeatureFunctions = numel(Phi.featureFunctions);
+            nFeatureFunctions = size(Phi.featureFunctions, 2);
             PhiCell{1} = zeros(nElc, 5*nFeatureFunctions);
             nTrain = length(Phi.dataSamples);
             PhiCell = repmat(PhiCell, nTrain, 1);
@@ -208,10 +202,8 @@ classdef DesignMatrix
             %nc/nf: coarse/fine elements in x/y direction
             disp('Including nearest neighbor feature function information separately for each cell...')
             nElc = prod(nc);
-            nFeatureFunctions = numel(Phi.featureFunctions);
-%             PhiCell{1} = zeros(nElc, 5*nFeatureFunctions);
-            nTrain = length(Phi.dataSamples);
-%             PhiCell = repmat(PhiCell, nTrain, 1);
+            nFeatureFunctions = size(Phi.featureFunctions, 2);
+            nTrain = numel(Phi.dataSamples);
             
             for s = 1:nTrain
                 %Only assign nonzero values to design matrix for neighboring elements if
@@ -360,7 +352,7 @@ classdef DesignMatrix
             %nc/nf: coarse/fine elements in x/y direction
             disp('Including nearest + diagonal neighbor feature function information separately for each cell...')
             nElc = prod(nc);
-            nFeatureFunctions = numel(Phi.featureFunctions);
+            nFeatureFunctions = size(Phi.featureFunctions, 2);
 %             PhiCell{1} = zeros(nElc, 5*nFeatureFunctions);
             nTrain = length(Phi.dataSamples);
 %             PhiCell = repmat(PhiCell, nTrain, 1);
@@ -502,33 +494,33 @@ classdef DesignMatrix
             %Can never be executed before rescaling/standardization of design Matrix!
             disp('Using separate feature coefficients theta_c for each macro-cell in a microstructure...')
             nElc = prod(nc);
-            nFeatureFunctions = numel(Phi.featureFunctions);
-            PhiCell{1} = zeros(nElc, nElc*nFeatureFunctions);
+            nFeatureFunctionsTotal = size(Phi.featureFunctions, 2) + size(Phi.globalFeatureFunctions, 2);
+            PhiCell{1} = zeros(nElc, nElc*nFeatureFunctionsTotal);
             nTrain = length(Phi.dataSamples);
             PhiCell = repmat(PhiCell, nTrain, 1);
             
             %Reassemble design matrix
             for s = 1:nTrain
                 for i = 1:nElc
-                    PhiCell{s}(i, ((i - 1)*nFeatureFunctions + 1):(i*nFeatureFunctions)) = ...
+                    PhiCell{s}(i, ((i - 1)*nFeatureFunctionsTotal + 1):(i*nFeatureFunctionsTotal)) = ...
                       Phi.designMatrices{s}(i, :);
-                    PhiCell{s} = sparse(PhiCell{s});
                 end
+                PhiCell{s} = sparse(PhiCell{s});
             end
             Phi.designMatrices = PhiCell;
             disp('done')
-            
         end%localTheta_c
         
         function Phi = computeFeatureFunctionMinMax(Phi)
-            %Computes min/max of feature function outputs over training data
-            Phi.featureFunctionMin = min(Phi.designMatrices{1});
-            Phi.featureFunctionMax = max(Phi.designMatrices{1});
+            %Computes min/max of feature function outputs over training data, separately for every
+            %macro cell
+            Phi.featureFunctionMin = Phi.designMatrices{1};
+            Phi.featureFunctionMax = Phi.designMatrices{1};
             for i = 1:numel(Phi.designMatrices)
-                min_i = min(Phi.designMatrices{i});
-                max_i = max(Phi.designMatrices{i});
-                Phi.featureFunctionMin(Phi.featureFunctionMin > min_i) = min_i(Phi.featureFunctionMin > min_i);
-                Phi.featureFunctionMax(Phi.featureFunctionMax < max_i) = max_i(Phi.featureFunctionMax < max_i);
+                Phi.featureFunctionMin(Phi.featureFunctionMin > Phi.designMatrices{i}) =...
+                    Phi.designMatrices{i}(Phi.featureFunctionMin > Phi.designMatrices{i});
+                Phi.featureFunctionMax(Phi.featureFunctionMax < Phi.designMatrices{i}) =...
+                    Phi.designMatrices{i}(Phi.featureFunctionMax < Phi.designMatrices{i});
             end
         end
         
@@ -554,15 +546,23 @@ classdef DesignMatrix
             %Rescale design matrix s.t. outputs are between 0 and 1
             disp('Rescale design matrix...')
             if(nargin > 1)
+                featFuncDiff = featFuncMax - featFuncMin;
+                %to avoid irregularities due to rescaling (if every macro cell has the same feature function output)
+                featFuncMin(featFuncDiff == 0) = 0;
+                featFuncDiff(featFuncDiff == 0) = 1;
                 for i = 1:numel(Phi.designMatrices)
                     Phi.designMatrices{i} = (Phi.designMatrices{i} - featFuncMin)./...
-                        (featFuncMax - featFuncMin);
+                        (featFuncDiff);
                 end
             else
                 Phi = Phi.computeFeatureFunctionMinMax;
+                featFuncDiff = Phi.featureFunctionMax - Phi.featureFunctionMin;
+                %to avoid irregularities due to rescaling (if every macro cell has the same feature function output)
+                Phi.featureFunctionMin(featFuncDiff == 0) = 0;
+                featFuncDiff(featFuncDiff == 0) = 1;
                 for i = 1:numel(Phi.designMatrices)
                     Phi.designMatrices{i} = (Phi.designMatrices{i} - Phi.featureFunctionMin)./...
-                        (Phi.featureFunctionMax - Phi.featureFunctionMin);
+                        (featFuncDiff);
                 end
             end
             %Check for finiteness
@@ -635,6 +635,9 @@ classdef DesignMatrix
         end
         
         
+        
+        
+        
         function Phi = normalizeDesignMatrix(Phi, normalizationFactors)
             %Normalize feature functions s.t. they lead to outputs of same magnitude.
             %This makes the likelihood gradient at theta_c = 0 better behaved.
@@ -662,7 +665,12 @@ classdef DesignMatrix
             end
         end
         
+        
+        
+        
+        
         function saveNormalization(Phi, type)
+            disp('Saving Phi-normalization...')
             if(isempty(Phi.featureFunctionMean))
                 Phi = Phi.computeFeatureFunctionMean;
             end
@@ -685,11 +693,48 @@ classdef DesignMatrix
             
         end
         
+        
+        
+        
+        
         function Phi = computeSumPhiTPhi(Phi)
             Phi.sumPhiTPhi = 0;
             for i = 1:numel(Phi.dataSamples)
                 Phi.sumPhiTPhi = Phi.sumPhiTPhi + Phi.designMatrices{i}'*Phi.designMatrices{i};
             end
+        end
+        
+        
+        
+        
+        function Phi = addLinearFilter(Phi, w)
+            %w is a cell array with numel(w) = nEl_coarse holding the linear filter for every
+            %macro-cell
+            %Can be done more efficiently!
+            
+            %construct design matrix Phi
+            nTrain = numel(Phi.dataSamples);
+            nElc = numel(w);
+            nFeaturesTotalAfter = size(Phi.designMatrices{1}, 1) + nElc;
+            PhiCell{1} = zeros(size(Phi.designMatrices{1}, 1), nFeaturesTotalAfter);
+            PhiCell = repmat(PhiCell, nTrain, 1);
+            n = 1;
+            for s = 1:nTrain
+                for m = 1:nElc
+                    for j = 1:nFeaturesTotalAfter
+                        if(j == m*(nFeaturesTotalAfter/nElc))
+%                             PhiCell{s}(m, j) = sum(w{m}'.*log(Phi.lambdak{s, m}(:)));
+                            PhiCell{s}(m, j) = Phi.featureFunctions{m, end}(Phi.lambdak{s, m});
+                        elseif(mod(j, nFeaturesTotalAfter/nElc))
+                            %the elseif is due to skipping of indices of wrong coarse elements
+                            PhiCell{s}(m, j) = Phi.designMatrices{s}(m, n);
+                            n = n + 1;
+                        end
+                    end
+                    n = 1;
+                end
+            end
+            Phi.designMatrices = PhiCell;
         end
         
         
