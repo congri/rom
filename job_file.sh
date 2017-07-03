@@ -1,22 +1,25 @@
-#PBS -N nTrain=128_volfrac0.10_lo=1_hi=10_Nc=4l=20gamma=30
+#PBS -N RVM_nTrain=128_Nc=[.25 .25 .25 .25]_[.25 .25 .25 .25]
 #PBS -l nodes=1:ppn=16,walltime=240:00:00
 #PBS -e /home/constantin/OEfiles
+#PBS -o /home/constantin/OEfiles
 #PBS -m abe
 #PBS -M mailscluster@gmail.com
 
 #Switch to job directory
-cd "/home/constantin/matlab/data/fineData/systemSize=256x256/correlated_binary/IsoSEcov/l=20_sigmafSq=1/volumeFraction=0.10/locond=1_upcond=10/BCcoeffs=[-50 164 112 -30]/nTrain=128_02-16-10-17-31"
+cd "/home/constantin/matlab/data/fineData/systemSize=256x256/correlated_binary/IsoSEcov/l=0.08_sigmafSq=1/volumeFraction=.2/locond=1_upcond=10/BCcoeffs=[0 1000 0 0]/RVM_nTrain=128_Nc=[.25 .25 .25 .25]_[.25 .25 .25 .25]_06-28-19-22-56"
 #Set parameters
-sed -i "5s/.*/nTrain = 128;/" ./params/params.m
-sed -i "62s/.*/theta_prior_hyperparamArray = [30];/" ./params/params.m
-sed -i "4s/.*/nf = 256;/" ./loadTrainingData.m
-sed -i "12s/.*/bc = '[-50 164 112 -30]';/" ./loadTrainingData.m
-sed -i "5s/.*/loCond = 1;/" ./loadTrainingData.m
-sed -i "6s/.*/upCond = 10;/" ./loadTrainingData.m
-sed -i "8s/.*/corrlength = '20';/" ./loadTrainingData.m
-sed -i "9s/.*/volfrac = '0.10';  %high conducting phase volume fraction/" ./loadTrainingData.m
-sed -i "2s/.*/nc = 4;/" ./params/genCoarseDomain.m
+sed -i "33s/.*/        nStart = 1;             %first training data sample in file/" ./ROM_SPDE.m
+sed -i "34s/.*/        nTrain = 128;            %number of samples used for training/" ./ROM_SPDE.m
+sed -i "70s/.*/theta_prior_hyperparamArray = [0.4];/" ./params/params.m
+sed -i "7s/.*/        nElFX = 256;/" ./ROM_SPDE.m
+sed -i "8s/.*/        nElFY = 256;/" ./ROM_SPDE.m
+sed -i "77s/.*/        boundaryConditions = '[0 1000 0 0]';/" ./ROM_SPDE.m
+sed -i "10s/.*/        lowerConductivity = 1;/" ./ROM_SPDE.m
+sed -i "11s/.*/        upperConductivity = 10;/" ./ROM_SPDE.m
+sed -i "74s/.*/        conductivityDistributionParams = {.2 [0.08 0.08] 1};      %for correlated_binary:/" ./ROM_SPDE.m
+sed -i "81s/.*/        coarseGridVectorX = [.25 .25 .25 .25];/" ./ROM_SPDE.m
+sed -i "82s/.*/        coarseGridVectorY = [.25 .25 .25 .25];/" ./ROM_SPDE.m
 
 
 #Run Matlab
-/home/constantin/Software/matlab2016b/bin/matlab -nodesktop -nodisplay -nosplash -r "trainModel ; quit;"
+/home/matlab/R2017a/bin/matlab -nodesktop -nodisplay -nosplash -r "trainModel ; quit;"

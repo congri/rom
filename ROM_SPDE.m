@@ -31,7 +31,7 @@ classdef ROM_SPDE
                 
         %% Model training parameters
         nStart = 1;             %first training data sample in file
-        nTrain = 32;            %number of samples used for training
+        nTrain = 16;            %number of samples used for training
         mode = 'useLocal';      %useNeighbor, useLocalNeighbor, useDiagNeighbor, useLocalDiagNeighbor, useLocal, global
                                 %global: take whole microstructure as feature function input, not
                                 %only local window (only recommended for pooling)
@@ -51,7 +51,7 @@ classdef ROM_SPDE
         featureFunctionMin;
         featureFunctionMax;
         standardizeFeatures = false;    %Rescale s.t. feature outputs have mean 0 and std 1
-        rescaleFeatures = true;        %Rescale s.t. feature outputs are all between 0 and 1
+        rescaleFeatures = false;        %Rescale s.t. feature outputs are all between 0 and 1
         
         %% Prediction parameters
         nSamples_p_c = 1000;
@@ -71,15 +71,15 @@ classdef ROM_SPDE
     
     properties(SetAccess = private)
         %% finescale data specifications
-        conductivityDistributionParams = {-1 [.08 .08] 1};      %for correlated_binary: 
+        conductivityDistributionParams = {0.2 [.08 .08] 1};      %for correlated_binary: 
                                                             %{volumeFraction, correlationLength, sigma_f2}
         %Coefficients giving boundary conditions, specify as string
         boundaryConditions = '[0 1000 0 0]';
         
         %% Coarse model specifications
         coarseScaleDomain;
-        coarseGridVectorX = [1/4 1/4 1/4 1/4];
-        coarseGridVectorY = [1/4 1/4 1/4 1/4];
+        coarseGridVectorX = [1/2 1/2];
+        coarseGridVectorY = [1/2 1/2];
     end
     
     
@@ -907,6 +907,10 @@ classdef ROM_SPDE
                             plot(x, y);
                             axis tight;
                             axis square;
+                            xl = xlabel('Feature function output $\phi_i$');
+                            xl.Interpreter = 'latex';
+                            yl = ylabel('$<X_k> - \sum_{j\neq i} \theta_j \phi_j$');
+                            yl.Interpreter = 'latex';
                             k = k + 1;
                         end
                     end
@@ -998,7 +1002,7 @@ classdef ROM_SPDE
             %this can be done more efficiently!
 %             Phi = Phi.addLinearFilter(w);
             Phi = Phi.computeDesignMatrix(obj.coarseScaleDomain.nEl, obj.fineScaleDomain.nEl,...
-                obj.conductivityTransformation, obj.mode);
+                obj.conductivityTransformation);
             Phi = Phi.localTheta_c([obj.coarseScaleDomain.nElX obj.coarseScaleDomain.nElY]);
             %Compute sum_i Phi^T(x_i)^Phi(x_i)
             Phi = Phi.computeSumPhiTPhi;
@@ -1087,7 +1091,7 @@ classdef ROM_SPDE
             %this can be done more efficiently!
             %             Phi = Phi.addLinearFilter(w);
             Phi = Phi.computeDesignMatrix(obj.coarseScaleDomain.nEl, obj.fineScaleDomain.nEl,...
-                obj.conductivityTransformation, obj.mode);
+                obj.conductivityTransformation);
             Phi = Phi.localTheta_c([obj.coarseScaleDomain.nElX obj.coarseScaleDomain.nElY]);
             %Compute sum_i Phi^T(x_i)^Phi(x_i)
             Phi = Phi.computeSumPhiTPhi;
@@ -1132,7 +1136,7 @@ classdef ROM_SPDE
             Phi = DesignMatrix(obj.fineScaleDomain, obj.coarseScaleDomain, obj.featureFunctions,...
                 obj.globalFeatureFunctions, obj.trainingDataMatfile, obj.nStart:(obj.nStart + obj.nTrain - 1));
             Phi = Phi.computeDesignMatrix(obj.coarseScaleDomain.nEl, obj.fineScaleDomain.nEl,...
-                obj.conductivityTransformation, obj.mode);
+                obj.conductivityTransformation);
             %Normalize design matrices
             if obj.rescaleFeatures
                 Phi = Phi.rescaleDesignMatrix(obj.featureFunctionMin, obj.featureFunctionMax);
@@ -1270,12 +1274,12 @@ classdef ROM_SPDE
                     differentialEffectiveMedium(lambda, conductivities, obj.conductivityTransformation, 'lo');
                 nFeatures = nFeatures + 1;
                 
-%                 obj.featureFunctions{k, nFeatures + 1} = @(lambda)...
-%                     linealPath(lambda, 3, 'x', 2, conductivities);
-%                 nFeatures = nFeatures + 1;
-%                 obj.featureFunctions{k, nFeatures + 1} = @(lambda)...
-%                     linealPath(lambda, 3, 'y', 2, conductivities);
-%                 nFeatures = nFeatures + 1;
+                obj.featureFunctions{k, nFeatures + 1} = @(lambda)...
+                    linealPath(lambda, 3, 'x', 2, conductivities);
+                nFeatures = nFeatures + 1;
+                obj.featureFunctions{k, nFeatures + 1} = @(lambda)...
+                    linealPath(lambda, 3, 'y', 2, conductivities);
+                nFeatures = nFeatures + 1;
                 obj.featureFunctions{k, nFeatures + 1} = @(lambda)...
                     linealPath(lambda, 3, 'x', 1, conductivities);
                 nFeatures = nFeatures + 1;
@@ -1321,9 +1325,9 @@ classdef ROM_SPDE
 %                     connectedPathExist(lambda, 2, conductivities, 'y', 'invdist');
 %                 nFeatures = nFeatures + 1;
                 
-                obj.featureFunctions{k, nFeatures + 1} = @(lambda)...
-                    log(specificSurface(lambda, 2, conductivities, [obj.nElFX obj.nElFY]) + log_cutoff);
-                nFeatures = nFeatures + 1;
+%                 obj.featureFunctions{k, nFeatures + 1} = @(lambda)...
+%                     log(specificSurface(lambda, 2, conductivities, [obj.nElFX obj.nElFY]) + log_cutoff);
+%                 nFeatures = nFeatures + 1;
 
                 obj.featureFunctions{k, nFeatures + 1} = @(lambda)...
                     gaussLinFilt(lambda);

@@ -52,37 +52,41 @@ for i = 1:nTrain
     end 
 end
 
-%Find prior hyperparameter
-converged = false;
-iter = 0;
-while(~converged)
-    if strcmp(theta_c.thetaPriorType, 'gaussian')
-        SigmaTilde = inv(sumPhiTSigmaInvPhi + theta_c.priorHyperparam*I);
-        muTilde = SigmaTilde*sumPhiTSigmaInvXmean;
-        theta_prior_hyperparam_old = theta_c.priorHyperparam;
-        theta_c.priorHyperparam = dim_theta/(muTilde'*muTilde + trace(SigmaTilde));
-        if(abs(theta_c.priorHyperparam - theta_prior_hyperparam_old)/abs(theta_c.priorHyperparam) < 1e-5 || iter > 100)
-            converged = true;
-        elseif(~isfinite(theta_c.priorHyperparam) || theta_c.priorHyperparam <= 0)
-            converged = true;
-            theta_c.priorHyperparam = 1;
-            warning('Gaussian hyperparameter precision is negative or not a number. Setting it to 1.')
+if(strcmp(theta_c.thetaPriorType, 'gaussian') || strcmp(theta_c.thetaPriorType, 'RVM'))
+    %Find prior hyperparameter
+    converged = false;
+    iter = 0;
+    while(~converged)
+        if strcmp(theta_c.thetaPriorType, 'gaussian')
+            stabilityParam = 1e-12;    %for stability in matrix inversion
+            SigmaTilde = inv(sumPhiTSigmaInvPhi + (theta_c.priorHyperparam + stabilityParam)*I);
+            muTilde = SigmaTilde*sumPhiTSigmaInvXmean;
+            theta_prior_hyperparam_old = theta_c.priorHyperparam;
+            theta_c.priorHyperparam = dim_theta/(muTilde'*muTilde + trace(SigmaTilde));
+            if(abs(theta_c.priorHyperparam - theta_prior_hyperparam_old)/abs(theta_c.priorHyperparam) < 1e-5 || iter > 100)
+                converged = true;
+            elseif(~isfinite(theta_c.priorHyperparam) || theta_c.priorHyperparam <= 0)
+                converged = true;
+                theta_c.priorHyperparam = 1;
+                warning('Gaussian hyperparameter precision is negative or not a number. Setting it to 1.')
+            end
+            
+        elseif strcmp(theta_c.thetaPriorType, 'RVM')
+            stabilityParam = 1e-12;    %for stability in matrix inversion
+            SigmaTilde = inv(sumPhiTSigmaInvPhi + diag(theta_c.priorHyperparam + stabilityParam));
+            muTilde = SigmaTilde*sumPhiTSigmaInvXmean;
+            theta_prior_hyperparam_old = theta_c.priorHyperparam;
+            theta_c.priorHyperparam = 1./(muTilde.^2 + diag(SigmaTilde));
+            if(norm(theta_c.priorHyperparam - theta_prior_hyperparam_old)/norm(theta_c.priorHyperparam) < 1e-5 || iter > 100)
+                converged = true;
+            elseif(any(~isfinite(theta_c.priorHyperparam)) || any(theta_c.priorHyperparam <= 0))
+                converged = true;
+                theta_c.priorHyperparam = ones(dim_theta, 1);
+                warning('Gaussian hyperparameter precision is negative or not a number. Setting it to 1.')
+            end
         end
-        
-    elseif strcmp(theta_c.thetaPriorType, 'diagonalGaussian')
-        SigmaTilde = inv(sumPhiTSigmaInvPhi + diag(theta_c.priorHyperparam));
-        muTilde = SigmaTilde*sumPhiTSigmaInvXmean;
-        theta_prior_hyperparam_old = theta_c.priorHyperparam;
-        theta_c.priorHyperparam = 1./(muTilde.^2 + diag(SigmaTilde));
-        if(norm(theta_c.priorHyperparam - theta_prior_hyperparam_old)/norm(theta_c.priorHyperparam) < 1e-5 || iter > 100)
-            converged = true;
-        elseif(any(~isfinite(theta_c.priorHyperparam)) || any(theta_c.priorHyperparam <= 0))
-            converged = true;
-            theta_c.priorHyperparam = ones(dim_theta, 1);
-            warning('Gaussian hyperparameter precision is negative or not a number. Setting it to 1.')
-        end
+        iter = iter + 1;
     end
-    iter = iter + 1;
 end
 
 iter = 0;
@@ -123,16 +127,16 @@ while(~converged)
             %       warning('off', 'MATLAB:nearlySingularMatrix');
             U = diag(sqrt((.5*abs(theta_old).^2 + theta_c.priorHyperparam(2))./(theta_c.priorHyperparam(1) + .5)));
         elseif strcmp(theta_c.thetaPriorType, 'gaussian')
-            sumPhiTSigmaInvPhi = sumPhiTSigmaInvPhi + theta_c.priorHyperparam(1)*I;
-        elseif strcmp(theta_c.thetaPriorType, 'diagonalGaussian')
-            sumPhiTSigmaInvPhi = sumPhiTSigmaInvPhi + diag(theta_c.priorHyperparam);
+            sumPhiTSigmaInvPhi = sumPhiTSigmaInvPhi + (theta_c.priorHyperparam(1) + stabilityParam)*I;
+        elseif strcmp(theta_c.thetaPriorType, 'RVM')
+            sumPhiTSigmaInvPhi = sumPhiTSigmaInvPhi + diag(theta_c.priorHyperparam + stabilityParam);
         elseif strcmp(theta_c.thetaPriorType, 'none')
             
         else
             error('Unknown prior on theta_c')
         end
         
-        if (strcmp(theta_c.thetaPriorType, 'gaussian') || strcmp(theta_c.thetaPriorType, 'diagonalGaussian') ||...
+        if (strcmp(theta_c.thetaPriorType, 'gaussian') || strcmp(theta_c.thetaPriorType, 'RVM') ||...
                 strcmp(theta_c.thetaPriorType, 'none'))
             theta_temp = sumPhiTSigmaInvPhi\sumPhiTSigmaInvXmean;
         else
@@ -141,16 +145,19 @@ while(~converged)
         end
         [~, msgid] = lastwarn;     %to catch nearly singular matrix
         
-        %Catch instabilities
-        %     if(norm(theta_temp)/length(theta_temp) > 5e1 || any(~isfinite(theta_temp)))
         
         gradHessTheta = @(theta) dF_dtheta(theta, theta_old, theta_c.thetaPriorType, theta_c.priorHyperparam, nTrain,...
             sumPhiTSigmaInvXmean, sumPhiTSigmaInvPhi);
         if(strcmp(msgid, 'MATLAB:singularMatrix') || strcmp(msgid, 'MATLAB:nearlySingularMatrix')...
                 || strcmp(msgid, 'MATLAB:illConditionedMatrix') || norm(theta_temp)/length(theta) > 1e8)
-            warning('theta_c is assuming unusually large values. Do not update theta.')
+            warning('theta_c is assuming unusually large values. Only go small step.')
             %         theta = fsolve(gradHessTheta, theta, fsolve_options_theta);
-            theta = theta_old
+            theta = .5*(theta_old + .1*(norm(theta_old)/norm(theta_temp))*theta_temp)
+            if any(~isfinite(theta))
+                %restart from 0
+                warning('Some components of theta are not finite. Restarting from theta = 0...')
+                theta = 0*theta_old;
+            end
             %Newton-Raphson maximization
             startValueTheta = theta;
             normGradientTol = eps;

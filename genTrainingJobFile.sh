@@ -1,17 +1,17 @@
 NF=256
 CORRLENGTH=0.08
-NTRAIN=10
+NTRAIN=4
 NSTART=1	#First training data sample in data file
-VOLFRAC=0.2	#Theoretical volume fraction
+VOLFRAC=-1	#Theoretical volume fraction; -1 for uniform random volume fraction
 LOCOND=1
 HICOND=10
 HYPERPARAM=0.4	#Lasso sparsity hyperparameter
-NCX=\[.25\ .25\ .25\ .25\]
-NCY=\[.25\ .25\ .25\ .25\]
+NCX=\[.125\ .125\ .125\ .125\ .125\ .125\ .125\ .125\]
+NCY=\[.125\ .125\ .125\ .125\ .125\ .125\ .125\ .125\]
 BC="[0 1000 0 0]"
 BC2=\[0\ 1000\ 0\ 0\]
 
-NAMEBASE="gaussPrior"
+NAMEBASE="RVM"
 DATESTR=`date +%m-%d-%H-%M-%S`	#datestring for jobfolder name
 PROJECTDIR="/home/constantin/matlab/projects/rom"
 JOBNAME="${NAMEBASE}_nTrain=${NTRAIN}_Nc=${NCX}_${NCY}"
@@ -31,7 +31,7 @@ rm job_file.sh
 
 #write job file
 printf "#PBS -N $JOBNAME
-#PBS -l nodes=1:ppn=10,walltime=240:00:00
+#PBS -l nodes=1:ppn=4,walltime=240:00:00
 #PBS -e /home/constantin/OEfiles
 #PBS -o /home/constantin/OEfiles
 #PBS -m abe

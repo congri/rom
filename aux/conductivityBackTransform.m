@@ -46,9 +46,10 @@ else
 end
 
 if(any(any(~isfinite(conductivity))))
+    warning('Non-finite conductivity')
     conductivity
     x
-    error('Non-finite conductivity')
+    conductivity(~isfinite(conductivity)) = .5*(opts.limits(1) + opts.limits(2));
 end
 end
 

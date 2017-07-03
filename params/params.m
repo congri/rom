@@ -7,9 +7,9 @@ romObj.theta_c.useNeuralNet = false;    %use neural net for p_c
 
 
 %% EM params
-initialEpochs = 100;
-basisFunctionUpdates = 2;
-basisUpdateGap = 12;     %given in epochs, i.e. how often every data point has been seen
+initialEpochs = 120;
+basisFunctionUpdates = 0;
+basisUpdateGap = 10;     %given in epochs, i.e. how often every data point has been seen
 maxEpochs = (basisFunctionUpdates + 1)*basisUpdateGap - 2 + initialEpochs;
 
 %% Start value of model parameters
@@ -61,8 +61,8 @@ if ~loadOldConf
 end
 
 %what kind of prior for theta_c
-romObj.theta_c.thetaPriorType = 'diagonalGaussian';              %hierarchical_gamma, hierarchical_laplace, laplace,
-                                                         %gaussian, diagonalGaussian or none
+romObj.theta_c.thetaPriorType = 'RVM';              %hierarchical_gamma, hierarchical_laplace, laplace,
+                                                         %gaussian, RVM or none
 sigma_prior_type = 'none';                  %expSigSq, delta or none. A delta prior keeps sigma at its initial value
 sigma_prior_type_hold = sigma_prior_type;
 fixSigInit = 0;                                 %number of initial iterations with fixed sigma
@@ -109,9 +109,14 @@ mix_theta = 0;    %to damp oscillations/ drive convergence?
 
 %% Variational inference params
 variationalDist = 'diagonalGauss';
-varDistParams{1}.mu = conductivityTransform((romObj.conductivityDistributionParams{1}*romObj.upperConductivity + ...
-    (1 - romObj.conductivityDistributionParams{1})*romObj.lowerConductivity)*...
+if(romObj.conductivityDistributionParams{1} < 0)
+    varDistParams{1}.mu = conductivityTransform((.5*romObj.upperConductivity + .5*romObj.lowerConductivity)*...
     ones(1, romObj.coarseScaleDomain.nEl), romObj.conductivityTransformation);   %row vector
+else
+    varDistParams{1}.mu = conductivityTransform((romObj.conductivityDistributionParams{1}*romObj.upperConductivity + ...
+        (1 - romObj.conductivityDistributionParams{1})*romObj.lowerConductivity)*...
+        ones(1, romObj.coarseScaleDomain.nEl), romObj.conductivityTransformation);   %row vector
+end
 if strcmp(variationalDist, 'diagonalGauss')
     varDistParams{1}.sigma = ones(size(varDistParams{1}.mu));
 elseif strcmp(variationalDist, 'fullRankGauss')

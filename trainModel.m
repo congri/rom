@@ -19,6 +19,8 @@ addpath('./efficientVI')
 
 rng('shuffle')  %system time seed
 
+delete('./data/*')  %delete old data
+
 %initialize reduced order model object
 romObj = ROM_SPDE
 
@@ -346,7 +348,7 @@ while true
             romObj.theta_c.Sigma = (1 - mix_sigma)*romObj.theta_c.Sigma + mix_sigma*Sigma_old;
         end
         
-        plotTheta = false;
+        plotTheta = true;
         if plotTheta
             if ~exist('thetaArray')
                 thetaArray = romObj.theta_c.theta';

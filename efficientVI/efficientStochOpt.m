@@ -1,6 +1,9 @@
 function [varDistParams, x] = efficientStochOpt(x, log_emp_dist, variationalDist, stepWidth, dim)
 %Memory efficient stocastic optimization for parfor loop
 %Perform stochastic maximization step
+
+debug = false;   %debug mode
+
 updateRule = 'adam';
 beta1 = .7;                     %the higher, the more important is momentum
 beta2 = .8;                    %curvature parameter
@@ -12,7 +15,7 @@ nSamples = 10;                  %gradient samples per iteration
 converged = false;
 steps = 0;
 maxIterations = 10000;
-maxCompTime = 30;
+maxCompTime = 60;
 tic;
 
 if strcmp(variationalDist, 'diagonalGauss')
@@ -29,6 +32,11 @@ else
     error('Unknown variational distribution')
 end
 
+if debug
+    f = figure;
+end
+
+iter = 0;
 while ~converged
         
     gradient = sampleELBOgrad(log_emp_dist, variationalDist, nSamples, varDistParams);
@@ -76,6 +84,24 @@ while ~converged
         error('Unknown variational distribution')
     end
     
+    if debug
+        figure(f);
+        if(mod(iter,1) == 0)
+            varDistParams.mu
+            varDistParams.sigma
+            subplot(1,2,1)
+            hold on;
+            title('mu')
+            plot(iter, varDistParams.mu, 'x')
+            subplot(1,2,2)
+            hold on;
+            title('sigma')
+            plot(iter, varDistParams.sigma, 'x')
+            drawnow
+            pause
+        end
+    end
+    
     compTime = toc;
     if steps > maxIterations
         converged = true;
@@ -84,6 +110,7 @@ while ~converged
         converged = true;
         disp('Converged because max computation time exceeded')
     end
+    iter = iter + 1;
 end
 
 if strcmp(variationalDist, 'diagonalGauss')
