@@ -1,10 +1,12 @@
 NF=256
-CORRLENGTH=0.1
+LENGTHSCALEDIST=lognormal
+CORRLENGTH1=-3
+CORRLENGTH2=0.5
 NSET1=1024
 NSET2=256
 VOLFRAC=-1	#Theoretical volume fraction; negative value leads to uniform random volume fraction
 LOCOND=1
-UPCOND=100
+UPCOND=10
 BC1=0
 BC2=1000
 BC3=0
@@ -13,7 +15,7 @@ BC4=0
 
 #Set up file paths
 PROJECTDIR="/home/constantin/matlab/projects/rom"
-JOBNAME="genDataNf${NF}contrast${LOCOND}-${UPCOND}corrlength${CORRLENGTH}volfrac${VOLFRAC}"
+JOBNAME="genDataNf${NF}contrast${LOCOND}-${UPCOND}corrlength=${LENGTHSCALEDIST}${CORRLENGTH1}_${CORRLENGTH2}volfrac${VOLFRAC}"
 JOBDIR="/home/constantin/matlab/data/$JOBNAME"
 
 #Create job directory and copy source code
@@ -38,7 +40,8 @@ printf "#PBS -N $JOBNAME
 #Switch to job directory
 cd $JOBDIR
 #Set parameters
-sed -i \"74s/.*/\        conductivityDistributionParams = {$VOLFRAC \[$CORRLENGTH $CORRLENGTH\] 1\};/\" ./ROM_SPDE.m
+sed -i \"74s/.*/\        conductivityLengthScaleDist = \'${LENGTHSCALEDIST}\';      %%delta for fixed length scale, lognormal for rand/\" ./ROM_SPDE.m
+sed -i \"75s/.*/\        conductivityDistributionParams = {$VOLFRAC \[$CORRLENGTH1 $CORRLENGTH2\] 1\};/\" ./ROM_SPDE.m
 sed -i \"4s/.*/ro.nElFX = $NF;/\" ./generateFinescaleData.m
 sed -i \"5s/.*/ro.nElFY = $NF;/\" ./generateFinescaleData.m
 sed -i \"6s/.*/ro.lowerConductivity = $LOCOND;/\" ./generateFinescaleData.m

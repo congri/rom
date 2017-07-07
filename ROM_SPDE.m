@@ -71,8 +71,12 @@ classdef ROM_SPDE
     
     properties(SetAccess = private)
         %% finescale data specifications
-        conductivityDistributionParams = {0.2 [.08 .08] 1};      %for correlated_binary: 
-                                                            %{volumeFraction, correlationLength, sigma_f2}
+        conductivityLengthScaleDist = 'lognormal';      %delta for fixed length scale, lognormal for rand
+        conductivityDistributionParams = {0.2 [.08 .08] 1};     %for correlated_binary: 
+                                                                %{volumeFraction, correlationLength, sigma_f2}
+                                                                %for log normal length scale, the
+                                                                %length scale parameters are log normal mu and
+                                                                %sigma
         %Coefficients giving boundary conditions, specify as string
         boundaryConditions = '[0 1000 0 0]';
         
@@ -244,8 +248,18 @@ classdef ROM_SPDE
                 addpath('./genConductivity')        %to find genBochnerSamples
                 nBochnerBasis = 1e3;    %Number of cosine basis functions
                 for i = 1:(obj.nSets(nSet))
-                    p{i} = genBochnerSamples(obj.conductivityDistributionParams{2}(1),...
-                        obj.conductivityDistributionParams{3}, nBochnerBasis);
+                    if strcmp(obj.conductivityLengthScaleDist, 'delta')
+                        %one fixed length scale for all samples
+                        l = obj.conductivityDistributionParams{2}(1);
+                    elseif strcmp(obj.conductivityLengthScaleDist, 'lognormal')
+                        %First and second parameters are mu and sigma of lognormal dist
+                        l = lognrnd(obj.conductivityDistributionParams{2}(1),...
+                            obj.conductivityDistributionParams{2}(2));
+                    else
+                        error('Unknown length scale distribution')
+                    end
+                    p{i} = genBochnerSamples(l, obj.conductivityDistributionParams{3},...
+                            nBochnerBasis);
                 end
                 nEl = obj.fineScaleDomain.nEl;
                 upCond = obj.upperConductivity;
@@ -321,18 +335,32 @@ classdef ROM_SPDE
         
         function obj = genFineScaleDataPath(obj)
             volFrac = obj.conductivityDistributionParams{1};
-            corrLength = obj.conductivityDistributionParams{2}(1);  %isotropic length scale distribution
             sigma_f2 = obj.conductivityDistributionParams{3};
             obj.fineScaleDataPath = strcat(obj.fineScaleDataPath,...
                 'systemSize=', num2str(obj.nElFX), 'x', num2str(obj.nElFY), '/');
             %Type of conductivity distribution
             if strcmp(obj.conductivityDistribution, 'correlated_binary')
-                obj.fineScaleDataPath = strcat(obj.fineScaleDataPath,...
-                    obj.conductivityDistribution, '/', 'IsoSEcov/', 'l=',...
-                    num2str(corrLength), '_sigmafSq=', num2str(sigma_f2),...
-                    '/volumeFraction=', num2str(volFrac), '/', 'locond=',...
-                    num2str(obj.lowerConductivity), '_upcond=', num2str(obj.upperConductivity),...
-                    '/', 'BCcoeffs=', obj.boundaryConditions, '/');
+                if strcmp(obj.conductivityLengthScaleDist, 'delta')
+                    corrLength = obj.conductivityDistributionParams{2}(1);
+                    obj.fineScaleDataPath = strcat(obj.fineScaleDataPath,...
+                        obj.conductivityDistribution, '/', 'IsoSEcov/', 'l=',...
+                        num2str(corrLength), '_sigmafSq=', num2str(sigma_f2),...
+                        '/volumeFraction=', num2str(volFrac), '/', 'locond=',...
+                        num2str(obj.lowerConductivity), '_upcond=', num2str(obj.upperConductivity),...
+                        '/', 'BCcoeffs=', obj.boundaryConditions, '/');
+                elseif strcmp(obj.conductivityLengthScaleDist, 'lognormal')
+                    corrLength1 = obj.conductivityDistributionParams{2}(1);
+                    corrLength2 = obj.conductivityDistributionParams{2}(1);
+                    obj.fineScaleDataPath = strcat(obj.fineScaleDataPath,...
+                        obj.conductivityDistribution, '/', 'IsoSEcov/', 'l=lognormal_mu=',...
+                        num2str(corrLength1), 'sigma=', num2str(corrLength2),...
+                        '_sigmafSq=', num2str(sigma_f2), '/volumeFraction=',...
+                        num2str(volFrac), '/', 'locond=', num2str(obj.lowerConductivity),...
+                        '_upcond=', num2str(obj.upperConductivity),...
+                        '/', 'BCcoeffs=', obj.boundaryConditions, '/');
+                else
+                    error('Unknown length scale distribution')
+                end
             elseif strcmp(cond_distribution, 'binary')
                 obj.fineScaleDataPath = strcat(obj.fineScaleDataPath,...
                     obj.conductivityDistribution, '/volumeFraction=',...
