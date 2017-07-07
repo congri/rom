@@ -72,7 +72,7 @@ classdef ROM_SPDE
     properties(SetAccess = private)
         %% finescale data specifications
         conductivityLengthScaleDist = 'lognormal';      %delta for fixed length scale, lognormal for rand
-        conductivityDistributionParams = {0.2 [.08 .08] 1};     %for correlated_binary: 
+        conductivityDistributionParams = {-1 [-3 .5] 1};     %for correlated_binary: 
                                                                 %{volumeFraction, correlationLength, sigma_f2}
                                                                 %for log normal length scale, the
                                                                 %length scale parameters are log normal mu and
@@ -350,7 +350,7 @@ classdef ROM_SPDE
                         '/', 'BCcoeffs=', obj.boundaryConditions, '/');
                 elseif strcmp(obj.conductivityLengthScaleDist, 'lognormal')
                     corrLength1 = obj.conductivityDistributionParams{2}(1);
-                    corrLength2 = obj.conductivityDistributionParams{2}(1);
+                    corrLength2 = obj.conductivityDistributionParams{2}(2);
                     obj.fineScaleDataPath = strcat(obj.fineScaleDataPath,...
                         obj.conductivityDistribution, '/', 'IsoSEcov/', 'l=lognormal_mu=',...
                         num2str(corrLength1), 'sigma=', num2str(corrLength2),...
