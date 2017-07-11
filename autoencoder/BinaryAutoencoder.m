@@ -2,7 +2,7 @@ classdef BinaryAutoencoder
     %See Tipping: Probabilistic visualization of high dimensional binary data
     properties
         trainingData              %Binary (image) data, D x N
-        latentDim = 2;
+        latentDim = 4;
         
         %parameters
         w
@@ -24,46 +24,52 @@ classdef BinaryAutoencoder
             
             %Initialize
             C = repmat(I, 1, 1, N);   %Variational Gaussian mean and cov
+            zzT = C;
             mu = zeros(this.latentDim, N);  %Column vector
             xi = zeros(size(this.trainingData));   %Variational params, see Tipping
+            xiSq = xi.^2;
             lambda = this.lambda(xi);
             zzT_hat = zeros(this.latentDim + 1, this.latentDim + 1, N);
             z_hat = zeros(this.latentDim + 1, N);
-            w = rand(this.latentDim, dim) - .5;
+            w = ones(this.latentDim, dim)/this.latentDim;
             w_hat = zeros(this.latentDim + 1, dim);
-            b = rand(1, dim) - .5;
+            b = zeros(1, dim);
+            twobw = zeros(dim, this.latentDim);
             
             iter = 0;
             converged = false;
             while(~converged)
                 
+                bSq = b.^2;
+                for i = 1:dim
+                    twobw(i, :) = 2*b(i)*w(:, i)';
+                end
                 for n = 1:N
                     mat = 0;
                     vec = 0;
+                    dataMinus05 = this.trainingData - .5;
+                    lambdaTimes2 = 2*lambda;
                     for i = 1:dim
                         mat = mat + lambda(i, n)*(w(:, i)*w(:, i)');
-                        vec = vec + (this.trainingData(i, n) - .5 + 2*lambda(i, n)*b(i))*w(:, i);
+                        vec = vec + (dataMinus05(i, n) + lambdaTimes2(i, n)*b(i))*w(:, i);
                     end
                     C(:, :, n) = inv(I - 2*mat);
                     mu(:, n) = C(:, :, n)*vec;
                     
-                    for i = 1:dim
-                        xi(i, n) = sqrt(w(:, i)'*(C(:, :, n) + mu(:, n)*mu(:, n)')*w(:, i) +...
-                            2*b(i)*w(:, i)'*mu(:, n) + b(i)^2);
-                    end
-                end
-                lambda = this.lambda(xi);
-                
-                
-                zzT = C;    %= <z*z^T>_tilde{p}
-                for n = 1:N
-                    zzT(:, :, n) = zzT(:, :, n) + mu(:, n)*mu(:, n)';
+                    zzT(:, :, n) = C(:, :, n) + mu(:, n)*mu(:, n)';
                     zzT_hat(1:this.latentDim, 1:this.latentDim, n) = zzT(:, :, n);
                     zzT_hat(end, 1:this.latentDim, n) = mu(:, n)';
                     zzT_hat(1:this.latentDim, end, n) = mu(:, n);
                     zzT_hat(end, end, n) = 1;
                     z_hat(:, n) = [mu(:, n); 1];
+                    A = w'*zzT(:, :, n);
+                    
+                    for i = 1:dim
+                        xiSq(i, n) = A(i, :)*w(:, i) + twobw(i, :)*mu(:, n) + bSq(i);
+                    end
                 end
+                xi = sqrt(xiSq);
+                lambda = this.lambda(xi);
                
                 
                 for i = 1:dim
@@ -82,7 +88,7 @@ classdef BinaryAutoencoder
                 plot(iter, w_hat1, 'bx')
                 drawnow
                                 
-                if iter > 20
+                if iter > 60
                     converged = true;
                 end
                 iter = iter + 1
