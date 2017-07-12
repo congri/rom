@@ -1,8 +1,8 @@
-NF=256
+NF=64
 LENGTHSCALEDIST=lognormal
 CORRLENGTH1=-3
 CORRLENGTH2=0.5
-NSET1=1024
+NSET1=16384
 NSET2=256
 VOLFRAC=-1	#Theoretical volume fraction; negative value leads to uniform random volume fraction
 LOCOND=1
@@ -42,10 +42,11 @@ cd $JOBDIR
 #Set parameters
 sed -i \"74s/.*/\        conductivityLengthScaleDist = \'${LENGTHSCALEDIST}\';      %%delta for fixed length scale, lognormal for rand/\" ./ROM_SPDE.m
 sed -i \"75s/.*/\        conductivityDistributionParams = {$VOLFRAC \[$CORRLENGTH1 $CORRLENGTH2\] 1\};/\" ./ROM_SPDE.m
-sed -i \"4s/.*/ro.nElFX = $NF;/\" ./generateFinescaleData.m
-sed -i \"5s/.*/ro.nElFY = $NF;/\" ./generateFinescaleData.m
-sed -i \"6s/.*/ro.lowerConductivity = $LOCOND;/\" ./generateFinescaleData.m
-sed -i \"7s/.*/ro.upperConductivity = $UPCOND/\" ./generateFinescaleData.m
+sed -i \"7s/.*/        nElFX = $NF;/\" ./ROM_SPDE.m
+sed -i \"8s/.*/        nElFY = $NF;/\" ./ROM_SPDE.m
+sed -i \"27s/.*/        nSets = \[$NSET1 $NSET2\];/\" ./ROM_SPDE.m
+sed -i \"4s/.*/ro.lowerConductivity = $LOCOND;/\" ./generateFinescaleData.m
+sed -i \"5s/.*/ro.upperConductivity = $UPCOND/\" ./generateFinescaleData.m
 
 
 #Run Matlab
