@@ -25,6 +25,7 @@ classdef DesignMatrix
         
         neighborDictionary      %This array holds the index of theta,
                                 %the corresponding feature function number, coarse element and neighboring number
+        autoEncMu
         
     end
     
@@ -96,7 +97,7 @@ classdef DesignMatrix
             end
         end
         
-        function Phi = computeDesignMatrix(Phi, nElc, nElf, condTransOpts)
+        function Phi = computeDesignMatrix(Phi, nElc, nElf, condTransOpts, autoEncMu)
             %Actual computation of design matrix
             tic
             disp('Compute design matrices Phi...')
@@ -143,6 +144,13 @@ classdef DesignMatrix
                     for j = 1:nGlobalFeatureFunctions
                         %Take whole microstructure as input for feature function
                         PhiCell{s}(i, nFeatureFunctions + j) = phiGlobal{i, j}(conductivityMat);
+                    end
+                    if nargin > 3
+                        Phi.autoEncMu = autoEncMu;
+                        latentDim = size(autoEncMu, 1);
+                        for j = 1:latentDim
+                            PhiCell{s}(i, nFeatureFunctions + nGlobalFeatureFunctions + j) = autoEncMu(j, i, s);
+                        end
                     end
                 end
             end
@@ -517,7 +525,8 @@ classdef DesignMatrix
             %Can never be executed before rescaling/standardization of design Matrix!
             disp('Using separate feature coefficients theta_c for each macro-cell in a microstructure...')
             nElc = prod(nc);
-            nFeatureFunctionsTotal = size(Phi.featureFunctions, 2) + size(Phi.globalFeatureFunctions, 2);
+            nFeatureFunctionsTotal = size(Phi.featureFunctions, 2) +...
+                size(Phi.globalFeatureFunctions, 2) + size(Phi.autoEncMu, 1);
             PhiCell{1} = zeros(nElc, nElc*nFeatureFunctionsTotal);
             nTrain = length(Phi.dataSamples);
             PhiCell = repmat(PhiCell, nTrain, 1);

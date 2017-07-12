@@ -36,6 +36,7 @@ classdef ROM_SPDE
                                 %global: take whole microstructure as feature function input, not
                                 %only local window (only recommended for pooling)
         linFiltSeq = false;
+        useAutoEnc = true;      %Use autoencoder information? Do not forget to pre-train autoencoder!
         
         %% Model parameters
         theta_c;
@@ -1288,78 +1289,78 @@ classdef ROM_SPDE
             obj.globalFeatureFunctions = {};
             %constant bias
             for k = 1:obj.coarseScaleDomain.nEl
-                nFeatures = 0;
-                obj.featureFunctions{k, nFeatures + 1} = @(lambda) 1;
-                nFeatures = nFeatures + 1;
-                
-                obj.featureFunctions{k, nFeatures + 1} = @(lambda)...
-                    SCA(lambda, conductivities, obj.conductivityTransformation);
-                nFeatures = nFeatures + 1;
-                obj.featureFunctions{k, nFeatures + 1} = @(lambda)...
-                    maxwellGarnett(lambda, conductivities, obj.conductivityTransformation, 'lo');
-                nFeatures = nFeatures + 1;
-                obj.featureFunctions{k, nFeatures + 1} = @(lambda)...
-                    differentialEffectiveMedium(lambda, conductivities, obj.conductivityTransformation, 'lo');
-                nFeatures = nFeatures + 1;
-                
-                obj.featureFunctions{k, nFeatures + 1} = @(lambda)...
-                    linealPath(lambda, 3, 'x', 2, conductivities);
-                nFeatures = nFeatures + 1;
-                obj.featureFunctions{k, nFeatures + 1} = @(lambda)...
-                    linealPath(lambda, 3, 'y', 2, conductivities);
-                nFeatures = nFeatures + 1;
-                obj.featureFunctions{k, nFeatures + 1} = @(lambda)...
-                    linealPath(lambda, 3, 'x', 1, conductivities);
-                nFeatures = nFeatures + 1;
-                obj.featureFunctions{k, nFeatures + 1} = @(lambda)...
-                    linealPath(lambda, 3, 'y', 1, conductivities);
-                nFeatures = nFeatures + 1;
-                obj.featureFunctions{k, nFeatures + 1} = @(lambda)...
-                    linealPath(lambda, 6, 'x', 1, conductivities);
-                nFeatures = nFeatures + 1;
-                obj.featureFunctions{k, nFeatures + 1} = @(lambda)...
-                    linealPath(lambda, 6, 'y', 1, conductivities);
-                nFeatures = nFeatures + 1;
-
-                obj.featureFunctions{k, nFeatures + 1} = @(lambda)...
-                    numberOfObjects(lambda, conductivities, 'hi');
-                nFeatures = nFeatures + 1;
-                obj.featureFunctions{k, nFeatures + 1} = @(lambda)...
-                    nPixelCross(lambda, 'y', 1, conductivities, 'mean');
-				nFeatures = nFeatures + 1;
-                obj.featureFunctions{k, nFeatures + 1} = @(lambda)...
-                    nPixelCross(lambda, 'x', 1, conductivities, 'mean');
-				nFeatures = nFeatures + 1;
-                obj.featureFunctions{k, nFeatures + 1} = @(lambda)...
-                    maxExtent(lambda, conductivities, 'hi', 'y');
-                nFeatures = nFeatures + 1;
-                obj.featureFunctions{k, nFeatures + 1} = @(lambda)...
-                    maxExtent(lambda, conductivities, 'hi', 'x');
-                nFeatures = nFeatures + 1;
-                
-
-                obj.featureFunctions{k, nFeatures + 1} = @(lambda)...
-                    conductivityTransform(generalizedMean(lambda, -1), obj.conductivityTransformation);
-                nFeatures = nFeatures + 1;
-
-                obj.featureFunctions{k, nFeatures + 1} = @(lambda) log(meanImageProps(lambda,...
-                    conductivities, 'hi', 'ConvexArea', 'max') + log_cutoff);
-                nFeatures = nFeatures + 1;
-                
-%                 obj.featureFunctions{k, nFeatures + 1} = @(lambda) ...
-%                     connectedPathExist(lambda, 2, conductivities, 'x', 'invdist');
+%                 nFeatures = 0;
+%                 obj.featureFunctions{k, nFeatures + 1} = @(lambda) 1;
 %                 nFeatures = nFeatures + 1;
-%                 obj.featureFunctions{k, nFeatures + 1} = @(lambda) ...
-%                     connectedPathExist(lambda, 2, conductivities, 'y', 'invdist');
-%                 nFeatures = nFeatures + 1;
-                
+%                 
 %                 obj.featureFunctions{k, nFeatures + 1} = @(lambda)...
-%                     log(specificSurface(lambda, 2, conductivities, [obj.nElFX obj.nElFY]) + log_cutoff);
+%                     SCA(lambda, conductivities, obj.conductivityTransformation);
 %                 nFeatures = nFeatures + 1;
-
-                obj.featureFunctions{k, nFeatures + 1} = @(lambda)...
-                    gaussLinFilt(lambda);
-                nFeatures = nFeatures + 1;
+%                 obj.featureFunctions{k, nFeatures + 1} = @(lambda)...
+%                     maxwellGarnett(lambda, conductivities, obj.conductivityTransformation, 'lo');
+%                 nFeatures = nFeatures + 1;
+%                 obj.featureFunctions{k, nFeatures + 1} = @(lambda)...
+%                     differentialEffectiveMedium(lambda, conductivities, obj.conductivityTransformation, 'lo');
+%                 nFeatures = nFeatures + 1;
+%                 
+%                 obj.featureFunctions{k, nFeatures + 1} = @(lambda)...
+%                     linealPath(lambda, 3, 'x', 2, conductivities);
+%                 nFeatures = nFeatures + 1;
+%                 obj.featureFunctions{k, nFeatures + 1} = @(lambda)...
+%                     linealPath(lambda, 3, 'y', 2, conductivities);
+%                 nFeatures = nFeatures + 1;
+%                 obj.featureFunctions{k, nFeatures + 1} = @(lambda)...
+%                     linealPath(lambda, 3, 'x', 1, conductivities);
+%                 nFeatures = nFeatures + 1;
+%                 obj.featureFunctions{k, nFeatures + 1} = @(lambda)...
+%                     linealPath(lambda, 3, 'y', 1, conductivities);
+%                 nFeatures = nFeatures + 1;
+%                 obj.featureFunctions{k, nFeatures + 1} = @(lambda)...
+%                     linealPath(lambda, 6, 'x', 1, conductivities);
+%                 nFeatures = nFeatures + 1;
+%                 obj.featureFunctions{k, nFeatures + 1} = @(lambda)...
+%                     linealPath(lambda, 6, 'y', 1, conductivities);
+%                 nFeatures = nFeatures + 1;
+% 
+%                 obj.featureFunctions{k, nFeatures + 1} = @(lambda)...
+%                     numberOfObjects(lambda, conductivities, 'hi');
+%                 nFeatures = nFeatures + 1;
+%                 obj.featureFunctions{k, nFeatures + 1} = @(lambda)...
+%                     nPixelCross(lambda, 'y', 1, conductivities, 'mean');
+% 				nFeatures = nFeatures + 1;
+%                 obj.featureFunctions{k, nFeatures + 1} = @(lambda)...
+%                     nPixelCross(lambda, 'x', 1, conductivities, 'mean');
+% 				nFeatures = nFeatures + 1;
+%                 obj.featureFunctions{k, nFeatures + 1} = @(lambda)...
+%                     maxExtent(lambda, conductivities, 'hi', 'y');
+%                 nFeatures = nFeatures + 1;
+%                 obj.featureFunctions{k, nFeatures + 1} = @(lambda)...
+%                     maxExtent(lambda, conductivities, 'hi', 'x');
+%                 nFeatures = nFeatures + 1;
+%                 
+% 
+%                 obj.featureFunctions{k, nFeatures + 1} = @(lambda)...
+%                     conductivityTransform(generalizedMean(lambda, -1), obj.conductivityTransformation);
+%                 nFeatures = nFeatures + 1;
+% 
+%                 obj.featureFunctions{k, nFeatures + 1} = @(lambda) log(meanImageProps(lambda,...
+%                     conductivities, 'hi', 'ConvexArea', 'max') + log_cutoff);
+%                 nFeatures = nFeatures + 1;
+%                 
+% %                 obj.featureFunctions{k, nFeatures + 1} = @(lambda) ...
+% %                     connectedPathExist(lambda, 2, conductivities, 'x', 'invdist');
+% %                 nFeatures = nFeatures + 1;
+% %                 obj.featureFunctions{k, nFeatures + 1} = @(lambda) ...
+% %                     connectedPathExist(lambda, 2, conductivities, 'y', 'invdist');
+% %                 nFeatures = nFeatures + 1;
+%                 
+% %                 obj.featureFunctions{k, nFeatures + 1} = @(lambda)...
+% %                     log(specificSurface(lambda, 2, conductivities, [obj.nElFX obj.nElFY]) + log_cutoff);
+% %                 nFeatures = nFeatures + 1;
+% 
+%                 obj.featureFunctions{k, nFeatures + 1} = @(lambda)...
+%                     gaussLinFilt(lambda);
+%                 nFeatures = nFeatures + 1;
             end
             
         end

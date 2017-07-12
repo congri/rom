@@ -6,8 +6,8 @@ addpath('./autoencoder')
 
 %data specs
 ba = BinaryAutoencoder;
-ba.latentDim = 20;
-ba.maxIterations = 10;
+ba.latentDim = 5;
+ba.maxIterations = 15;
 nElFX = 256;
 nElFY = 256;
 conductivityDistribution = 'correlated_binary';

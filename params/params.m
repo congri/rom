@@ -17,6 +17,14 @@ maxEpochs = (basisFunctionUpdates + 1)*basisUpdateGap - 2 + initialEpochs;
 romObj.theta_cf.W = shapeInterp(romObj.coarseScaleDomain, romObj.fineScaleDomain);
 %shrink finescale domain object to save memory
 romObj.fineScaleDomain = romObj.fineScaleDomain.shrink();
+if romObj.useAutoEnc
+    load('./autoencoder/trainedAutoencoder.mat');
+    latentDim = ba.latentDim;
+    autoEncMu = reshape(ba.mu, latentDim, romObj.coarseScaleDomain.nEl,...
+        size(ba.trainingData, 2)/romObj.coarseScaleDomain.nEl);
+    clear ba;
+    autoEncMu = autoEncMu(:, :, romObj.nStart:(romObj.nStart + romObj.nTrain - 1));
+end
 if loadOldConf
     disp('Loading old configuration...')
     romObj.theta_cf.S = dlmread('./data/S')';
@@ -30,7 +38,8 @@ if loadOldConf
 else
     romObj.theta_cf.S = 1e0*ones(romObj.fineScaleDomain.nNodes, 1);
     romObj.theta_cf.mu = zeros(romObj.fineScaleDomain.nNodes, 1);
-    romObj.theta_c.theta = 0*ones(size(romObj.featureFunctions, 2) + size(romObj.globalFeatureFunctions, 2), 1);
+    romObj.theta_c.theta = 0*ones(size(romObj.featureFunctions, 2) +...
+        size(romObj.globalFeatureFunctions, 2) + latentDim, 1);
     romObj.theta_c.Sigma = 1e0*speye(romObj.coarseScaleDomain.nEl);
     s = diag(romObj.theta_c.Sigma);
     romObj.theta_c.SigmaInv = sparse(diag(1./s));

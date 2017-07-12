@@ -16,6 +16,7 @@ addpath('./genConductivity')
 addpath('./variationalInference')
 addpath('./featureFunctions')
 addpath('./efficientVI')
+addpath('./autoencoder')
 
 rng('shuffle')  %system time seed
 
@@ -39,8 +40,13 @@ XSqMean = ones(romObj.coarseScaleDomain.nEl, romObj.nTrain);
 %% Compute design matrices
 Phi = DesignMatrix(romObj.fineScaleDomain, romObj.coarseScaleDomain, romObj.featureFunctions,...
     romObj.globalFeatureFunctions, romObj.trainingDataMatfile, romObj.nStart:(romObj.nStart + romObj.nTrain - 1));
-Phi = Phi.computeDesignMatrix(romObj.coarseScaleDomain.nEl, romObj.fineScaleDomain.nEl,...
-    romObj.conductivityTransformation);
+if romObj.useAutoEnc
+    Phi = Phi.computeDesignMatrix(romObj.coarseScaleDomain.nEl, romObj.fineScaleDomain.nEl,...
+        romObj.conductivityTransformation, autoEncMu);
+else
+    Phi = Phi.computeDesignMatrix(romObj.coarseScaleDomain.nEl, romObj.fineScaleDomain.nEl,...
+        romObj.conductivityTransformation);
+end
 %Normalize design matrices
 if romObj.standardizeFeatures
     Phi = Phi.standardizeDesignMatrix;

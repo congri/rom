@@ -118,7 +118,6 @@ classdef BinaryAutoencoder
             this.b = b;
             this.xi = xi;
             this.mu = cell2mat(mu);
-            size(this.mu)
             this.C = C;
             [~, ~, err] = this.decode;
             err
