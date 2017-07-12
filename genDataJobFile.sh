@@ -1,8 +1,8 @@
-NF=64
-LENGTHSCALEDIST=lognormal
+NF=256
+LENGTHSCALEDIST=lognormal	#lognormal or delta
 CORRLENGTH1=-3
 CORRLENGTH2=0.5
-NSET1=16384
+NSET1=1024
 NSET2=256
 VOLFRAC=-1	#Theoretical volume fraction; negative value leads to uniform random volume fraction
 LOCOND=1

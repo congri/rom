@@ -23,16 +23,18 @@ classdef DesignMatrix
         transformedConductivity %transformed conductivity matrices
         sumPhiTPhi
         
-        neighborDictionary      %This array holds the index of theta, the corresponding feature function number, coarse element and neighboring number
+        neighborDictionary      %This array holds the index of theta,
+                                %the corresponding feature function number, coarse element and neighboring number
         
     end
     
     methods
         
         %constructor
-        function Phi = DesignMatrix(domainf, domainc, featureFunctions, globalFeatureFunctions, dataFile, dataSamples)
+        function Phi = DesignMatrix(domainf, domainc, featureFunctions,...
+                globalFeatureFunctions, dataFile, dataSamples)
             %Set up mapping from fine to coarse element
-            Phi = getCoarseElement(Phi, domainc, domainf);
+            Phi = Phi.getCoarseElement(domainc, domainf);
             Phi.featureFunctions = featureFunctions;
             Phi.globalFeatureFunctions = globalFeatureFunctions;
             Phi.dataFile = dataFile;
@@ -65,6 +67,35 @@ classdef DesignMatrix
             end
         end
         
+        function [lambdak, xk] = get_coarseElementConductivities(Phi, nElc, nElf, condTransOpts)
+            %load finescale conductivity field
+            conductivity = Phi.dataFile.cond(:, Phi.dataSamples);
+            nTrain = length(Phi.dataSamples);
+            
+            %Open parallel pool
+%             addpath('./computation')
+%             parPoolInit(nTrain);
+            EMatHold = Phi.EMat;
+            lambdak = cell(nTrain, nElc);
+            xk = cell(nTrain, nElc);
+            
+            for s = 1:nTrain
+                %inputs belonging to same coarse element are in the same column of xk. They are ordered in
+                %x-direction.
+                %Get conductivity fields in coarse cell windows
+                conductivityMat = reshape(conductivity(:, s), sqrt(nElf), sqrt(nElf));
+                for i = 1:nElc
+                    indexMat = (EMatHold == i);
+                    lambdakTemp = conductivityMat.*indexMat;
+                    %Cut elements from matrix that do not belong to coarse cell
+                    lambdakTemp(~any(lambdakTemp, 2), :) = [];
+                    lambdakTemp(:, ~any(lambdakTemp, 1)) = [];
+                    lambdak{s, i} = lambdakTemp;
+                    xk{s, i} = conductivityTransform(lambdak{s, i}, condTransOpts);
+                end
+            end
+        end
+        
         function Phi = computeDesignMatrix(Phi, nElc, nElf, condTransOpts)
             %Actual computation of design matrix
             tic
@@ -82,37 +113,31 @@ classdef DesignMatrix
 %             coarseElement = Phi.E;
             
             %Open parallel pool
-            addpath('./computation')
-            parPoolInit(nTrain);
+%             addpath('./computation')
+%             parPoolInit(nTrain);
             PhiCell{1} = zeros(nElc, nFeatureFunctions + nGlobalFeatureFunctions);
             PhiCell = repmat(PhiCell, nTrain, 1);
             EMatHold = Phi.EMat;
-            lambdakHold = cell(nTrain, nElc);
-            xkHold = cell(nTrain, nElc);
-            transformedConductivityHold = cell(nTrain, 1);
+            [lambdak, xk] = Phi.get_coarseElementConductivities(nElc, nElf, condTransOpts);
+            Phi.lambdak = lambdak;
+            Phi.xk = xk;
+            
+%             transformedConductivityHold = cell(nTrain, 1);
+
 %             parfor s = 1:nTrain
             for s = 1:nTrain    %for very cheap features, serial evaluation might be more efficient
                 %inputs belonging to same coarse element are in the same column of xk. They are ordered in
                 %x-direction.
                 %Get conductivity fields in coarse cell windows
                 conductivityMat = reshape(conductivity{s}, sqrt(nElf), sqrt(nElf));
-                for i = 1:nElc
-                    indexMat = (EMatHold == i);
-                    lambdakTemp = conductivityMat.*indexMat;
-                    %Cut elements from matrix that do not belong to coarse cell
-                    lambdakTemp(~any(lambdakTemp, 2), :) = [];
-                    lambdakTemp(:, ~any(lambdakTemp, 1)) = [];
-                    lambdakHold{s, i} = lambdakTemp;
-                    xkHold{s, i} = conductivityTransform(lambdakHold{s, i}, condTransOpts);
-                end
-                transformedConductivityHold{s} = conductivityTransform(conductivityMat, condTransOpts);
+%                 transformedConductivityHold{s} = conductivityTransform(conductivityMat, condTransOpts);
 
                 %construct design matrix Phi
                 for i = 1:nElc
                     %local features
                     for j = 1:nFeatureFunctions
                         %only take pixels of corresponding macro-cell as input for features
-                        PhiCell{s}(i, j) = phi{i, j}(lambdakHold{s, i});
+                        PhiCell{s}(i, j) = phi{i, j}(lambdak{s, i});
                     end
                     %global features
                     for j = 1:nGlobalFeatureFunctions
@@ -122,9 +147,7 @@ classdef DesignMatrix
                 end
             end
             
-            Phi.lambdak = lambdakHold;
-            Phi.xk = xkHold;
-            Phi.transformedConductivity = transformedConductivityHold;
+%             Phi.transformedConductivity = transformedConductivityHold;
             Phi.designMatrices = PhiCell;
             %Check for real finite inputs
             for i = 1:nTrain

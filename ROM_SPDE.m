@@ -31,7 +31,7 @@ classdef ROM_SPDE
                 
         %% Model training parameters
         nStart = 1;             %first training data sample in file
-        nTrain = 16;            %number of samples used for training
+        nTrain = 128;            %number of samples used for training
         mode = 'useLocal';      %useNeighbor, useLocalNeighbor, useDiagNeighbor, useLocalDiagNeighbor, useLocal, global
                                 %global: take whole microstructure as feature function input, not
                                 %only local window (only recommended for pooling)
@@ -82,8 +82,8 @@ classdef ROM_SPDE
         
         %% Coarse model specifications
         coarseScaleDomain;
-        coarseGridVectorX = [1/2 1/2];
-        coarseGridVectorY = [1/2 1/2];
+        coarseGridVectorX = [1/4 1/4 1/4 1/4];
+        coarseGridVectorY = [1/4 1/4 1/4 1/4];
     end
     
     
