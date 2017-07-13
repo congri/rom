@@ -65,32 +65,34 @@ classdef BinaryAutoencoder
                     twobw(i, :) = 2*b(i)*w(:, i)';
                 end
                 
-                ticBytes(gcp)
+                %It is more efficient to repeat the variational approximation a few times,
+                %also as this can be run in parallel
                 parfor n = 1:N
-                    mat = 0;
-                    vec = 0;
-                    for i = 1:dim
-                        mat = mat + lambdaCell{n}(i)*(w(:, i)*w(:, i)');
-                        vec = vec + (dataMinus05{n}(i) + lambdaCellTimes2{n}(i)*b(i))*w(:, i);
+                    for rep = 1:4
+                        mat = 0;
+                        vec = 0;
+                        for i = 1:dim
+                            mat = mat + lambdaCell{n}(i)*(w(:, i)*w(:, i)');
+                            vec = vec + (dataMinus05{n}(i) + lambdaCellTimes2{n}(i)*b(i))*w(:, i);
+                        end
+                        C{n} = inv(I - 2*mat);
+                        mu{n} = C{n}*vec;
+                        
+                        zzT{n} = C{n} + mu{n}*mu{n}';
+                        zzT_hat{n}(1:ldim, 1:ldim) = zzT{n};
+                        zzT_hat{n}(end, 1:ldim) = mu{n}';
+                        zzT_hat{n}(1:ldim, end) = mu{n};
+                        z_hat{n} = [mu{n}; 1];
+                        %                     A = w'*zzT{n};
+                        
+                        for i = 1:dim
+                            %                         xiCell{n}(i) = sqrt(A(i, :)*w(:, i) + twobw(i, :)*mu{n} + bSq(i));
+                            xiCell{n}(i) = 2*dataMinus05{n}(i)*(w(:, i)'*mu{n} + b(i));
+                        end
+                        lambdaCell{n} = lambda(xiCell{n});
+                        lambdaCellTimes2{n} = 2*lambdaCell{n};  %for efficiency
                     end
-                    C{n} = inv(I - 2*mat);
-                    mu{n} = C{n}*vec;
-                    
-                    zzT{n} = C{n} + mu{n}*mu{n}';
-                    zzT_hat{n}(1:ldim, 1:ldim) = zzT{n};
-                    zzT_hat{n}(end, 1:ldim) = mu{n}';
-                    zzT_hat{n}(1:ldim, end) = mu{n};
-                    z_hat{n} = [mu{n}; 1];
-%                     A = w'*zzT{n};
-                    
-                    for i = 1:dim
-%                         xiCell{n}(i) = sqrt(A(i, :)*w(:, i) + twobw(i, :)*mu{n} + bSq(i));
-                        xiCell{n}(i) = 2*dataMinus05{n}(i)*(w(:, i)'*mu{n} + b(i));
-                    end
-                    lambdaCell{n} = lambda(xiCell{n});
-                    lambdaCellTimes2{n} = 2*lambdaCell{n};  %for efficiency
                 end
-                tocBytes(gcp)
                 
                 for i = 1:dim
                     mat = 0;

@@ -17,14 +17,6 @@ maxEpochs = (basisFunctionUpdates + 1)*basisUpdateGap - 2 + initialEpochs;
 romObj.theta_cf.W = shapeInterp(romObj.coarseScaleDomain, romObj.fineScaleDomain);
 %shrink finescale domain object to save memory
 romObj.fineScaleDomain = romObj.fineScaleDomain.shrink();
-if romObj.useAutoEnc
-    load('./autoencoder/trainedAutoencoder.mat');
-    latentDim = ba.latentDim;
-    autoEncMu = reshape(ba.mu, latentDim, romObj.coarseScaleDomain.nEl,...
-        size(ba.trainingData, 2)/romObj.coarseScaleDomain.nEl);
-    clear ba;
-    autoEncMu = autoEncMu(:, :, romObj.nStart:(romObj.nStart + romObj.nTrain - 1));
-end
 if loadOldConf
     disp('Loading old configuration...')
     romObj.theta_cf.S = dlmread('./data/S')';

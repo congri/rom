@@ -617,6 +617,7 @@ classdef ROM_SPDE
             Phi = DesignMatrix(obj.fineScaleDomain, obj.coarseScaleDomain, obj.featureFunctions,...
                 obj.globalFeatureFunctions, obj.testDataMatfile, obj.testSamples);
             addpath('./aux')    %for conductivityBackTransform
+            Phi.useAutoEnc = obj.useAutoEnc;
             Phi = Phi.computeDesignMatrix(obj.coarseScaleDomain.nEl, obj.fineScaleDomain.nEl,...
                 obj.conductivityTransformation);
             %Normalize design matrices

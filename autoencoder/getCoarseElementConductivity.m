@@ -22,7 +22,11 @@ if pltFineToCoarse
     pause
 end
 
-nTrain = size(conductivity, 2);
+if iscell(conductivity)
+    nTrain = numel(conductivity);
+else
+    nTrain = size(conductivity, 2);
+end
 
 lambdak = cell(nTrain, domainc.nEl);
 
@@ -30,7 +34,11 @@ for s = 1:nTrain
     %inputs belonging to same coarse element are in the same column of xk. They are ordered in
     %x-direction.
     %Get conductivity fields in coarse cell windows
-    conductivityMat = reshape(conductivity(:, s), sqrt(domainf.nEl), sqrt(domainf.nEl));
+    if iscell(conductivity)
+        conductivityMat = reshape(conductivity{s}, sqrt(domainf.nEl), sqrt(domainf.nEl));
+    else
+        conductivityMat = reshape(conductivity(:, s), sqrt(domainf.nEl), sqrt(domainf.nEl));
+    end
     for i = 1:domainc.nEl
         indexMat = (E == i);
         lambdakTemp = conductivityMat.*indexMat;

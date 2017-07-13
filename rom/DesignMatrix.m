@@ -25,7 +25,7 @@ classdef DesignMatrix
         
         neighborDictionary      %This array holds the index of theta,
                                 %the corresponding feature function number, coarse element and neighboring number
-        autoEncMu
+        useAutoEnc
         
     end
     
@@ -97,7 +97,7 @@ classdef DesignMatrix
             end
         end
         
-        function Phi = computeDesignMatrix(Phi, nElc, nElf, condTransOpts, autoEncMu)
+        function Phi = computeDesignMatrix(Phi, nElc, nElf, condTransOpts)
             %Actual computation of design matrix
             tic
             disp('Compute design matrices Phi...')
@@ -145,9 +145,25 @@ classdef DesignMatrix
                         %Take whole microstructure as input for feature function
                         PhiCell{s}(i, nFeatureFunctions + j) = phiGlobal{i, j}(conductivityMat);
                     end
-                    if nargin > 3
-                        Phi.autoEncMu = autoEncMu;
-                        latentDim = size(autoEncMu, 1);
+                    if Phi.useAutoEnc
+                        %should work for training as well as testing
+                        %Only for square grids!!!
+                        lambdakMat = zeros(numel(lambdak{1}), numel(lambdak));
+                        i = 1;
+                        for n = 1:size(lambdak, 1)
+                            for k = 1:size(lambdak, 2)
+                                lambdakMat(:, i) = lambdak{n, k}(:);
+                                i = i + 1;
+                            end
+                        end
+                        %This is wrong for purely high conducting microstructures!!!
+                        loCond = min(min(lambdakMat));
+                        lambdakMatBin = logical(lambdakMat - loCond);
+                        %Encoded version of test samples
+                        load('./autoencoder/trainedAutoencoder.mat');
+                        latentMu = ba.encode(lambdakMatBin);
+                        latentDim = ba.latentDim;
+                        clear ba;
                         for j = 1:latentDim
                             PhiCell{s}(i, nFeatureFunctions + nGlobalFeatureFunctions + j) = autoEncMu(j, i, s);
                         end

@@ -7,7 +7,7 @@ addpath('./autoencoder')
 %data specs
 ba = BinaryAutoencoder;
 ba.latentDim = 5;
-ba.maxIterations = 15;
+ba.maxIterations = 8;
 nElFX = 256;
 nElFY = 256;
 conductivityDistribution = 'correlated_binary';
@@ -114,11 +114,11 @@ save('./autoencoder/trainedAutoencoder.mat', 'ba');
 
 test = true;
 if test
-    nSamplesTest = 256;
+    nSamplesTest = 1024;
     nStartTest = 1;
-    nTest = 256;
+    nTest = 4;
     %Name of training data file
-    testDataFilename = strcat(folder, 'set2-samples=', num2str(nSamplesTest), '.mat');
+    testDataFilename = strcat(folder, 'set1-samples=', num2str(nSamplesTest), '.mat');
     matfile_cond = matfile(testDataFilename);
     condTest = matfile_cond.cond(:, nStartTest:(nStartTest + nTest - 1));
     [lambdakTest] = getCoarseElementConductivity(ro.coarseScaleDomain,...
@@ -135,6 +135,7 @@ if test
     lambdakMatTestBin = logical(lambdakMatTest - loCond);
     %Encoded version of test samples
     latentMuTest = ba.encode(lambdakMatTestBin);
+    %Reconstruct from latent mu and compute reconstruction error
     decodedDataTest = ba.decode(latentMuTest);
     recErr = ba.reconstructionErr(decodedDataTest, lambdakMatTestBin)
 end
