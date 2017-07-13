@@ -81,10 +81,11 @@ classdef BinaryAutoencoder
                     zzT_hat{n}(end, 1:ldim) = mu{n}';
                     zzT_hat{n}(1:ldim, end) = mu{n};
                     z_hat{n} = [mu{n}; 1];
-                    A = w'*zzT{n};
+%                     A = w'*zzT{n};
                     
                     for i = 1:dim
-                        xiCell{n}(i) = sqrt(A(i, :)*w(:, i) + twobw(i, :)*mu{n} + bSq(i));
+%                         xiCell{n}(i) = sqrt(A(i, :)*w(:, i) + twobw(i, :)*mu{n} + bSq(i));
+                        xiCell{n}(i) = 2*dataMinus05{n}(i)*(w(:, i)'*mu{n} + b(i));
                     end
                     lambdaCell{n} = lambda(xiCell{n});
                     lambdaCellTimes2{n} = 2*lambdaCell{n};  %for efficiency
@@ -116,7 +117,7 @@ classdef BinaryAutoencoder
             end
             this.w = w;
             this.b = b;
-            this.xi = xi;
+            this.xi = cell2mat(xiCell);
             this.mu = cell2mat(mu);
             this.C = C;
             [~, ~, err] = this.decode;
@@ -124,22 +125,91 @@ classdef BinaryAutoencoder
             
         end
         
-%         function [l] = lambda(this, xi)
-%             %l = (.5 - sigmoid(xi))./(2*xi + eps);
-%             l = (.5 - 1./(1 + exp(-xi)))./(2*xi);
-%             l(xi == 0) = -.125;
-%         end
         
-        function [decodedData, contDecodedData, err] = decode(this)
+        
+        function [decodedData, contDecodedData] = decode(this, mu)
             
-            decodedData = heaviside(this.w'*this.mu + this.b');
+            if nargin < 2
+                mu = this.mu;
+                disp('Decode compressed training data...')
+            end
+            decodedData = heaviside(this.w'*mu + this.b');
             
             %Probability for x_i = 1
-            contDecodedData = sigmoid(this.w'*this.mu + this.b');
-            
-            err = sum(sum(abs(this.trainingData - decodedData)))/numel(this.trainingData);
-            
+            contDecodedData = sigmoid(this.w'*mu + this.b');
         end
+        
+        
+        
+        function [mu, C] = encode(this, x)
+            
+            Nenc = size(x, 2);
+            dim = size(x, 1);
+            
+            %Initialization
+            ldim = this.latentDim;
+            I = eye(ldim);
+            C{1} = I;
+            C = repmat(C, 1, Nenc);   %Variational Gaussian mean and cov
+            mu{1} = zeros(ldim);  %Column vector
+            mu = repmat(mu, 1, Nenc);
+            xi = zeros(size(x));   %Variational params, see Tipping
+            xiCell = mat2cell(xi, dim, ones(1, Nenc));
+            lbda = lambda(xi);
+            lambdaCell = mat2cell(lbda, dim, ones(1, Nenc));
+            for n = 1:Nenc
+                lambdaCellTimes2{n} = 2*lambdaCell{n};
+            end
+            twobw = zeros(dim, ldim);
+            dataMinus05 = x - .5;
+            dataMinus05 = mat2cell(dataMinus05, dim, ones(1, Nenc));
+            b = this.b;
+            w = this.w;
+            
+            bSq = b.^2;
+            for i = 1:dim
+                twobw(i, :) = 2*b(i)*w(:, i)';
+            end
+            
+            addpath('./computation');
+            ppool = parPoolInit(Nenc);
+            converged = false;
+            iter = 1;
+            maxIter = 25;
+            while(~converged)
+                parfor n = 1:Nenc
+                    mat = 0;
+                    vec = 0;
+                    for i = 1:dim
+                        mat = mat + lambdaCell{n}(i)*(w(:, i)*w(:, i)');
+                        vec = vec + (dataMinus05{n}(i) + lambdaCellTimes2{n}(i)*b(i))*w(:, i);
+                    end
+                    C{n} = inv(I - 2*mat);
+                    mu{n} = C{n}*vec;
+                    
+                    for i = 1:dim
+                        xiCell{n}(i) = 2*dataMinus05{n}(i)*(w(:, i)'*mu{n} + b(i));
+                    end
+                    lambdaCell{n} = lambda(xiCell{n});
+                    lambdaCellTimes2{n} = 2*lambdaCell{n};  %for efficiency
+                end
+                
+                if(iter > maxIter)
+                    mu = cell2mat(mu);
+                    converged = true;
+                else
+                    iter = iter + 1;
+                end
+            end
+        end
+        
+        
+        
+        function err = reconstructionErr(this, decodedData, trueData)
+            %Gives fraction of falsely reconstructed pixels
+            err = sum(sum(abs(trueData - decodedData)))/numel(trueData);
+        end
+        
         
     end
     

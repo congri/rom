@@ -20,7 +20,7 @@ upCond = 10;
 boundaryConditions = '[0 1000 0 0]';
 nSamples = 1024;
 nStart = 1;
-nTrain = 1024;  %for autoencoder
+nTrain = 256;  %for autoencoder
 
 folder = strcat('~/matlab/data/fineData/systemSize=');
 folder = strcat(folder, num2str(nElFX), 'x', num2str(nElFY), '/');
@@ -111,6 +111,33 @@ ba.trainingData = logical(lambdakMat - loCond);
 
 ba = ba.train;
 save('./autoencoder/trainedAutoencoder.mat', 'ba');
+
+test = true;
+if test
+    nSamplesTest = 256;
+    nStartTest = 1;
+    nTest = 256;
+    %Name of training data file
+    testDataFilename = strcat(folder, 'set2-samples=', num2str(nSamplesTest), '.mat');
+    matfile_cond = matfile(testDataFilename);
+    condTest = matfile_cond.cond(:, nStartTest:(nStartTest + nTest - 1));
+    [lambdakTest] = getCoarseElementConductivity(ro.coarseScaleDomain,...
+    fineScaleDomain, condTest);
+
+    lambdakMatTest = zeros(numel(lambdakTest{1}), numel(lambdakTest));
+    i = 1;
+    for n = 1:size(lambdakTest, 1)
+        for k = 1:size(lambdakTest, 2)
+            lambdakMatTest(:, i) = lambdakTest{n, k}(:);
+            i = i + 1;
+        end
+    end
+    lambdakMatTestBin = logical(lambdakMatTest - loCond);
+    %Encoded version of test samples
+    latentMuTest = ba.encode(lambdakMatTestBin);
+    decodedDataTest = ba.decode(latentMuTest);
+    recErr = ba.reconstructionErr(decodedDataTest, lambdakMatTestBin)
+end
 
 
 
