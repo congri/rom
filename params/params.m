@@ -30,6 +30,13 @@ if loadOldConf
 else
     romObj.theta_cf.S = 1e0*ones(romObj.fineScaleDomain.nNodes, 1);
     romObj.theta_cf.mu = zeros(romObj.fineScaleDomain.nNodes, 1);
+    if romObj.useAutoEnc
+        load('./autoencoder/trainedAutoencoder.mat');
+        latentDim = ba.latentDim;
+        clear ba;
+    else
+        latentDim = 0;
+    end
     romObj.theta_c.theta = 0*ones(size(romObj.featureFunctions, 2) +...
         size(romObj.globalFeatureFunctions, 2) + latentDim, 1);
     romObj.theta_c.Sigma = 1e0*speye(romObj.coarseScaleDomain.nEl);

@@ -110,15 +110,16 @@ end
 ba.trainingData = logical(lambdakMat - loCond);
 
 ba = ba.train;
+ba.trainingData = [];
 save('./autoencoder/trainedAutoencoder.mat', 'ba');
 
 test = true;
 if test
-    nSamplesTest = 1024;
+    nSamplesTest = 256;
     nStartTest = 1;
-    nTest = 4;
+    nTest = 64;
     %Name of training data file
-    testDataFilename = strcat(folder, 'set1-samples=', num2str(nSamplesTest), '.mat');
+    testDataFilename = strcat(folder, 'set2-samples=', num2str(nSamplesTest), '.mat');
     matfile_cond = matfile(testDataFilename);
     condTest = matfile_cond.cond(:, nStartTest:(nStartTest + nTest - 1));
     [lambdakTest] = getCoarseElementConductivity(ro.coarseScaleDomain,...

@@ -338,7 +338,7 @@ while true
         else
             curr_theta = [romObj.theta_c.theta(index) index]
         end
-        curr_theta_hyperparam = romObj.theta_c.priorHyperparam
+%         curr_theta_hyperparam = romObj.theta_c.priorHyperparam
         
         if(romObj.linFiltSeq && epoch > initialEpochs && mod((epoch - initialEpochs + 1), basisUpdateGap) == 0 &&...
                 epoch ~= epoch_old && basisUpdated < basisFunctionUpdates)

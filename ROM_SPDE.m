@@ -31,12 +31,12 @@ classdef ROM_SPDE
                 
         %% Model training parameters
         nStart = 1;             %first training data sample in file
-        nTrain = 128;            %number of samples used for training
+        nTrain = 16;            %number of samples used for training
         mode = 'useLocal';      %useNeighbor, useLocalNeighbor, useDiagNeighbor, useLocalDiagNeighbor, useLocal, global
                                 %global: take whole microstructure as feature function input, not
                                 %only local window (only recommended for pooling)
         linFiltSeq = false;
-        useAutoEnc = true;      %Use autoencoder information? Do not forget to pre-train autoencoder!
+        useAutoEnc = false;      %Use autoencoder information? Do not forget to pre-train autoencoder!
         
         %% Model parameters
         theta_c;
@@ -1290,26 +1290,26 @@ classdef ROM_SPDE
             obj.globalFeatureFunctions = {};
             %constant bias
             for k = 1:obj.coarseScaleDomain.nEl
-%                 nFeatures = 0;
-%                 obj.featureFunctions{k, nFeatures + 1} = @(lambda) 1;
-%                 nFeatures = nFeatures + 1;
-%                 
-%                 obj.featureFunctions{k, nFeatures + 1} = @(lambda)...
-%                     SCA(lambda, conductivities, obj.conductivityTransformation);
-%                 nFeatures = nFeatures + 1;
+                nFeatures = 0;
+                obj.featureFunctions{k, nFeatures + 1} = @(lambda) 1;
+                nFeatures = nFeatures + 1;
+                
+                obj.featureFunctions{k, nFeatures + 1} = @(lambda)...
+                    SCA(lambda, conductivities, obj.conductivityTransformation);
+                nFeatures = nFeatures + 1;
 %                 obj.featureFunctions{k, nFeatures + 1} = @(lambda)...
 %                     maxwellGarnett(lambda, conductivities, obj.conductivityTransformation, 'lo');
 %                 nFeatures = nFeatures + 1;
 %                 obj.featureFunctions{k, nFeatures + 1} = @(lambda)...
 %                     differentialEffectiveMedium(lambda, conductivities, obj.conductivityTransformation, 'lo');
 %                 nFeatures = nFeatures + 1;
-%                 
-%                 obj.featureFunctions{k, nFeatures + 1} = @(lambda)...
-%                     linealPath(lambda, 3, 'x', 2, conductivities);
-%                 nFeatures = nFeatures + 1;
-%                 obj.featureFunctions{k, nFeatures + 1} = @(lambda)...
-%                     linealPath(lambda, 3, 'y', 2, conductivities);
-%                 nFeatures = nFeatures + 1;
+                
+                obj.featureFunctions{k, nFeatures + 1} = @(lambda)...
+                    linealPath(lambda, 3, 'x', 2, conductivities);
+                nFeatures = nFeatures + 1;
+                obj.featureFunctions{k, nFeatures + 1} = @(lambda)...
+                    linealPath(lambda, 3, 'y', 2, conductivities);
+                nFeatures = nFeatures + 1;
 %                 obj.featureFunctions{k, nFeatures + 1} = @(lambda)...
 %                     linealPath(lambda, 3, 'x', 1, conductivities);
 %                 nFeatures = nFeatures + 1;
@@ -1347,21 +1347,21 @@ classdef ROM_SPDE
 %                 obj.featureFunctions{k, nFeatures + 1} = @(lambda) log(meanImageProps(lambda,...
 %                     conductivities, 'hi', 'ConvexArea', 'max') + log_cutoff);
 %                 nFeatures = nFeatures + 1;
-%                 
-% %                 obj.featureFunctions{k, nFeatures + 1} = @(lambda) ...
-% %                     connectedPathExist(lambda, 2, conductivities, 'x', 'invdist');
-% %                 nFeatures = nFeatures + 1;
-% %                 obj.featureFunctions{k, nFeatures + 1} = @(lambda) ...
-% %                     connectedPathExist(lambda, 2, conductivities, 'y', 'invdist');
-% %                 nFeatures = nFeatures + 1;
-%                 
-% %                 obj.featureFunctions{k, nFeatures + 1} = @(lambda)...
-% %                     log(specificSurface(lambda, 2, conductivities, [obj.nElFX obj.nElFY]) + log_cutoff);
-% %                 nFeatures = nFeatures + 1;
-% 
-%                 obj.featureFunctions{k, nFeatures + 1} = @(lambda)...
-%                     gaussLinFilt(lambda);
+                
+%                 obj.featureFunctions{k, nFeatures + 1} = @(lambda) ...
+%                     connectedPathExist(lambda, 2, conductivities, 'x', 'invdist');
 %                 nFeatures = nFeatures + 1;
+%                 obj.featureFunctions{k, nFeatures + 1} = @(lambda) ...
+%                     connectedPathExist(lambda, 2, conductivities, 'y', 'invdist');
+%                 nFeatures = nFeatures + 1;
+                
+%                 obj.featureFunctions{k, nFeatures + 1} = @(lambda)...
+%                     log(specificSurface(lambda, 2, conductivities, [obj.nElFX obj.nElFY]) + log_cutoff);
+%                 nFeatures = nFeatures + 1;
+
+                obj.featureFunctions{k, nFeatures + 1} = @(lambda)...
+                    gaussLinFilt(lambda);
+                nFeatures = nFeatures + 1;
             end
             
         end

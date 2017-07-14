@@ -122,8 +122,6 @@ classdef BinaryAutoencoder
             this.xi = cell2mat(xiCell);
             this.mu = cell2mat(mu);
             this.C = C;
-            [~, ~, err] = this.decode;
-            err
             
         end
         

@@ -26,6 +26,7 @@ classdef DesignMatrix
         neighborDictionary      %This array holds the index of theta,
                                 %the corresponding feature function number, coarse element and neighboring number
         useAutoEnc
+        latentDim = 0;          %If autoencoder is used
         
     end
     
@@ -124,6 +125,29 @@ classdef DesignMatrix
             Phi.xk = xk;
             
 %             transformedConductivityHold = cell(nTrain, 1);
+            
+            if Phi.useAutoEnc
+                %should work for training as well as testing
+                %Only for square grids!!!
+                lambdakMat = zeros(numel(lambdak{1}), numel(lambdak));
+                m = 1;
+                for n = 1:size(lambdak, 1)
+                    for k = 1:size(lambdak, 2)
+                        lambdakMat(:, m) = lambdak{n, k}(:);
+                        m = m + 1;
+                    end
+                end
+                %This is wrong for purely high conducting microstructures!!!
+                loCond = min(min(lambdakMat));
+                lambdakMatBin = logical(lambdakMat - loCond);
+                %Encoded version of test samples
+                load('./autoencoder/trainedAutoencoder.mat');
+                latentMu = ba.encode(lambdakMatBin);
+                Phi.latentDim = ba.latentDim;
+                clear ba;
+                latentMu = reshape(latentMu, Phi.latentDim, nElc, nTrain);
+            end
+
 
 %             parfor s = 1:nTrain
             for s = 1:nTrain    %for very cheap features, serial evaluation might be more efficient
@@ -146,26 +170,8 @@ classdef DesignMatrix
                         PhiCell{s}(i, nFeatureFunctions + j) = phiGlobal{i, j}(conductivityMat);
                     end
                     if Phi.useAutoEnc
-                        %should work for training as well as testing
-                        %Only for square grids!!!
-                        lambdakMat = zeros(numel(lambdak{1}), numel(lambdak));
-                        i = 1;
-                        for n = 1:size(lambdak, 1)
-                            for k = 1:size(lambdak, 2)
-                                lambdakMat(:, i) = lambdak{n, k}(:);
-                                i = i + 1;
-                            end
-                        end
-                        %This is wrong for purely high conducting microstructures!!!
-                        loCond = min(min(lambdakMat));
-                        lambdakMatBin = logical(lambdakMat - loCond);
-                        %Encoded version of test samples
-                        load('./autoencoder/trainedAutoencoder.mat');
-                        latentMu = ba.encode(lambdakMatBin);
-                        latentDim = ba.latentDim;
-                        clear ba;
-                        for j = 1:latentDim
-                            PhiCell{s}(i, nFeatureFunctions + nGlobalFeatureFunctions + j) = autoEncMu(j, i, s);
+                        for j = 1:Phi.latentDim
+                            PhiCell{s}(i, nFeatureFunctions + nGlobalFeatureFunctions + j) = latentMu(j, i, s);
                         end
                     end
                 end
@@ -542,7 +548,7 @@ classdef DesignMatrix
             disp('Using separate feature coefficients theta_c for each macro-cell in a microstructure...')
             nElc = prod(nc);
             nFeatureFunctionsTotal = size(Phi.featureFunctions, 2) +...
-                size(Phi.globalFeatureFunctions, 2) + size(Phi.autoEncMu, 1);
+                size(Phi.globalFeatureFunctions, 2) + Phi.latentDim;
             PhiCell{1} = zeros(nElc, nElc*nFeatureFunctionsTotal);
             nTrain = length(Phi.dataSamples);
             PhiCell = repmat(PhiCell, nTrain, 1);
