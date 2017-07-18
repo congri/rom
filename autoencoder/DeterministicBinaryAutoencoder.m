@@ -72,7 +72,7 @@ classdef DeterministicBinaryAutoencoder
             end
             clear trainingData;
             trainingDataSqMean = trainingDataSqMean/N;
-            trainingDataSqMeanInv = inv(trainingDataSqMean);
+            xT_Xinv = trainingDataMean'/trainingDataSqMean;
               
             dim = size(this.trainingData, 1);
             latentDim = this.latentDim;
@@ -84,45 +84,44 @@ classdef DeterministicBinaryAutoencoder
             this.bx = 4*rand(dim, 1) - 2;
             
             res = this.residual(this.bx, this.bz, this.Wx, this.Wz)
+            criterion = inf;
             converged = false;
             tol = 1e-3;
+            iter = 0;
+            tic
             while(~converged)
-                this.bx = trainingDataMean - this.Wx*this.bz - this.Wx*this.Wz*trainingDataMean;
-                this.bz = WxTWxInvWxT*(trainingDataMean - this.bx) - this.Wz*trainingDataMean;
+                this.bx = trainingDataMean - this.Wx*this.bz - this.Wx*WzxMean;
+                this.bz = WxTWxInvWxT*(trainingDataMean - this.bx) - WzxMean;
                 
                 %Wx
-                WxSystem = this.Wz*trainingDataSqMean*this.Wz' + this.bz*WzxMean' +...
-                    WzxMean*this.bz' + this.bz*this.bz';
-                Wxrhs = trainingDataSqMean*this.Wz' + trainingDataMean*this.bz' -...
+                XWzT = trainingDataSqMean*this.Wz';
+                bzWzxMeanT = this.bz*WzxMean';
+                WxSystem = this.Wz*XWzT + bzWzxMeanT +...
+                    bzWzxMeanT' + this.bz*this.bz';
+                Wxrhs = XWzT + trainingDataMean*this.bz' -...
                     this.bx*WzxMean' - this.bx*this.bz';
                 this.Wx = Wxrhs/WxSystem;
                 WxTWxInvWxT = (this.Wx'*this.Wx)\this.Wx';
                 
                 %Wz
                 this.Wz = WxTWxInvWxT -...
-                    (this.bz + WxTWxInvWxT*this.bx)*trainingDataMean'*trainingDataSqMeanInv;
+                    (this.bz + WxTWxInvWxT*this.bx)*xT_Xinv;
                 WzxMean = this.Wz*trainingDataMean;
                 
                 
-                res_old = res;
-                res = this.residual(this.bx, this.bz, this.Wx, this.Wz)
+                if(mod(iter, 1000) == 0)
+                    res_old = res;
+                    res = this.residual(this.bx, this.bz, this.Wx, this.Wz)
+                    criterion = abs(res - res_old)
+                    iter
+                    toc
+                    tic
+                end
                 
-                
-%                 fun = @(params) this.residual(params, dim, this.latentDim, this.bx, this.bz, this.Wx);
-%                 options = optimoptions('fminunc', 'Algorithm', 'quasi-newton',...
-%                     'SpecifyObjectiveGradient', true, 'MaxIterations', this.maxIterations, ...
-%                     'FunctionTolerance', 1e-10, 'StepTolerance', 1e-10,...
-%                     'Display', 'Iter-detailed', 'HessUpdate', 'dfp', 'UseParallel', true);
-%                 [paramsVec, res] = fminunc(fun, paramsVec, options);
-                
-                
-                %Roughly the fraction of miss-predicted pixels
-%                 selfErr = sqrt(res)/numel(this.trainingData)
-
-                criterion = abs(res - res_old)
                 if(criterion < tol)
                     converged = true;
                 end
+                iter = iter + 1;
             end
         end
         

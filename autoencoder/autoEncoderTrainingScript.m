@@ -110,7 +110,7 @@ for n = 1:size(lambdak, 1)
 end
 clear lambdak;
 
-deterministic = true;
+deterministic = false;
 if deterministic
     ba = DeterministicBinaryAutoencoder;
     ba.maxIterations = 4;
