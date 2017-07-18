@@ -6,7 +6,7 @@ addpath('./autoencoder')
 
 %data specs
 ba = BinaryAutoencoder;
-ba.latentDim = 5;
+ba.latentDim = 4;
 ba.maxIterations = 8;
 nElFX = 256;
 nElFY = 256;
@@ -20,7 +20,7 @@ upCond = 10;
 boundaryConditions = '[0 1000 0 0]';
 nSamples = 1024;
 nStart = 1;
-nTrain = 256;  %for autoencoder
+nTrain = 1024;  %for autoencoder
 
 folder = strcat('~/matlab/data/fineData/systemSize=');
 folder = strcat(folder, num2str(nElFX), 'x', num2str(nElFY), '/');
@@ -66,6 +66,7 @@ try
 catch
     temp = load(strcat(folder, 'romObj.mat'));
 end
+fineScaleDomain = fineScaleDomain.shrink;
 [lambdak] = getCoarseElementConductivity(ro.coarseScaleDomain,...
     fineScaleDomain, cond);
 
@@ -98,6 +99,7 @@ if plotCoarseWindows
         pause
     end
 end
+clear cond;
 lambdakMat = zeros(numel(lambdak{1}), numel(lambdak));
 i = 1;
 for n = 1:size(lambdak, 1)
@@ -106,8 +108,15 @@ for n = 1:size(lambdak, 1)
     i = i + 1;
     end
 end
+clear lambdak;
 
+deterministic = true;
+if deterministic
+    ba = DeterministicBinaryAutoencoder;
+    ba.maxIterations = 5000;
+end
 ba.trainingData = logical(lambdakMat - loCond);
+clear lambdakMat;
 
 ba = ba.train;
 ba.trainingData = [];
@@ -124,6 +133,7 @@ if test
     condTest = matfile_cond.cond(:, nStartTest:(nStartTest + nTest - 1));
     [lambdakTest] = getCoarseElementConductivity(ro.coarseScaleDomain,...
     fineScaleDomain, condTest);
+    clear condTest;
 
     lambdakMatTest = zeros(numel(lambdakTest{1}), numel(lambdakTest));
     i = 1;
@@ -133,12 +143,14 @@ if test
             i = i + 1;
         end
     end
-    lambdakMatTestBin = logical(lambdakMatTest - loCond);
+    clear lambdakTest;
+    originalData = logical(lambdakMatTest - loCond);
+    clear lambdakMatTest;
     %Encoded version of test samples
-    latentMuTest = ba.encode(lambdakMatTestBin);
+    encodedData = ba.encode(originalData);
     %Reconstruct from latent mu and compute reconstruction error
-    decodedDataTest = ba.decode(latentMuTest);
-    recErr = ba.reconstructionErr(decodedDataTest, lambdakMatTestBin)
+    decodedDataTest = ba.decode(encodedData);
+    recErr = ba.reconstructionErr(decodedDataTest, originalData)
 end
 
 
