@@ -113,7 +113,7 @@ clear lambdak;
 deterministic = true;
 if deterministic
     ba = DeterministicBinaryAutoencoder;
-    ba.maxIterations = 5000;
+    ba.maxIterations = 10;
 end
 ba.trainingData = logical(lambdakMat - loCond);
 clear lambdakMat;
