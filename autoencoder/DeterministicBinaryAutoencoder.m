@@ -17,11 +17,9 @@ classdef DeterministicBinaryAutoencoder
     end
     
     methods
-        function [r, d_r] = residual(this, paramsVec, dim, latentDim, bx)
+        function [r, d_r] = residual(this, paramsVec, dim, latentDim, bx, bz, Wx)
             
-            Wx = reshape(paramsVec(1:(dim*latentDim)), dim, latentDim);
-            Wz = reshape(paramsVec((dim*latentDim + 1):(2*dim*latentDim)), latentDim, dim);
-            bz = paramsVec((2*dim*latentDim + 1):end);
+            Wz = reshape(paramsVec, latentDim, dim);
 
             %Latent variable projection
             z = Wz*this.trainingData + bz;
@@ -52,7 +50,7 @@ classdef DeterministicBinaryAutoencoder
                 end
                 
                 %Projections first
-                d_r = [dF_dWx(:); dF_dWz(:); dF_dbz];
+                d_r = [dF_dWz(:)];
             end
             
         end
@@ -69,18 +67,46 @@ classdef DeterministicBinaryAutoencoder
             latentDim = this.latentDim;
             if nargin < 2
                 rng(2) %For repoducability
-                paramsVec = 4*rand(2*dim*latentDim + latentDim, 1) - 2;
+                paramsVec = 4*rand(dim*latentDim, 1) - 2;
             end
-            this.Wx = reshape(paramsVec(1:(dim*latentDim)), dim, latentDim);
-            this.Wz = reshape(paramsVec((dim*latentDim + 1):(2*dim*latentDim)), latentDim, dim);
-            this.bz = paramsVec((2*dim*latentDim + 1):end);
+            this.Wx = 4*rand(dim, latentDim) - 2;
+            WxTWxInvWxT = (this.Wx'*this.Wx)\this.Wx';
+            this.Wz = reshape(paramsVec, latentDim, dim);
+            this.bz = zeros(latentDim, 1);
             
             trainingDataMean = mean(this.trainingData, 2);
+            trainingDataSqMean = 0;
+            trainingData = double(this.trainingData);
+            N = size(this.trainingData, 2);
+            for n = 1:N
+                trainingDataSqMean = trainingDataSqMean +...
+                    trainingData(:, n)*trainingData(:, n)';
+                if(mod(n, 100) == 0)
+                    n
+                end
+            end
+            clear trainingData;
+            trainingDataSqMean = trainingDataSqMean/N;
+            trainingDataSqMeanInv = inv(trainingDataSqMean);
             
-            for i = 1:10
-                this.bx = trainingDataMean - this.Wx*this.bz - this.Wx*this.Wz*trainingDataMean;
+            for i = 1:30
+                for j = 1:5
+                    this.bx = trainingDataMean - this.Wx*this.bz - this.Wx*this.Wz*trainingDataMean;
+                    this.bz = WxTWxInvWxT*(trainingDataMean - this.bx) - this.Wz*trainingDataMean;
+                end
                 
-                fun = @(params) this.residual(params, dim, this.latentDim, this.bx);
+                %Wx
+                WzxMean = this.Wz*trainingDataMean;
+                WxSystem = this.Wz*trainingDataSqMean*this.Wz' + this.bz*WzxMean' +...
+                    WzxMean*this.bz' + this.bz*this.bz';
+                Wxrhs = trainingDataSqMean*this.Wz' + trainingDataMean*this.bz' -...
+                    this.bx*WzxMean' - this.bx*this.bz';
+                this.Wx = Wxrhs/WxSystem;
+                WxTWxInvWxT = (this.Wx'*this.Wx)\this.Wx';
+                
+                
+                
+                fun = @(params) this.residual(params, dim, this.latentDim, this.bx, this.bz, this.Wx);
                 options = optimoptions('fminunc', 'Algorithm', 'quasi-newton',...
                     'SpecifyObjectiveGradient', true, 'MaxIterations', this.maxIterations, ...
                     'FunctionTolerance', 1e-10, 'StepTolerance', 1e-10,...
@@ -90,9 +116,7 @@ classdef DeterministicBinaryAutoencoder
                 
                 %Roughly the fraction of miss-predicted pixels
                 selfErr = sqrt(res)/numel(this.trainingData)
-                this.Wx = reshape(paramsVec(1:(dim*latentDim)), dim, latentDim);
-                this.Wz = reshape(paramsVec((dim*latentDim + 1):(2*dim*latentDim)), latentDim, dim);
-                this.bz = paramsVec((2*dim*latentDim + 1):end);
+                this.Wz = reshape(paramsVec, latentDim, dim);
             end
         end
         

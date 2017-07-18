@@ -113,7 +113,7 @@ clear lambdak;
 deterministic = true;
 if deterministic
     ba = DeterministicBinaryAutoencoder;
-    ba.maxIterations = 10;
+    ba.maxIterations = 4;
 end
 ba.trainingData = logical(lambdakMat - loCond);
 clear lambdakMat;
@@ -145,7 +145,7 @@ if test
     end
     clear lambdakTest;
     originalData = logical(lambdakMatTest - loCond);
-    clear lambdakMatTest;
+%     clear lambdakMatTest;
     %Encoded version of test samples
     encodedData = ba.encode(originalData);
     %Reconstruct from latent mu and compute reconstruction error
