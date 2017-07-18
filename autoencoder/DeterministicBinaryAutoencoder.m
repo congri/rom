@@ -2,7 +2,7 @@ classdef DeterministicBinaryAutoencoder
     
     properties
         trainingData        %must be binary
-        latentDim = 6;
+        latentDim = 10;
         
         %Model parameters
         Wz              %Projection from x to z, i.e. dim(z) x dim(x)
@@ -17,10 +17,8 @@ classdef DeterministicBinaryAutoencoder
     end
     
     methods
-        function [r, d_r] = residual(this, paramsVec, dim, latentDim, bx, bz, Wx)
+        function [r, d_r] = residual(this, bx, bz, Wx, Wz)
             
-            Wz = reshape(paramsVec, latentDim, dim);
-
             %Latent variable projection
             z = Wz*this.trainingData + bz;
             %n-th column belongs to n-th data point
@@ -33,25 +31,26 @@ classdef DeterministicBinaryAutoencoder
             diff = x_model - this.trainingData;
             r = sum(sum(diff.^2));
             
-            if nargout > 1
-                if strcmp(this.mode, 'sigmoid')
-                    dSigma_dA = x_model.*(1 - x_model);
-                    two_diff_times_dSigma_dA = 2*diff.*dSigma_dA;
-                    dF_dbx = sum(two_diff_times_dSigma_dA, 2);
-                    dF_dbz = Wx'*dF_dbx;
-                    dF_dWx = two_diff_times_dSigma_dA*z';
-                    dF_dWz = Wx'*two_diff_times_dSigma_dA*this.trainingData';
-                else
-                    two_diff = 2*diff;
-                    dF_dbx = sum(two_diff, 2);
-                    dF_dbz = Wx'*dF_dbx;
-                    dF_dWx = two_diff*z';
-                    dF_dWz = Wx'*two_diff*this.trainingData';
-                end
-                
-                %Projections first
-                d_r = [dF_dWz(:)];
-            end
+%             if nargout > 1
+%                 if strcmp(this.mode, 'sigmoid')
+%                     dSigma_dA = x_model.*(1 - x_model);
+%                     two_diff_times_dSigma_dA = 2*diff.*dSigma_dA;
+%                     dF_dbx = sum(two_diff_times_dSigma_dA, 2);
+%                     dF_dbz = Wx'*dF_dbx;
+%                     dF_dWx = two_diff_times_dSigma_dA*z';
+%                     dF_dWz = Wx'*two_diff_times_dSigma_dA*this.trainingData';
+%                 else
+%                     two_diff = 2*diff;
+%                     dF_dbx = sum(two_diff, 2);
+%                     dF_dbz = Wx'*dF_dbx;
+%                     dF_dWx = two_diff*z';
+%                     dF_dWz = Wx'*two_diff*this.trainingData';
+%                 end
+%                 
+%                 %Projections first
+%                 d_r = [dF_dWz(:)];
+%             end
+            d_r = NaN;
             
         end
         
@@ -59,21 +58,7 @@ classdef DeterministicBinaryAutoencoder
         
         function this = train(this, paramsVec)
             %params_0 are parameter start values
-            
-            ppool = parPoolInit(16);
-            
-            
-            dim = size(this.trainingData, 1);
-            latentDim = this.latentDim;
-            if nargin < 2
-                rng(2) %For repoducability
-                paramsVec = 4*rand(dim*latentDim, 1) - 2;
-            end
-            this.Wx = 4*rand(dim, latentDim) - 2;
-            WxTWxInvWxT = (this.Wx'*this.Wx)\this.Wx';
-            this.Wz = reshape(paramsVec, latentDim, dim);
-            this.bz = zeros(latentDim, 1);
-            
+                        
             trainingDataMean = mean(this.trainingData, 2);
             trainingDataSqMean = 0;
             trainingData = double(this.trainingData);
@@ -81,22 +66,31 @@ classdef DeterministicBinaryAutoencoder
             for n = 1:N
                 trainingDataSqMean = trainingDataSqMean +...
                     trainingData(:, n)*trainingData(:, n)';
-                if(mod(n, 100) == 0)
+                if(mod(n, 1000) == 0)
                     n
                 end
             end
             clear trainingData;
             trainingDataSqMean = trainingDataSqMean/N;
             trainingDataSqMeanInv = inv(trainingDataSqMean);
+              
+            dim = size(this.trainingData, 1);
+            latentDim = this.latentDim;
+            this.Wx = 4*rand(dim, latentDim) - 2;
+            WxTWxInvWxT = (this.Wx'*this.Wx)\this.Wx';
+            this.Wz = 4*rand(latentDim, dim) - 2;
+            WzxMean = this.Wz*trainingDataMean;
+            this.bz = 4*rand(latentDim, 1) - 2;
+            this.bx = 4*rand(dim, 1) - 2;
             
-            for i = 1:30
-                for j = 1:5
-                    this.bx = trainingDataMean - this.Wx*this.bz - this.Wx*this.Wz*trainingDataMean;
-                    this.bz = WxTWxInvWxT*(trainingDataMean - this.bx) - this.Wz*trainingDataMean;
-                end
+            res = this.residual(this.bx, this.bz, this.Wx, this.Wz)
+            converged = false;
+            tol = 1e-3;
+            while(~converged)
+                this.bx = trainingDataMean - this.Wx*this.bz - this.Wx*this.Wz*trainingDataMean;
+                this.bz = WxTWxInvWxT*(trainingDataMean - this.bx) - this.Wz*trainingDataMean;
                 
                 %Wx
-                WzxMean = this.Wz*trainingDataMean;
                 WxSystem = this.Wz*trainingDataSqMean*this.Wz' + this.bz*WzxMean' +...
                     WzxMean*this.bz' + this.bz*this.bz';
                 Wxrhs = trainingDataSqMean*this.Wz' + trainingDataMean*this.bz' -...
@@ -104,19 +98,31 @@ classdef DeterministicBinaryAutoencoder
                 this.Wx = Wxrhs/WxSystem;
                 WxTWxInvWxT = (this.Wx'*this.Wx)\this.Wx';
                 
+                %Wz
+                this.Wz = WxTWxInvWxT -...
+                    (this.bz + WxTWxInvWxT*this.bx)*trainingDataMean'*trainingDataSqMeanInv;
+                WzxMean = this.Wz*trainingDataMean;
                 
                 
-                fun = @(params) this.residual(params, dim, this.latentDim, this.bx, this.bz, this.Wx);
-                options = optimoptions('fminunc', 'Algorithm', 'quasi-newton',...
-                    'SpecifyObjectiveGradient', true, 'MaxIterations', this.maxIterations, ...
-                    'FunctionTolerance', 1e-10, 'StepTolerance', 1e-10,...
-                    'Display', 'Iter-detailed', 'HessUpdate', 'dfp', 'UseParallel', true);
-                [paramsVec, res] = fminunc(fun, paramsVec, options);
+                res_old = res;
+                res = this.residual(this.bx, this.bz, this.Wx, this.Wz)
+                
+                
+%                 fun = @(params) this.residual(params, dim, this.latentDim, this.bx, this.bz, this.Wx);
+%                 options = optimoptions('fminunc', 'Algorithm', 'quasi-newton',...
+%                     'SpecifyObjectiveGradient', true, 'MaxIterations', this.maxIterations, ...
+%                     'FunctionTolerance', 1e-10, 'StepTolerance', 1e-10,...
+%                     'Display', 'Iter-detailed', 'HessUpdate', 'dfp', 'UseParallel', true);
+%                 [paramsVec, res] = fminunc(fun, paramsVec, options);
                 
                 
                 %Roughly the fraction of miss-predicted pixels
-                selfErr = sqrt(res)/numel(this.trainingData)
-                this.Wz = reshape(paramsVec, latentDim, dim);
+%                 selfErr = sqrt(res)/numel(this.trainingData)
+
+                criterion = abs(res - res_old)
+                if(criterion < tol)
+                    converged = true;
+                end
             end
         end
         
