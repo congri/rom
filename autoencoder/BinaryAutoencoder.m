@@ -67,6 +67,7 @@ classdef BinaryAutoencoder
                 
                 %It is more efficient to repeat the variational approximation a few times,
                 %also as this can be run in parallel
+                ticBytes(gcp)
                 parfor n = 1:N
                     for rep = 1:4
                         mat = 0;
@@ -93,6 +94,7 @@ classdef BinaryAutoencoder
                         lambdaCellTimes2{n} = 2*lambdaCell{n};  %for efficiency
                     end
                 end
+                tocBytes(gcp)
                 
                 for i = 1:dim
                     mat = 0;

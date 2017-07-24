@@ -56,7 +56,7 @@ classdef DeterministicBinaryAutoencoder
         
         
         
-        function this = train(this, paramsVec)
+        function this = train(this)
             %params_0 are parameter start values
                         
             trainingDataMean = mean(this.trainingData, 2);
@@ -76,12 +76,12 @@ classdef DeterministicBinaryAutoencoder
               
             dim = size(this.trainingData, 1);
             latentDim = this.latentDim;
-            this.Wx = 4*rand(dim, latentDim) - 2;
+            this.Wx = normrnd(1/latentDim, .1, dim, latentDim);
             WxTWxInvWxT = (this.Wx'*this.Wx)\this.Wx';
-            this.Wz = 4*rand(latentDim, dim) - 2;
+            this.Wz = normrnd(1/dim, .1, latentDim, dim);
             WzxMean = this.Wz*trainingDataMean;
-            this.bz = 4*rand(latentDim, 1) - 2;
-            this.bx = 4*rand(dim, 1) - 2;
+            this.bz = zeros(latentDim, 1);
+            this.bx = zeros(dim, 1);
             
             res = this.residual(this.bx, this.bz, this.Wx, this.Wz)
             criterion = inf;

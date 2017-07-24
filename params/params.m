@@ -69,7 +69,7 @@ if ~loadOldConf
 end
 
 %what kind of prior for theta_c
-romObj.theta_c.thetaPriorType = 'RVM';              %hierarchical_gamma, hierarchical_laplace, laplace,
+romObj.theta_c.thetaPriorType = 'none';              %hierarchical_gamma, hierarchical_laplace, laplace,
                                                          %gaussian, RVM or none
 sigma_prior_type = 'none';                  %expSigSq, delta or none. A delta prior keeps sigma at its initial value
 sigma_prior_type_hold = sigma_prior_type;

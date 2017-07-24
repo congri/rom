@@ -1,14 +1,14 @@
-NF=64
+NF=256
 LENGTHSCALEDIST=lognormal
 CORRLENGTH1=-3
 CORRLENGTH2=0.5
-NSET1=16384
+NSET1=1024
 NSTART=1
 NTRAIN=$NSET1
 VOLFRAC=-1	#Theoretical volume fraction; negative value leads to uniform random volume fraction
 LOCOND=1
 UPCOND=10
-LATENTDIM=20
+LATENTDIM=10
 #best change boundary conditions in matlab
 
 #Set up file paths
@@ -38,18 +38,17 @@ printf "#PBS -N $JOBNAME
 #Switch to job directory
 cd $JOBDIR
 #Set parameters
-sed -i \"9s/.*/ba.latentDim = $LATENTDIM;/\" ./autoencoder/autoEncoderTrainingScript.m
-sed -i \"10s/.*/ba.maxIterations = 10;/\" ./autoencoder/autoEncoderTrainingScript.m
-sed -i \"11s/.*/nElFX = $NF;/\" ./autoencoder/autoEncoderTrainingScript.m
-sed -i \"12s/.*/nElFY = $NF;/\" ./autoencoder/autoEncoderTrainingScript.m
-sed -i \"14s/.*/volFrac = $VOLFRAC;/\" ./autoencoder/autoEncoderTrainingScript.m
-sed -i \"16s/.*/lengthscaleDist = \'$LENGTHSCALEDIST\';/\" ./autoencoder/autoEncoderTrainingScript.m
-sed -i \"17s/.*/lengthscaleParams = \[$CORRLENGTH1 $CORRLENGTH2\];/\" ./autoencoder/autoEncoderTrainingScript.m
-sed -i \"18s/.*/loCond = $LOCOND;/\" ./autoencoder/autoEncoderTrainingScript.m
-sed -i \"19s/.*/upCond = $UPCOND;/\" ./autoencoder/autoEncoderTrainingScript.m
-sed -i \"21s/.*/nSamples = $NSET1;/\" ./autoencoder/autoEncoderTrainingScript.m
-sed -i \"22s/.*/nStart = $NSTART;/\" ./autoencoder/autoEncoderTrainingScript.m
-sed -i \"23s/.*/nTrain = $NTRAIN;/\" ./autoencoder/autoEncoderTrainingScript.m
+sed -i \"15s/.*/ba.latentDim = $LATENTDIM;/\" ./autoencoder/autoEncoderTrainingScript.m
+sed -i \"17s/.*/nElFX = $NF;/\" ./autoencoder/autoEncoderTrainingScript.m
+sed -i \"18s/.*/nElFY = $NF;/\" ./autoencoder/autoEncoderTrainingScript.m
+sed -i \"20s/.*/volFrac = $VOLFRAC;/\" ./autoencoder/autoEncoderTrainingScript.m
+sed -i \"22s/.*/lengthscaleDist = \'$LENGTHSCALEDIST\';/\" ./autoencoder/autoEncoderTrainingScript.m
+sed -i \"13s/.*/lengthscaleParams = \[$CORRLENGTH1 $CORRLENGTH2\];/\" ./autoencoder/autoEncoderTrainingScript.m
+sed -i \"24s/.*/loCond = $LOCOND;/\" ./autoencoder/autoEncoderTrainingScript.m
+sed -i \"25s/.*/upCond = $UPCOND;/\" ./autoencoder/autoEncoderTrainingScript.m
+sed -i \"27s/.*/nSamples = $NSET1;/\" ./autoencoder/autoEncoderTrainingScript.m
+sed -i \"28s/.*/nStart = $NSTART;/\" ./autoencoder/autoEncoderTrainingScript.m
+sed -i \"29s/.*/nTrain = $NTRAIN;/\" ./autoencoder/autoEncoderTrainingScript.m
 
 cd autoencoder
 

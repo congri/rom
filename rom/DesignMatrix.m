@@ -100,6 +100,7 @@ classdef DesignMatrix
         
         function Phi = computeDesignMatrix(Phi, nElc, nElf, condTransOpts)
             %Actual computation of design matrix
+            debug = false; %for debug mode
             tic
             disp('Compute design matrices Phi...')
             
@@ -144,7 +145,9 @@ classdef DesignMatrix
                 load('./autoencoder/trainedAutoencoder.mat');
                 latentMu = ba.encode(lambdakMatBin);
                 Phi.latentDim = ba.latentDim;
-                clear ba;
+                if ~debug
+                    clear ba;
+                end
                 latentMu = reshape(latentMu, Phi.latentDim, nElc, nTrain);
             end
 
@@ -173,6 +176,37 @@ classdef DesignMatrix
                         for j = 1:Phi.latentDim
                             PhiCell{s}(i, nFeatureFunctions + nGlobalFeatureFunctions + j) = latentMu(j, i, s);
                         end
+                    end
+                end
+            end
+            
+            if debug
+                for n = 1:nTrain
+                    for k = 1:nElc
+                        decodedDataTest = ba.decode(latentMu(:, k, n));
+                        subplot(1,3,1)
+                        imagesc(reshape(decodedDataTest, 64, 64))
+                        axis square
+                        grid off
+                        yticks({})
+                        xticks({})
+                        colorbar
+                        subplot(1,3,2)
+                        imagesc(reshape(decodedDataTest > 0.5, 64, 64))
+                        axis square
+                        grid off
+                        yticks({})
+                        xticks({})
+                        colorbar
+                        subplot(1,3,3)
+                        imagesc(lambdak{n, k})
+                        axis square
+                        yticks({})
+                        xticks({})
+                        grid off
+                        colorbar
+                        drawnow
+                        pause(.5)
                     end
                 end
             end
@@ -545,6 +579,7 @@ classdef DesignMatrix
             %Sets separate coefficients theta_c for each macro-cell in a single microstructure
             %sample
             %Can never be executed before rescaling/standardization of design Matrix!
+            debug = false; %debug mode
             disp('Using separate feature coefficients theta_c for each macro-cell in a microstructure...')
             nElc = prod(nc);
             nFeatureFunctionsTotal = size(Phi.featureFunctions, 2) +...
@@ -560,6 +595,11 @@ classdef DesignMatrix
                       Phi.designMatrices{s}(i, :);
                 end
                 PhiCell{s} = sparse(PhiCell{s});
+            end
+            if debug
+                firstDesignMatrixBeforeLocal = Phi.designMatrices{1}
+                firstDesignMatrixAfterLocal = full(PhiCell{1})
+                pause
             end
             Phi.designMatrices = PhiCell;
             disp('done')

@@ -5,9 +5,15 @@ clear;
 addpath('./autoencoder')
 
 %data specs
-ba = BinaryAutoencoder;
-ba.latentDim = 4;
-ba.maxIterations = 8;
+deterministic = true;
+if deterministic
+    ba = DeterministicBinaryAutoencoder;
+else
+    ba = BinaryAutoencoder;
+    ba.maxIterations = 8;
+end
+ba.latentDim = 10;
+
 nElFX = 256;
 nElFY = 256;
 conductivityDistribution = 'correlated_binary';
@@ -59,7 +65,8 @@ trainingDataFilename = strcat(folder, 'set1-samples=', num2str(nSamples), '.mat'
 matfile_cond = matfile(trainingDataFilename);
 cond = matfile_cond.cond(:, nStart:(nStart + nTrain - 1));
 
-
+addpath('~/matlab/projects/rom')
+addpath('~/matlab/projects/rom/heatFEM')
 ro = ROM_SPDE;
 try
     load(strcat(folder, 'fineScaleDomain.mat'));
@@ -110,17 +117,13 @@ for n = 1:size(lambdak, 1)
 end
 clear lambdak;
 
-deterministic = false;
-if deterministic
-    ba = DeterministicBinaryAutoencoder;
-    ba.maxIterations = 4;
-end
 ba.trainingData = logical(lambdakMat - loCond);
 clear lambdakMat;
 
+addpath('~/matlab/projects/rom/computation')
 ba = ba.train;
 ba.trainingData = [];
-save('./autoencoder/trainedAutoencoder.mat', 'ba');
+save('trainedAutoencoder.mat', 'ba');
 
 test = true;
 if test
