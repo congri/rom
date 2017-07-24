@@ -232,8 +232,53 @@ classdef DesignMatrix
             end
             disp('done')
             Phi_computation_time = toc
-            
         end
+        
+        
+        
+        
+        function Phi = secondOrderFeatures(Phi, A)
+            %Includes second order multinomial terms, i.e. a_ij phi_i phi_j, where a_ij is logical.
+            %Squared term phi_i^2 if a_ii ~= 0. To be executed directly after feature function
+            %computation.
+            %Input A is the logical array giving the squared terms to include
+            
+            assert(all(all(islogical(A))), 'A must be a logical array of nFeatures x nFeatures')
+            %Consider every term only once
+            assert(sum(sum(tril(A, -1))) == 0, 'Matrix A must be upper triangular')
+            
+            disp('Using squared terms of feature functions...')
+            nElc = size(Phi.designMatrices{1}, 1);
+            nFeatureFunctions = size(Phi.featureFunctions, 2);
+            nSecondOrderTerms = sum(sum(A));
+            PhiCell{1} = zeros(nElc, nSecondOrderTerms + nFeatureFunctions);
+            nTrain = length(Phi.dataSamples);
+            PhiCell = repmat(PhiCell, nTrain, 1);
+            
+            for s = 1:nTrain
+                %The first columns contain first order terms
+                PhiCell{s}(:, 1:nFeatureFunctions) = Phi.designMatrices{s};
+                
+                %Second order terms
+                f = 1;
+                for r = 1:size(A, 1)
+                    for c = r:size(A, 2)
+                        if A(r, c)
+                            PhiCell{s}(:, nFeatureFunctions + f) = ...
+                                PhiCell{s}(:, r).*PhiCell{s}(:, c);
+                            f = f + 1;
+                        end
+                    end
+                end
+            end
+            Phi.designMatrices = PhiCell;
+            disp('done')
+        end%secondOrderFeatures
+        
+        
+        
+        
+        
         
         function Phi = includeNearestNeighborFeatures(Phi, nc)
             %Includes feature function information of neighboring cells

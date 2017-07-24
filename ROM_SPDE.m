@@ -36,7 +36,8 @@ classdef ROM_SPDE
                                 %global: take whole microstructure as feature function input, not
                                 %only local window (only recommended for pooling)
         linFiltSeq = false;
-        useAutoEnc = true;      %Use autoencoder information? Do not forget to pre-train autoencoder!
+        useAutoEnc = false;      %Use autoencoder information? Do not forget to pre-train autoencoder!
+        secondOrderTerms;
         
         %% Model parameters
         theta_c;
@@ -66,7 +67,6 @@ classdef ROM_SPDE
         meanSquaredDistanceError;          %Monte Carlo error
         meanMahalanobisError;
     end
-    
     
     
     
@@ -620,6 +620,8 @@ classdef ROM_SPDE
             Phi.useAutoEnc = obj.useAutoEnc;
             Phi = Phi.computeDesignMatrix(obj.coarseScaleDomain.nEl, obj.fineScaleDomain.nEl,...
                 obj.conductivityTransformation);
+            Phi = Phi.secondOrderFeatures(obj.secondOrderTerms); %Include second order terms phi_i*phi_j
+            
             %Normalize design matrices
             if obj.rescaleFeatures
                 Phi = Phi.rescaleDesignMatrix(obj.featureFunctionMin, obj.featureFunctionMax);
@@ -634,7 +636,7 @@ classdef ROM_SPDE
             elseif strcmp(obj.mode, 'useLocalDiagNeighbor')
                 Phi = Phi.includeLocalDiagNeighborFeatures([obj.coarseScaleDomain.nElX obj.coarseScaleDomain.nElY]);
             elseif strcmp(obj.mode, 'useDiagNeighbor')
-                %use feature function information from nearest and diagonal neighbortras
+                %use feature function information from nearest and diagonal neighbors
                 Phi = Phi.includeDiagNeighborFeatures([obj.coarseScaleDomain.nElX obj.coarseScaleDomain.nElY]);
             elseif strcmp(obj.mode, 'useLocal')
                 Phi = Phi.localTheta_c([obj.coarseScaleDomain.nElX obj.coarseScaleDomain.nElY]);
@@ -1290,13 +1292,13 @@ classdef ROM_SPDE
             obj.globalFeatureFunctions = {};
             %constant bias
             for k = 1:obj.coarseScaleDomain.nEl
-%                 nFeatures = 0;
-%                 obj.featureFunctions{k, nFeatures + 1} = @(lambda) 1;
-%                 nFeatures = nFeatures + 1;
+                nFeatures = 0;
+                obj.featureFunctions{k, nFeatures + 1} = @(lambda) 1;
+                nFeatures = nFeatures + 1;
 %                 
-%                 obj.featureFunctions{k, nFeatures + 1} = @(lambda)...
-%                     SCA(lambda, conductivities, obj.conductivityTransformation);
-%                 nFeatures = nFeatures + 1;
+                obj.featureFunctions{k, nFeatures + 1} = @(lambda)...
+                    SCA(lambda, conductivities, obj.conductivityTransformation);
+                nFeatures = nFeatures + 1;
 % %                 obj.featureFunctions{k, nFeatures + 1} = @(lambda)...
 % %                     maxwellGarnett(lambda, conductivities, obj.conductivityTransformation, 'lo');
 % %                 nFeatures = nFeatures + 1;
@@ -1359,10 +1361,16 @@ classdef ROM_SPDE
 % %                     log(specificSurface(lambda, 2, conductivities, [obj.nElFX obj.nElFY]) + log_cutoff);
 % %                 nFeatures = nFeatures + 1;
 % 
-%                 obj.featureFunctions{k, nFeatures + 1} = @(lambda)...
-%                     gaussLinFilt(lambda);
-%                 nFeatures = nFeatures + 1;
+                obj.featureFunctions{k, nFeatures + 1} = @(lambda)...
+                    gaussLinFilt(lambda);
+                nFeatures = nFeatures + 1;
             end
+            
+            obj.secondOrderTerms = zeros(nFeatures, 'logical');
+            obj.secondOrderTerms(2, 2) = true;
+            obj.secondOrderTerms(2, 3) = true;
+            obj.secondOrderTerms(3, 3) = true;
+            assert(sum(sum(tril(obj.secondOrderTerms, -1))) == 0, 'Second order matrix must be upper triangular')
             
         end
         

@@ -44,6 +44,8 @@ Phi.useAutoEnc = romObj.useAutoEnc;
 Phi = Phi.computeDesignMatrix(romObj.coarseScaleDomain.nEl, romObj.fineScaleDomain.nEl,...
     romObj.conductivityTransformation);
 
+Phi = Phi.secondOrderFeatures(romObj.secondOrderTerms); %Include second order terms phi_i*phi_j
+
     %Normalize design matrices
 if romObj.standardizeFeatures
     Phi = Phi.standardizeDesignMatrix;

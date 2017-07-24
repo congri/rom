@@ -5,7 +5,6 @@
 loadOldConf = false;
 romObj.theta_c.useNeuralNet = false;    %use neural net for p_c
 
-
 %% EM params
 initialEpochs = 120;
 basisFunctionUpdates = 0;
@@ -37,8 +36,9 @@ else
     else
         latentDim = 0;
     end
+    nSecondOrderTerms = sum(sum(romObj.secondOrderTerms));
     romObj.theta_c.theta = 0*ones(size(romObj.featureFunctions, 2) +...
-        size(romObj.globalFeatureFunctions, 2) + latentDim, 1);
+        size(romObj.globalFeatureFunctions, 2) + latentDim + nSecondOrderTerms, 1);
     romObj.theta_c.Sigma = 1e0*speye(romObj.coarseScaleDomain.nEl);
     s = diag(romObj.theta_c.Sigma);
     romObj.theta_c.SigmaInv = sparse(diag(1./s));
