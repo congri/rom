@@ -7,7 +7,7 @@ function [curr_x, grad, nIter] = BFGSMaximization(objective, startValue, options
 curr_x = startValue;                %current x
 Hinv = - eye(length(curr_x));       %Inverse Hessian
 stepSize = options.initialStepSize;
-stepSizeRM = .1;
+stepSizeRM = 1e-4;
 converged = false;
 nIter = 0;
 
@@ -21,11 +21,12 @@ else
         direction = - Hinv*grad;
         step = stepSize*direction;      %not only needed for optimization, but also Hessian computation
         %check for negative definiteness
-%         if(~all(all(isfinite(Hinv))) || any(eig(Hinv) >= 0))
-        if(true)
-            warning('Hessian not negative definite, do Robbins-Monro instead')
+        if(~all(all(isfinite(Hinv))) || any(eig(Hinv) >= 0))
+%         if(true)
+%             warning('Hessian not negative definite, do Robbins-Monro instead')
             RMoff = 100;
-            RMstep = stepSizeRM*RMoff/(RMoff + nIter)
+            grad
+            RMstep = stepSizeRM*RMoff/(RMoff + nIter);
             stepRM = RMstep*norm(curr_x)*(grad/norm(grad));
 %             %upper cutoff
 %             if(norm(stepRM) > 3*norm(curr_x))
@@ -62,8 +63,8 @@ else
         stepDiffGrad = step'*diffGrad;
         HinvDiffGrad = Hinv*diffGrad;
         %Update inverse Hessian
-        Hinv = Hinv + ((stepDiffGrad + diffGrad'*HinvDiffGrad)/(stepDiffGrad^2))*(step*step')...
-            - (HinvDiffGrad*step' + (HinvDiffGrad*step')')/(stepDiffGrad);
+        Hinv = Hinv + ((stepDiffGrad + diffGrad'*HinvDiffGrad)/(stepDiffGrad^2 + 2*eps))*(step*step')...
+            - (HinvDiffGrad*step' + (HinvDiffGrad*step')')/(stepDiffGrad + eps);
         if(~all(all(isfinite(Hinv))))
             Hinv
             stepDiffGrad

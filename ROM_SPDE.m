@@ -38,6 +38,7 @@ classdef ROM_SPDE
         linFiltSeq = false;
         useAutoEnc = false;      %Use autoencoder information? Do not forget to pre-train autoencoder!
         secondOrderTerms;
+        useKernels = true;
         
         %% Model parameters
         theta_c;
@@ -610,6 +611,7 @@ classdef ROM_SPDE
             %Load test file
             Tf = obj.testDataMatfile.Tf(:, obj.testSamples);
             obj = obj.loadTrainedParams;
+            nTest = numel(obj.testSamples);
 
             %to find DesignMatrix class
             addpath('./rom')
@@ -641,10 +643,22 @@ classdef ROM_SPDE
             elseif strcmp(obj.mode, 'useLocal')
                 Phi = Phi.localTheta_c([obj.coarseScaleDomain.nElX obj.coarseScaleDomain.nElY]);
             end
+            
+            if obj.useKernels
+                kernelMatrix{1} = zeros(obj.coarseScaleDomain.nEl, obj.theta_c.nKernels);  %prealloc
+                kernelMatrix = repmat(kernelMatrix, nTest, 1);
+                for n = 1:nTest
+                    for k = 1:obj.coarseScaleDomain.nEl
+                        for m = 1:obj.theta_c.nKernels
+                            kernelOffset = norm(obj.theta_c.nu(m, :) - Phi.designMatrices{n}(k, :))^2;
+                            kernelMatrix{n}(k, m) = kernelFunction(obj.theta_c.tau(m), kernelOffset, 'squaredExponential');
+                        end
+                    end
+                end
+            end
 
             %% Sample from p_c
             disp('Sampling from p_c...')
-            nTest = numel(obj.testSamples);
             Xsamples = zeros(obj.coarseScaleDomain.nEl, obj.nSamples_p_c, nTest);
             LambdaSamples{1} = zeros(obj.coarseScaleDomain.nEl, obj.nSamples_p_c);
             LambdaSamples = repmat(LambdaSamples, nTest, 1);
@@ -671,12 +685,21 @@ classdef ROM_SPDE
                     mu = double(predict(obj.theta_c.theta, PhiMat));
                     Xsamples(:, :, i) = mvnrnd(mu, obj.theta_c.Sigma, obj.nSamples_p_c)';
                 else
-                    Xsamples(:, :, i) = mvnrnd(Phi.designMatrices{i}*obj.theta_c.theta,...
-                        obj.theta_c.Sigma, obj.nSamples_p_c)';
+                    if obj.useKernels
+                        Xsamples(:, :, i) = mvnrnd(kernelMatrix{i}*obj.theta_c.theta,...
+                            obj.theta_c.Sigma, obj.nSamples_p_c)';
+                    else
+                        Xsamples(:, :, i) = mvnrnd(Phi.designMatrices{i}*obj.theta_c.theta,...
+                            obj.theta_c.Sigma, obj.nSamples_p_c)';
+                    end
                 end
                 LambdaSamples{i} = conductivityBackTransform(Xsamples(:, :, i), obj.conductivityTransformation);
                 if(strcmp(obj.conductivityTransformation.type, 'log') && ~useNeuralNet)
-                    meanEffCond(:, i) = exp(Phi.designMatrices{i}*obj.theta_c.theta + .5*diag(obj.theta_c.Sigma));
+                    if obj.useKernels
+                        meanEffCond(:, i) = exp(kernelMatrix{i}*obj.theta_c.theta + .5*diag(obj.theta_c.Sigma));
+                    else
+                        meanEffCond(:, i) = exp(Phi.designMatrices{i}*obj.theta_c.theta + .5*diag(obj.theta_c.Sigma));
+                    end
                 else
                     meanEffCond(:, i) = mean(LambdaSamples{i}, 2);
                 end
@@ -1293,8 +1316,8 @@ classdef ROM_SPDE
             %constant bias
             for k = 1:obj.coarseScaleDomain.nEl
                 nFeatures = 0;
-                obj.featureFunctions{k, nFeatures + 1} = @(lambda) 1;
-                nFeatures = nFeatures + 1;
+%                 obj.featureFunctions{k, nFeatures + 1} = @(lambda) 1;
+%                 nFeatures = nFeatures + 1;
 %                 
                 obj.featureFunctions{k, nFeatures + 1} = @(lambda)...
                     SCA(lambda, conductivities, obj.conductivityTransformation);
@@ -1361,15 +1384,15 @@ classdef ROM_SPDE
 % %                     log(specificSurface(lambda, 2, conductivities, [obj.nElFX obj.nElFY]) + log_cutoff);
 % %                 nFeatures = nFeatures + 1;
 % 
-                obj.featureFunctions{k, nFeatures + 1} = @(lambda)...
-                    gaussLinFilt(lambda);
-                nFeatures = nFeatures + 1;
+%                 obj.featureFunctions{k, nFeatures + 1} = @(lambda)...
+%                     gaussLinFilt(lambda);
+%                 nFeatures = nFeatures + 1;
             end
             
             obj.secondOrderTerms = zeros(nFeatures, 'logical');
-            obj.secondOrderTerms(2, 2) = true;
-            obj.secondOrderTerms(2, 3) = true;
-            obj.secondOrderTerms(3, 3) = true;
+%             obj.secondOrderTerms(2, 2) = true;
+%             obj.secondOrderTerms(2, 3) = true;
+%             obj.secondOrderTerms(3, 3) = true;
             assert(sum(sum(tril(obj.secondOrderTerms, -1))) == 0, 'Second order matrix must be upper triangular')
             
         end

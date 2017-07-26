@@ -74,6 +74,16 @@ if strcmp(romObj.mode, 'useLocal')
     Phi.sumPhiTPhi = sparse(Phi.sumPhiTPhi);
 end
 
+romObj.theta_c.nu = zeros(romObj.theta_c.nKernels, size(romObj.featureFunctions, 2));
+iter = 1;
+for n = 1:romObj.nTrain
+    for k = 1:romObj.coarseScaleDomain.nEl
+        romObj.theta_c.nu = ((iter - 1)/iter)*romObj.theta_c.nu + (1/iter)*Phi.designMatrices{n}(k, :);
+        iter = iter + 1;
+    end
+end
+romObj.theta_c.nu = romObj.theta_c.nu + normrnd(0, 1, size(romObj.theta_c.nu));
+
 MonteCarlo = false;
 VI = true;
 
@@ -101,8 +111,21 @@ while true
         tc = romObj.theta_c;
         cd = romObj.coarseScaleDomain;
         ct = romObj.conductivityTransformation;
-        log_qi{i} = @(Xi) log_q_i(Xi, Tf_i_minus_mu, tcf, tc,...
-            PhiMat, cd, ct);
+        
+        if romObj.useKernels
+            kernelMatrix = zeros(romObj.coarseScaleDomain.nEl, romObj.theta_c.nKernels);  %prealloc
+            for k = 1:romObj.coarseScaleDomain.nEl
+                for m = 1:romObj.theta_c.nKernels
+                    kernelOffset = norm(romObj.theta_c.nu(m, :) - Phi.designMatrices{i}(k, :))^2;
+                    kernelMatrix(k, m) = kernelFunction(romObj.theta_c.tau(m), kernelOffset, 'squaredExponential');
+                end
+            end
+            log_qi{i} = @(Xi) log_q_i(Xi, Tf_i_minus_mu, tcf, tc,...
+                kernelMatrix, cd, ct);
+        else
+            log_qi{i} = @(Xi) log_q_i(Xi, Tf_i_minus_mu, tcf, tc,...
+                PhiMat, cd, ct);
+        end
         premax = false;
         if(VI && premax)
             %This might be not worth the overhead, i.e. it is expensive
@@ -310,9 +333,15 @@ while true
         sigma_prior_type = 'delta';
     end
     
-    romObj.theta_c = optTheta_c(romObj.theta_c, romObj.nTrain, romObj.coarseScaleDomain.nEl, XSqMean,...
-        Phi, XMean, sigma_prior_type, sigma_prior_hyperparam);
+    if romObj.useKernels
+        romObj.theta_c = optTheta_cKernels(romObj.theta_c, romObj.nTrain, romObj.coarseScaleDomain.nEl, XSqMean,...
+            Phi, XMean, sigma_prior_type, sigma_prior_hyperparam);
+    else
+        romObj.theta_c = optTheta_c(romObj.theta_c, romObj.nTrain, romObj.coarseScaleDomain.nEl, XSqMean,...
+            Phi, XMean, sigma_prior_type, sigma_prior_hyperparam);
+    end
     romObj.theta_c.Sigma = (1 - mix_sigma)*romObj.theta_c.Sigma + mix_sigma*Sigma_old;
+    
     
     k
     if(~romObj.theta_c.useNeuralNet)
@@ -340,6 +369,7 @@ while true
         else
             curr_theta = [romObj.theta_c.theta(index) index]
         end
+        curr_nu = romObj.theta_c.nu
 %         curr_theta_hyperparam = romObj.theta_c.priorHyperparam
         
         if(romObj.linFiltSeq && epoch > initialEpochs && mod((epoch - initialEpochs + 1), basisUpdateGap) == 0 &&...
@@ -418,9 +448,10 @@ while true
     curr_sigma = romObj.theta_c.Sigma
     mean_S = mean(romObj.theta_cf.S)
     if(~romObj.conductivityTransformation.anisotropy)
-        if romObj.theta_c.useNeuralNet
-            m = predict(romObj.theta_c.theta, xkNN(:, :, 1, 1:romObj.coarseScaleDomain.nEl));
-            Lambda_eff1_mode = conductivityBackTransform(m, romObj.conductivityTransformation)
+        if romObj.useKernels
+            %Attention: this corresponds to previous iteration. No update of kernelMatrix yet!
+            Lambda_effLast_mode = conductivityBackTransform(kernelMatrix*romObj.theta_c.theta,...
+                romObj.conductivityTransformation)
         else
             Lambda_eff1_mode = conductivityBackTransform(Phi.designMatrices{1}*romObj.theta_c.theta,...
                 romObj.conductivityTransformation)

@@ -1,6 +1,7 @@
 %Test script for BFGS maximization
 startValue = [0; 0];
 options.Xtol = 1e-6;
+options.gradTol = 1e-6;
 options.initialStepSize = 1;
 options.debug = false;
 

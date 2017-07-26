@@ -37,8 +37,14 @@ else
         latentDim = 0;
     end
     nSecondOrderTerms = sum(sum(romObj.secondOrderTerms));
+    if romObj.useKernels
+        romObj.theta_c.nKernels = 5;
+        romObj.theta_c.theta = normrnd(0, .01, romObj.theta_c.nKernels, 1);
+        romObj.theta_c.tau = .3*ones(1, romObj.theta_c.nKernels);
+    else
     romObj.theta_c.theta = 0*ones(size(romObj.featureFunctions, 2) +...
         size(romObj.globalFeatureFunctions, 2) + latentDim + nSecondOrderTerms, 1);
+    end
     romObj.theta_c.Sigma = 1e0*speye(romObj.coarseScaleDomain.nEl);
     s = diag(romObj.theta_c.Sigma);
     romObj.theta_c.SigmaInv = sparse(diag(1./s));
@@ -69,7 +75,7 @@ if ~loadOldConf
 end
 
 %what kind of prior for theta_c
-romObj.theta_c.thetaPriorType = 'none';              %hierarchical_gamma, hierarchical_laplace, laplace,
+romObj.theta_c.thetaPriorType = 'gaussian';              %hierarchical_gamma, hierarchical_laplace, laplace,
                                                          %gaussian, RVM or none
 sigma_prior_type = 'none';                  %expSigSq, delta or none. A delta prior keeps sigma at its initial value
 sigma_prior_type_hold = sigma_prior_type;
@@ -77,7 +83,7 @@ fixSigInit = 0;                                 %number of initial iterations wi
 %prior hyperparams; obsolete for no prior
 % theta_prior_hyperparamArray = [0 1e-4];                   %a and b params for Gamma hyperprior
 romObj.theta_c.priorHyperparam = 1;
-romObj.theta_c.priorHyperparam = ones(size(romObj.theta_c.theta));     %start value. this is adjusted using max marginal likelihood
+% romObj.theta_c.priorHyperparam = ones(size(romObj.theta_c.theta));     %start value. this is adjusted using max marginal likelihood
 % theta_prior_hyperparam = 10;
 sigma_prior_hyperparam = 1e0*ones(romObj.coarseScaleDomain.nEl, 1);  %   expSigSq: x*exp(-x*sigmaSq), where x is the hyperparam
 
