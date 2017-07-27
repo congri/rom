@@ -4,7 +4,7 @@ if ~exist('./data/', 'dir')
     mkdir('./data/');
 end
 %Remove old data in first step, if there exists some
-if(k == 1)
+if(romObj.EM_iterations == 1)
     delete('./data/MCMCstepWidth', './data/sigma', './data/S', './data/mu',...
         './data/theta', './data/Wmat', './data/w', './data/E', './data/neighborDictionary', './noPriorSigma.mat')
 %     rmdir('./data', 's')

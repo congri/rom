@@ -79,141 +79,119 @@ end
 iter = 0;
 converged = false;
 while(~converged)
+    theta_old_old = theta;  %to check for iterative convergence
+    theta_old = theta;
     
-    if theta_c.useNeuralNet
-        %check if there is a pretrained net from a previous iteration
-        if isfield(theta_c.theta, 'Layers')
-            net = trainNN(xkNN, XMean(:), finePerCoarse, 'CNN', theta_c.theta);
-        else
-            net = trainNN(xkNN, XMean(:), finePerCoarse, 'CNN');
-        end
-        Xpred = predict(net, xkNN);
-        Xpred = reshape(Xpred, nCoarse, nTrain);
-        %Variances
-        s = (1/nTrain)*sum((XMean - Xpred).^2, 2);
-        s = double(s);
-        theta_c.Sigma = sparse(1:nCoarse, 1:nCoarse, s);
-        theta_c.SigmaInv = inv(theta_c.Sigma);
+    if strcmp(theta_c.thetaPriorType, 'hierarchical_laplace')
+        %Matrix M is pos. def., invertible even if badly conditioned
+        %       warning('off', 'MATLAB:nearlySingularMatrix');
+        offset = 1e-30;
+        U = diag(sqrt((abs(theta_old) + offset)/theta_c.priorHyperparam(1)));
+    elseif strcmp(theta_c.thetaPriorType, 'hierarchical_gamma')
+        %Matrix M is pos. def., invertible even if badly conditioned
+        %       warning('off', 'MATLAB:nearlySingularMatrix');
+        U = diag(sqrt((.5*abs(theta_old).^2 + theta_c.priorHyperparam(2))./(theta_c.priorHyperparam(1) + .5)));
+    elseif strcmp(theta_c.thetaPriorType, 'gaussian')
+        sumPhiTSigmaInvPhi = sumPhiTSigmaInvPhi + (theta_c.priorHyperparam(1) + stabilityParam)*I;
+    elseif strcmp(theta_c.thetaPriorType, 'RVM')
+        sumPhiTSigmaInvPhi = sumPhiTSigmaInvPhi + diag(theta_c.priorHyperparam + stabilityParam);
+    elseif strcmp(theta_c.thetaPriorType, 'none')
         
-        %Store net under variable theta
-        theta_c.theta = net;
-        
-        %only one iteration is needed
-        converged = true;
     else
-        theta_old_old = theta;  %to check for iterative convergence
-        theta_old = theta;
-        
-        if strcmp(theta_c.thetaPriorType, 'hierarchical_laplace')
-            %Matrix M is pos. def., invertible even if badly conditioned
-            %       warning('off', 'MATLAB:nearlySingularMatrix');
-            offset = 1e-30;
-            U = diag(sqrt((abs(theta_old) + offset)/theta_c.priorHyperparam(1)));
-        elseif strcmp(theta_c.thetaPriorType, 'hierarchical_gamma')
-            %Matrix M is pos. def., invertible even if badly conditioned
-            %       warning('off', 'MATLAB:nearlySingularMatrix');
-            U = diag(sqrt((.5*abs(theta_old).^2 + theta_c.priorHyperparam(2))./(theta_c.priorHyperparam(1) + .5)));
-        elseif strcmp(theta_c.thetaPriorType, 'gaussian')
-            sumPhiTSigmaInvPhi = sumPhiTSigmaInvPhi + (theta_c.priorHyperparam(1) + stabilityParam)*I;
-        elseif strcmp(theta_c.thetaPriorType, 'RVM')
-            sumPhiTSigmaInvPhi = sumPhiTSigmaInvPhi + diag(theta_c.priorHyperparam + stabilityParam);
-        elseif strcmp(theta_c.thetaPriorType, 'none')
-            
-        else
-            error('Unknown prior on theta_c')
+        error('Unknown prior on theta_c')
+    end
+    
+    if (strcmp(theta_c.thetaPriorType, 'gaussian') || strcmp(theta_c.thetaPriorType, 'RVM') ||...
+            strcmp(theta_c.thetaPriorType, 'none'))
+        theta_temp = sumPhiTSigmaInvPhi\sumPhiTSigmaInvXmean;
+    else
+        %         theta_temp = U*((sigma2*I + U*Phi.sumPhiTPhi*U)\U)*sumPhiTSigmaInvXmean;
+        theta_temp = U*((U*sumPhiTSigmaInvPhi*U + I)\U)*sumPhiTSigmaInvXmean;
+    end
+    [~, msgid] = lastwarn;     %to catch nearly singular matrix
+    
+    
+    gradHessTheta = @(theta) dF_dtheta(theta, theta_old, theta_c.thetaPriorType, theta_c.priorHyperparam, nTrain,...
+        sumPhiTSigmaInvXmean, sumPhiTSigmaInvPhi);
+    if(strcmp(msgid, 'MATLAB:singularMatrix') || strcmp(msgid, 'MATLAB:nearlySingularMatrix')...
+            || strcmp(msgid, 'MATLAB:illConditionedMatrix') || norm(theta_temp)/length(theta) > 1e8)
+        warning('theta_c is assuming unusually large values. Only go small step.')
+        %         theta = fsolve(gradHessTheta, theta, fsolve_options_theta);
+        theta = .5*(theta_old + .1*(norm(theta_old)/norm(theta_temp))*theta_temp)
+        if any(~isfinite(theta))
+            %restart from 0
+            warning('Some components of theta are not finite. Restarting from theta = 0...')
+            theta = 0*theta_old;
         end
+        %Newton-Raphson maximization
+        startValueTheta = theta;
+        normGradientTol = eps;
+        provide_objective = false;
+        debugNRmax = false;
+        RMMode = false;
+        stepSizeTheta = .6;
+        %             theta = newtonRaphsonMaximization(gradHessTheta, startValueTheta,...
+        %                 normGradientTol, provide_objective, stepSizeTheta, RMMode, debugNRmax);
+    else
+        theta = theta_temp;
+    end
+    
+    PhiThetaMat = zeros(nCoarse, nTrain);
+    for i = 1:nTrain
+        PhiThetaMat(:, i) = designMatrix{i}*theta;
+    end
+    
+    %     theta = .5*theta + .5*theta_old;    %for stability
+    
+    if strcmp(sigma_prior_type, 'none')
+        %         sigma2 = (1/(nTrain*nCoarse))*(sumXNormSqMean - 2*theta'*sumPhiTSigmaInvXmean + theta'*Phi.sumPhiTPhi*theta);
+        Sigma = sparse(1:nCoarse, 1:nCoarse, mean(XSqMean - 2*(PhiThetaMat.*XMean) + PhiThetaMat.^2, 2));
+        Sigma(Sigma < 0) = eps; %for numerical stability
+        %         sigma2CutoffHi = 100;
+        %         sigma2CutoffLo = 1e-50;
+        %         if any(diag(Sigma) < sigma2CutoffLo)
+        %             warning('sigma2 < cutoff. Set it to small cutoff value')
+        %             %         sigma2 = sigma2CutoffLo;
+        %             s = diag(Sigma);
+        %             s(s < sigma2CutoffLo) = sigma2CutoffLo;
+        %             index = 1:nCoarse;
+        %             Sigma = sparse(index, index, s);
+        %         elseif any(any(Sigma > sigma2CutoffHi))
+        %             warning('sigma2 > cutoff, set it to cutoff')
+        %             Sigma(Sigma > sigma2CutoffHi) = sigma2CutoffHi;
+        %         end
         
-        if (strcmp(theta_c.thetaPriorType, 'gaussian') || strcmp(theta_c.thetaPriorType, 'RVM') ||...
-                strcmp(theta_c.thetaPriorType, 'none'))
-            theta_temp = sumPhiTSigmaInvPhi\sumPhiTSigmaInvXmean;
-        else
-            %         theta_temp = U*((sigma2*I + U*Phi.sumPhiTPhi*U)\U)*sumPhiTSigmaInvXmean;
-            theta_temp = U*((U*sumPhiTSigmaInvPhi*U + I)\U)*sumPhiTSigmaInvXmean;
-        end
-        [~, msgid] = lastwarn;     %to catch nearly singular matrix
+        %sum_i Phi_i^T Sigma^-1 <X^i>_qi
+        sumPhiTSigmaInvXmean = 0;
+        %Only valid for diagonal Sigma
+        s = diag(Sigma);
+        SigmaInv = sparse(diag(1./s));
+        SigmaInvXMean = SigmaInv*XMean;
+        sumPhiTSigmaInvPhi = 0;
         
-        
-        gradHessTheta = @(theta) dF_dtheta(theta, theta_old, theta_c.thetaPriorType, theta_c.priorHyperparam, nTrain,...
-            sumPhiTSigmaInvXmean, sumPhiTSigmaInvPhi);
-        if(strcmp(msgid, 'MATLAB:singularMatrix') || strcmp(msgid, 'MATLAB:nearlySingularMatrix')...
-                || strcmp(msgid, 'MATLAB:illConditionedMatrix') || norm(theta_temp)/length(theta) > 1e8)
-            warning('theta_c is assuming unusually large values. Only go small step.')
-            %         theta = fsolve(gradHessTheta, theta, fsolve_options_theta);
-            theta = .5*(theta_old + .1*(norm(theta_old)/norm(theta_temp))*theta_temp)
-            if any(~isfinite(theta))
-                %restart from 0
-                warning('Some components of theta are not finite. Restarting from theta = 0...')
-                theta = 0*theta_old;
-            end
-            %Newton-Raphson maximization
-            startValueTheta = theta;
-            normGradientTol = eps;
-            provide_objective = false;
-            debugNRmax = false;
-            RMMode = false;
-            stepSizeTheta = .6;
-%             theta = newtonRaphsonMaximization(gradHessTheta, startValueTheta,...
-%                 normGradientTol, provide_objective, stepSizeTheta, RMMode, debugNRmax);
-        else
-            theta = theta_temp;
-        end
-        
-        PhiThetaMat = zeros(nCoarse, nTrain);
         for i = 1:nTrain
-            PhiThetaMat(:, i) = designMatrix{i}*theta;
+            sumPhiTSigmaInvXmean = sumPhiTSigmaInvXmean + designMatrix{i}'*SigmaInvXMean(:, i);
+            sumPhiTSigmaInvPhi = sumPhiTSigmaInvPhi + designMatrix{i}'*SigmaInv*designMatrix{i};
         end
+    elseif strcmp(sigma_prior_type, 'expSigSq')
+        %Vector of variances
+        sigmaSqVec = .5*(1./sigma_prior_hyperparam).*...
+            (-.5*nTrain + sqrt(2*nTrain*sigma_prior_hyperparam.*...
+            mean(XSqMean - 2*(PhiThetaMat.*XMean) + PhiThetaMat.^2, 2) + .25*nTrain^2));
         
-        %     theta = .5*theta + .5*theta_old;    %for stability
+        Sigma = sparse(1:nCoarse, 1:nCoarse, sigmaSqVec);
+        Sigma(Sigma < 0) = eps; %for numerical stability
+        sumPhiTSigmaInvXmean = 0;
+        %Only valid for diagonal Sigma
+        s = diag(Sigma);
+        SigmaInv = sparse(diag(1./s));
+        SigmaInvXMean = SigmaInv*XMean;
+        sumPhiTSigmaInvPhi = 0;
         
-        if strcmp(sigma_prior_type, 'none')
-            %         sigma2 = (1/(nTrain*nCoarse))*(sumXNormSqMean - 2*theta'*sumPhiTSigmaInvXmean + theta'*Phi.sumPhiTPhi*theta);
-            Sigma = sparse(1:nCoarse, 1:nCoarse, mean(XSqMean - 2*(PhiThetaMat.*XMean) + PhiThetaMat.^2, 2));
-            Sigma(Sigma < 0) = eps; %for numerical stability
-            %         sigma2CutoffHi = 100;
-            %         sigma2CutoffLo = 1e-50;
-            %         if any(diag(Sigma) < sigma2CutoffLo)
-            %             warning('sigma2 < cutoff. Set it to small cutoff value')
-            %             %         sigma2 = sigma2CutoffLo;
-            %             s = diag(Sigma);
-            %             s(s < sigma2CutoffLo) = sigma2CutoffLo;
-            %             index = 1:nCoarse;
-            %             Sigma = sparse(index, index, s);
-            %         elseif any(any(Sigma > sigma2CutoffHi))
-            %             warning('sigma2 > cutoff, set it to cutoff')
-            %             Sigma(Sigma > sigma2CutoffHi) = sigma2CutoffHi;
-            %         end
-            
-            %sum_i Phi_i^T Sigma^-1 <X^i>_qi
-            sumPhiTSigmaInvXmean = 0;
-            %Only valid for diagonal Sigma
-            s = diag(Sigma);
-            SigmaInv = sparse(diag(1./s));
-            SigmaInvXMean = SigmaInv*XMean;
-            sumPhiTSigmaInvPhi = 0;
-            
-            for i = 1:nTrain
-                sumPhiTSigmaInvXmean = sumPhiTSigmaInvXmean + designMatrix{i}'*SigmaInvXMean(:, i);
-                sumPhiTSigmaInvPhi = sumPhiTSigmaInvPhi + designMatrix{i}'*SigmaInv*designMatrix{i};
-            end
-        elseif strcmp(sigma_prior_type, 'expSigSq')
-            %Vector of variances
-            sigmaSqVec = .5*(1./sigma_prior_hyperparam).*...
-                (-.5*nTrain + sqrt(2*nTrain*sigma_prior_hyperparam.*...
-                mean(XSqMean - 2*(PhiThetaMat.*XMean) + PhiThetaMat.^2, 2) + .25*nTrain^2));
-            
-            Sigma = sparse(1:nCoarse, 1:nCoarse, sigmaSqVec);
-            Sigma(Sigma < 0) = eps; %for numerical stability
-            sumPhiTSigmaInvXmean = 0;
-            %Only valid for diagonal Sigma
-            s = diag(Sigma);
-            SigmaInv = sparse(diag(1./s));
-            SigmaInvXMean = SigmaInv*XMean;
-            sumPhiTSigmaInvPhi = 0;
-            
-            for i = 1:nTrain
-                sumPhiTSigmaInvXmean = sumPhiTSigmaInvXmean + designMatrix{i}'*SigmaInvXMean(:, i);
-                sumPhiTSigmaInvPhi = sumPhiTSigmaInvPhi + designMatrix{i}'*SigmaInv*designMatrix{i};
-            end
+        for i = 1:nTrain
+            sumPhiTSigmaInvXmean = sumPhiTSigmaInvXmean + designMatrix{i}'*SigmaInvXMean(:, i);
+            sumPhiTSigmaInvPhi = sumPhiTSigmaInvPhi + designMatrix{i}'*SigmaInv*designMatrix{i};
+        end
 %             error('Prior on diagonal Sigma not yet implemented')
 %             gradHessLogSigmaMinus2 = @(lSigmaMinus2) dF_dlogSigmaMinus2(lSigmaMinus2, theta, nCoarse, nTrain, XNormSqMean,...
 %                 sumPhiTSigmaInvXmean, Phi.sumPhiTPhi, sigma_prior_type, sigma_prior_hyperparam);
@@ -226,41 +204,38 @@ while(~converged)
 %             sigma2_old = sigma2;
 %             sigma2 = 1/sigmaMinus2;
 
-        elseif strcmp(sigma_prior_type, 'delta')
-            %Don't change sigma
- 
-            %sum_i Phi_i^T Sigma^-1 <X^i>_qi
-            sumPhiTSigmaInvXmean = 0;
-            %Only valid for diagonal Sigma
-            s = diag(Sigma);
-            SigmaInv = sparse(diag(1./s));
-            SigmaInvXMean = SigmaInv*XMean;
-            sumPhiTSigmaInvPhi = 0;
-            
-            for i = 1:nTrain
-                sumPhiTSigmaInvXmean = sumPhiTSigmaInvXmean + designMatrix{i}'*SigmaInvXMean(:, i);
-                sumPhiTSigmaInvPhi = sumPhiTSigmaInvPhi + designMatrix{i}'*SigmaInv*designMatrix{i};
-            end
-        end
+    elseif strcmp(sigma_prior_type, 'delta')
+        %Don't change sigma
         
-        iter = iter + 1;
-        thetaDiffRel = norm(theta_old_old - theta)/(norm(theta)*numel(theta));
-        if((iter > 5 && thetaDiffRel < 1e-8) || iter > 200)
-            converged = true;
+        %sum_i Phi_i^T Sigma^-1 <X^i>_qi
+        sumPhiTSigmaInvXmean = 0;
+        %Only valid for diagonal Sigma
+        s = diag(Sigma);
+        SigmaInv = sparse(diag(1./s));
+        SigmaInvXMean = SigmaInv*XMean;
+        sumPhiTSigmaInvPhi = 0;
+        
+        for i = 1:nTrain
+            sumPhiTSigmaInvXmean = sumPhiTSigmaInvXmean + designMatrix{i}'*SigmaInvXMean(:, i);
+            sumPhiTSigmaInvPhi = sumPhiTSigmaInvPhi + designMatrix{i}'*SigmaInv*designMatrix{i};
         end
+    end
+    
+    iter = iter + 1;
+    thetaDiffRel = norm(theta_old_old - theta)/(norm(theta)*numel(theta));
+    if((iter > 5 && thetaDiffRel < 1e-8) || iter > 200)
+        converged = true;
     end
 end
 
-if ~theta_c.useNeuralNet
-    theta_c.theta = theta;
-    % theta_c.sigma = sqrt(sigma2);
-    theta_c.Sigma = Sigma;
-    theta_c.SigmaInv = SigmaInv;
-    theta_c.priorHyperparam = theta_c.priorHyperparam;
-    %Value which could be used to refine mesh
-    noPriorSigma = mean(XSqMean - 2*(PhiThetaMat.*XMean) + PhiThetaMat.^2, 2)
-    save('./data/noPriorSigma.mat', 'noPriorSigma');
-end
+theta_c.theta = theta;
+% theta_c.sigma = sqrt(sigma2);
+theta_c.Sigma = Sigma;
+theta_c.SigmaInv = SigmaInv;
+theta_c.priorHyperparam = theta_c.priorHyperparam;
+%Value which could be used to refine mesh
+noPriorSigma = mean(XSqMean - 2*(PhiThetaMat.*XMean) + PhiThetaMat.^2, 2)
+save('./data/noPriorSigma.mat', 'noPriorSigma');
 
 end
 

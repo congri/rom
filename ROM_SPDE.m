@@ -34,12 +34,23 @@ classdef ROM_SPDE
         %% Model training parameters
         nStart = 1;             %first training data sample in file
         nTrain = 32;            %number of samples used for training
-        mode = 'none';          %useNeighbor, useLocalNeighbor, useDiagNeighbor, useLocalDiagNeighbor, useLocal, global
+        mode = 'useLocal';          %useNeighbor, useLocalNeighbor, useDiagNeighbor, useLocalDiagNeighbor, useLocal, global
                                 %global: take whole microstructure as feature function input, not
                                 %only local window (only recommended for pooling)
-        linFiltSeq = false;
-        useAutoEnc = false;      %Use autoencoder information? Do not forget to pre-train autoencoder!
+        
+         %% Sequential addition of linear filters                       
+        linFilt
+        
+        useAutoEnc = false;     %Use autoencoder information? Do not forget to pre-train autoencoder!
         secondOrderTerms;
+        mix_S = 0;              %To slow down convergence of S
+        mix_theta = 0;
+        mix_sigma = 0;
+        fixSigmaInit = 0;       %Fix sigma in initial iterations
+        
+        %% Prior specifications
+        sigmaPriorType = 'none';    %none, delta, expSigSq
+        sigmaPriorHyperparam = 1;
         
         %% Model parameters
         theta_c;
@@ -75,8 +86,20 @@ classdef ROM_SPDE
         %% Finescale data- only load this to memory when needed!
         lambdak
         xk
+        
+        %% Computational quantities
+        varExpect_p_cf_exp;     %Expected exponent of p_cf under q
+        XMean;                  %Expected value of X under q
+        XSqMean;                %<X^2>_q
+        thetaArray;
+        thetaHyperparamArray;
+        sigmaArray;
+        
+        EM_iterations = 1;
+        epoch = 0;      %how often every data point has been seen
+        epoch_old = 0;  %To check if epoch has changed
+        maxEpochs;      %Maximum number of epochs
     end
-    
     
     
     properties(SetAccess = private)
@@ -100,10 +123,7 @@ classdef ROM_SPDE
         designMatrix
     end
     
-    
-    
-    
-    
+
     methods
         function obj = ROM_SPDE()
             %Constructor
@@ -119,6 +139,10 @@ classdef ROM_SPDE
             
             %Set up coarseScaleDomain; must be done after boundary conditions are set up
             obj = obj.genCoarseDomain;
+            
+            %prealloc
+            obj.XMean = zeros(obj.coarseScaleDomain.nEl, obj.nTrain);
+            obj.XSqMean = ones(obj.coarseScaleDomain.nEl, obj.nTrain);
                         
             %Set up default value for test samples
             obj.testSamples = 1:obj.nSets(2);
@@ -140,11 +164,6 @@ classdef ROM_SPDE
             
             %Set up feature function handles
             obj = obj.setFeatureFunctions;
-            
-            if(obj.linFiltSeq && ~strcmp(obj.mode, 'useLocal'))
-                error('Use local mode for sequential addition of basis functions')
-            end
-            
         end
 
         function obj = genFineScaleData(obj, boundaryConditions, condDistParams)
@@ -563,7 +582,7 @@ classdef ROM_SPDE
             obj = obj.setFeatureFunctions;
             nFeatures = size(obj.featureFunctions, 2);
             nGlobalFeatures = size(obj.globalFeatureFunctions, 2);
-            if obj.linFiltSeq
+            if(obj.linFilt.totalUpdates > 0)
                 if exist('./data/w.mat', 'file')
                     load('./data/w.mat');   %to load w_all
                     for i = 1:size(w_all, 2)
@@ -587,6 +606,86 @@ classdef ROM_SPDE
                 end
             end
             disp('done')
+        end
+        
+        function obj = M_step(obj)
+            disp('M-step: find optimal params...')
+            %Optimal S (decelerated convergence)
+            lowerBoundS = eps;
+            obj.theta_cf.S = (1 - obj.mix_S)*mean(obj.varExpect_p_cf_exp, 2)...
+                + obj.mix_S*obj.theta_cf.S + lowerBoundS*ones(obj.fineScaleDomain.nNodes, 1);
+            obj.theta_cf.Sinv = sparse(1:obj.fineScaleDomain.nNodes,...
+                1:obj.fineScaleDomain.nNodes, 1./obj.theta_cf.S);
+            obj.theta_cf.Sinv_vec = 1./obj.theta_cf.S;
+            obj.theta_cf.WTSinv = obj.theta_cf.W'*obj.theta_cf.Sinv;        %Precomputation for efficiency
+            
+            %optimal theta_c and sigma
+            Sigma_old = obj.theta_c.Sigma;
+            theta_old = obj.theta_c.theta;
+            
+            if(obj.EM_iterations < obj.fixSigmaInit)
+                obj.theta_c = optTheta_c(obj.theta_c, obj.nTrain, obj.coarseScaleDomain.nEl, obj.XSqMean,...
+                    obj.designMatrix, obj.XMean, 'delta', obj.sigmaPriorHyperparam);
+            else
+                obj.theta_c = optTheta_c(obj.theta_c, obj.nTrain, obj.coarseScaleDomain.nEl, obj.XSqMean,...
+                    obj.designMatrix, obj.XMean, obj.sigmaPriorType, obj.sigmaPriorHyperparam);
+            end
+            obj.theta_c.Sigma = (1 - obj.mix_sigma)*obj.theta_c.Sigma + obj.mix_sigma*Sigma_old;
+            obj.theta_c.theta = (1 - obj.mix_theta)*obj.theta_c.theta + obj.mix_theta*theta_old;
+            
+            disp('M-step done')
+        end
+        
+        function dispCurrentParams(obj)
+            disp('Current params:')
+            [~, index] = sort(abs(obj.theta_c.theta));
+            if strcmp(obj.mode, 'useNeighbor')
+                feature = mod((index - 1), numel(obj.featureFunctions)) + 1;
+                %counted counterclockwise from right to lower neighbor
+                neighborElement = floor((index - 1)/numel(obj.featureFunctions));
+                curr_theta = [obj.theta_c.theta(index) feature neighborElement]
+            elseif strcmp(obj.mode, 'useDiagNeighbor')
+                feature = mod((index - 1), numel(obj.featureFunctions)) + 1;
+                %counted counterclockwise from right to lower right neighbor
+                neighborElement = floor((index - 1)/numel(obj.featureFunctions));
+                curr_theta = [obj.theta_c.theta(index) feature neighborElement]
+            elseif strcmp(obj.mode, 'useLocal')
+                feature = mod((index - 1), size(obj.featureFunctions, 2) + size(obj.globalFeatureFunctions, 2)) + 1;
+                Element = floor((index - 1)/(size(obj.featureFunctions, 2) + size(obj.globalFeatureFunctions, 2))) + 1;
+                curr_theta = [obj.theta_c.theta(index) feature Element]
+            elseif(strcmp(obj.mode, 'useLocalNeighbor') || strcmp(obj.mode, 'useLocalDiagNeighbor'))
+                disp('theta feature coarseElement neighbor')
+                curr_theta = [obj.theta_c.theta(index) obj.neighborDictionary(index, 1)...
+                    obj.neighborDictionary(index, 2) obj.neighborDictionary(index, 3)]
+            else
+                curr_theta = [obj.theta_c.theta(index) index]
+            end
+            
+            curr_sigma = obj.theta_c.Sigma
+            mean_S = mean(obj.theta_cf.S)
+            %curr_theta_hyperparam = obj.theta_c.priorHyperparam
+        end
+        
+        function obj = linearFilterUpdate(obj)
+            if(obj.linFilt.totalUpdates > 0 && ~strcmp(obj.mode, 'useLocal'))
+                error('Use local mode for sequential addition of basis functions')
+            end
+            
+            if(obj.epoch > obj.linFilt.initialEpochs &&...
+                    mod((obj.epoch - obj.linFilt.initialEpochs + 1), obj.linFilt.gap) == 0 &&...
+                    obj.epoch ~= obj.epoch_old && obj.linFilt.updates < obj.linFilt.totalUpdates)
+                obj.linFilt.updates = obj.linFilt.updates + 1;
+                if strcmp(obj.linFilt.type, 'local')
+                    obj = obj.addLinearFilterFeature;
+                elseif strcmp(obj.linFilt.type, 'global')
+                    obj = obj.addGlobalLinearFilterFeature;
+                else
+                    
+                end
+                %Recompute theta_c and sigma
+                obj.theta_c = optTheta_c(obj.theta_c, obj.nTrain, obj.coarseScaleDomain.nEl, obj.XSqMean,...
+                    obj.designMatrix, obj.XMean, obj.sigmaPriorType, obj.sigmaPriorHyperparam);
+            end
         end
         
         function obj = predict(obj)
@@ -819,7 +918,7 @@ classdef ROM_SPDE
             PhiCell{1} = zeros(obj.coarseScaleDomain.nEl, nFeatureFunctions + nGlobalFeatureFunctions);
             PhiCell = repmat(PhiCell, nData, 1);
             [lambdak, xk] = obj.get_coarseElementConductivities(mode);
-            if obj.linFiltSeq
+            if(obj.linFilt.totalUpdates > 0)
                 %These only need to be stored if we sequentially add features
                 obj.lambdak = lambdak;
                 obj.xk = xk;
@@ -1659,16 +1758,16 @@ classdef ROM_SPDE
                             k = k + 1;
                         end
                     end
-                elseif strcmp(romObj.mode, 'none')
-                    for i = 1:romObj.coarseScaleDomain.nElX
-                        for j = 1:romObj.coarseScaleDomain.nElY
-                            for s = 1:romObj.nTrain
+                elseif strcmp(obj.mode, 'none')
+                    for i = 1:obj.coarseScaleDomain.nElX
+                        for j = 1:obj.coarseScaleDomain.nElY
+                            for s = 1:obj.nTrain
                                 plot(obj.designMatrix{s}(k, feature), XMean(k, s), 'xb')
                                 hold on;
                             end
                             x = linspace(min(min(cell2mat(obj.designMatrix))),...
                                 max(max(cell2mat(obj.designMatrix))), 100);
-                            y = romObj.theta_c.theta(feature)*x;
+                            y = obj.theta_c.theta(feature)*x;
                             plot(x, y);
                             axis tight;
                             k = k + 1;
@@ -1677,15 +1776,72 @@ classdef ROM_SPDE
                 end
             end
         end
+        
+        function obj = plotTheta(obj, figHandle)
+            %Plots the current theta_c
+            if isempty(obj.thetaArray)
+                obj.thetaArray = obj.theta_c.theta';
+            else
+                if(size(obj.theta_c.theta, 1) > size(obj.thetaArray, 2))
+                    %New basis function included. Expand array
+                    obj.thetaArray = [obj.thetaArray, zeros(size(obj.thetaArray, 1),...
+                        numel(obj.theta_c.theta) - size(obj.thetaArray, 2))];
+                    obj.thetaArray = [obj.thetaArray; obj.theta_c.theta'];
+                else
+                    obj.thetaArray = [obj.thetaArray; obj.theta_c.theta'];
+                end
+            end
+            if isempty(obj.thetaHyperparamArray)
+                obj.thetaHyperparamArray = obj.theta_c.priorHyperparam';
+            else
+                if(size(obj.theta_c.priorHyperparam, 1) > size(obj.thetaHyperparamArray, 2))
+                    %New basis function included. Expand array
+                    obj.thetaHyperparamArray = [obj.thetaHyperparamArray, zeros(size(obj.thetaHyperparamArray, 1),...
+                        numel(obj.theta_c.priorHyperparam) - size(obj.thetaHyperparamArray, 2))];
+                    obj.thetaHyperparamArray = [obj.thetaHyperparamArray; obj.theta_c.priorHyperparam'];
+                else
+                    obj.thetaHyperparamArray = [obj.thetaHyperparamArray; obj.theta_c.priorHyperparam'];
+                end
+            end
+            if isempty(obj.sigmaArray)
+                obj.sigmaArray = diag(obj.theta_c.Sigma)';
+            else
+                obj.sigmaArray = [obj.sigmaArray; diag(obj.theta_c.Sigma)'];
+            end
+            figure(figHandle);
+            subplot(3,2,1)
+            plot(obj.thetaArray, 'linewidth', 1)
+            axis tight;
+            subplot(3,2,2)
+            plot(obj.theta_c.theta, 'linewidth', 1)
+            axis tight;
+            subplot(3,2,3)
+            semilogy(sqrt(obj.sigmaArray), 'linewidth', 1)
+            axis tight;
+            subplot(3,2,4)
+            imagesc(reshape(diag(sqrt(obj.theta_c.Sigma)), obj.coarseScaleDomain.nElX,...
+                obj.coarseScaleDomain.nElY))
+            title('\sigma_k^2')
+            colorbar
+            grid off;
+            axis tight;
+            subplot(3,2,5)
+            plot(obj.thetaHyperparamArray, 'linewidth', 1)
+            axis tight;
+            subplot(3,2,6)
+            plot(obj.theta_c.priorHyperparam, 'linewidth', 1)
+            axis tight;
+            drawnow
+        end
 
-        function obj = addLinearFilterFeature(obj, XMean)            
+        function obj = addLinearFilterFeature(obj)            
             assert(strcmp(obj.mode, 'useLocal'),...
                 'Error: sequential addition of linear filters only working in useLocal mode');
             
 %             sigma2Inv_vec = (1./diag(obj.theta_c.Sigma));
             XMeanMinusPhiThetac = zeros(obj.coarseScaleDomain.nEl, obj.nTrain);
             for i = 1:obj.nTrain
-                XMeanMinusPhiThetac(:, i) = XMean(:, i) - obj.designMatrix{i}*obj.theta_c.theta;
+                XMeanMinusPhiThetac(:, i) = obj.XMean(:, i) - obj.designMatrix{i}*obj.theta_c.theta;
             end
             
             %We use different linear filters for different macro-cells k
@@ -1756,12 +1912,12 @@ classdef ROM_SPDE
             obj.theta_c.theta = theta_new;
         end
 
-        function obj = addGlobalLinearFilterFeature(obj, XMean)
+        function obj = addGlobalLinearFilterFeature(obj)
             assert(strcmp(obj.mode, 'useLocal'),...
                 'Error: sequential addition of linear filters only working in useLocal mode');
             XMeanMinusPhiThetac = zeros(obj.coarseScaleDomain.nEl, obj.nTrain);
             for i = 1:obj.nTrain
-                XMeanMinusPhiThetac(:, i) = XMean(:, i) - obj.designMatrix{i}*obj.theta_c.theta;
+                XMeanMinusPhiThetac(:, i) = obj.XMean(:, i) - obj.designMatrix{i}*obj.theta_c.theta;
             end
             
             conductivity = obj.trainingDataMatfile.cond(:, obj.trainingSamples);
@@ -1805,7 +1961,7 @@ classdef ROM_SPDE
             f = figure;
             for m = 1:obj.coarseScaleDomain.nEl
                 subplot(obj.coarseScaleDomain.nElX, obj.coarseScaleDomain.nElY, m);
-                imagesc(reshape(w{m}, obj.fineScaleDomain.nElX, obj.fineScaleDomain.nElY)))
+                imagesc(reshape(w{m}, obj.fineScaleDomain.nElX, obj.fineScaleDomain.nElY))
                 axis square
                 grid off
                 xticks({})

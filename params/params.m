@@ -3,13 +3,15 @@
 
 %load old configuration? (Optimal parameters, optimal variational distributions
 loadOldConf = false;
-romObj.theta_c.useNeuralNet = false;    %use neural net for p_c
 
-%% EM params
-initialEpochs = 120;
-basisFunctionUpdates = 0;
-basisUpdateGap = 10;     %given in epochs, i.e. how often every data point has been seen
-maxEpochs = (basisFunctionUpdates + 1)*basisUpdateGap - 2 + initialEpochs;
+%linear filter options
+romObj.linFilt.type = 'local';  %local or global
+romObj.linFilt.gap = 3;
+romObj.linFilt.initialEpochs = 0;
+romObj.linFilt.updates = 0;     %Already added linear filters
+romObj.linFilt.totalUpdates = 1;
+romObj.maxEpochs = (romObj.linFilt.totalUpdates + 1)*romObj.linFilt.gap - 2 + romObj.linFilt.initialEpochs;
+
 
 %% Start value of model parameters
 %Shape function interpolate in W
@@ -70,10 +72,7 @@ end
 
 %what kind of prior for theta_c
 romObj.theta_c.thetaPriorType = 'none';              %hierarchical_gamma, hierarchical_laplace, laplace,
-                                                         %gaussian, RVM or none
-sigma_prior_type = 'none';                  %expSigSq, delta or none. A delta prior keeps sigma at its initial value
-sigma_prior_type_hold = sigma_prior_type;
-fixSigInit = 0;                                 %number of initial iterations with fixed sigma
+
 %prior hyperparams; obsolete for no prior
 % theta_prior_hyperparamArray = [0 1e-4];                   %a and b params for Gamma hyperprior
 romObj.theta_c.priorHyperparam = 1;
@@ -106,14 +105,6 @@ for i = 1:romObj.nTrain
     MCMCstepWidth(i).nSamples = 2;
     MCMCstepWidth(i).nGap = 100;
 end
-
-%% Control convergence velocity - take weighted mean of adjacent parameter estimates
-mix_sigma = 0;
-mix_S = 0;
-mix_W = 0;
-mix_theta = 0;    %to damp oscillations/ drive convergence?
-
-
 
 %% Variational inference params
 variationalDist = 'diagonalGauss';

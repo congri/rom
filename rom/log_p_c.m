@@ -7,20 +7,7 @@ function [log_p, d_log_p, data] = log_p_c(Xq, Phi, theta_c)
 %   nFine:      Number of fine elements
 %   nCoarse:    Number of coarse elements
 
-
-if(theta_c.useNeuralNet)
-    %theta_c.theta now stores the neural net; Phi stores the microstructure i for q_i
-    if isreal(theta_c.theta)
-%         theta_c.theta
-%         warning('theta_c is a number in neural network mode. First iteration?')
-        %THIS SHOULD ONLY HAPPEN IN THE VERY FIRST ITERATION!!!
-        mu = 0;
-    else
-        mu = double(predict(theta_c.theta, Phi));
-    end
-else
-    mu  = Phi*theta_c.theta;    %mean
-end
+mu  = Phi*theta_c.theta;    %mean
 
 %ignore constant prefactor
 % log_p = - size(Xq, 1)*log(sigma) - (1/(2*sigma^2))*(Xq - mu)'*(Xq - mu);
