@@ -37,46 +37,8 @@ pend = 0;       %for sequential qi-updates
 XMean = zeros(romObj.coarseScaleDomain.nEl, romObj.nTrain);
 XSqMean = ones(romObj.coarseScaleDomain.nEl, romObj.nTrain);
 
-%% Compute design matrices
-Phi = DesignMatrix(romObj.fineScaleDomain, romObj.coarseScaleDomain, romObj.featureFunctions,...
-    romObj.globalFeatureFunctions, romObj.trainingDataMatfile, romObj.nStart:(romObj.nStart + romObj.nTrain - 1));
-Phi.useAutoEnc = romObj.useAutoEnc;
-Phi = Phi.computeDesignMatrix(romObj.coarseScaleDomain.nEl, romObj.fineScaleDomain.nEl,...
-    romObj.conductivityTransformation);
+%Compute design matrices
 romObj = romObj.computeDesignMatrix('train');
-
-Phi = Phi.secondOrderFeatures(romObj.secondOrderTerms); %Include second order terms phi_i*phi_j
-
-    %Normalize design matrices
-if romObj.standardizeFeatures
-    Phi = Phi.standardizeDesignMatrix;
-    romObj = romObj.standardizeDesignMatrix('train');
-    Phi.saveNormalization('standardization');
-elseif romObj.rescaleFeatures
-    Phi = Phi.rescaleDesignMatrix;
-    romObj = romObj.rescaleDesignMatrix('train');
-    Phi.saveNormalization('rescaling');
-end
-%Compute sum_i Phi^T(x_i)^Phi(x_i)
-if strcmp(romObj.mode, 'useNeighbor')
-    %use feature function information from nearest neighbors
-    Phi = Phi.includeNearestNeighborFeatures([romObj.coarseScaleDomain.nElX romObj.coarseScaleDomain.nElY]);
-elseif strcmp(romObj.mode, 'useLocalNeighbor')
-    Phi = Phi.includeLocalNearestNeighborFeatures([romObj.coarseScaleDomain.nElX romObj.coarseScaleDomain.nElY]);
-elseif strcmp(romObj.mode, 'useLocalDiagNeighbor')
-    Phi = Phi.includeLocalDiagNeighborFeatures([romObj.coarseScaleDomain.nElX romObj.coarseScaleDomain.nElY]);
-elseif strcmp(romObj.mode, 'useDiagNeighbor')
-    %use feature function information from nearest and diagonal neighbors
-    Phi = Phi.includeDiagNeighborFeatures([romObj.coarseScaleDomain.nElX romObj.coarseScaleDomain.nElY]);
-elseif strcmp(romObj.mode, 'useLocal')
-    %Use separate parameters for every macro-cell
-    Phi = Phi.localTheta_c([romObj.coarseScaleDomain.nElX romObj.coarseScaleDomain.nElY]);
-end
-error
-Phi = Phi.computeSumPhiTPhi;
-if strcmp(romObj.mode, 'useLocal')
-    Phi.sumPhiTPhi = sparse(Phi.sumPhiTPhi);
-end
 
 MonteCarlo = false;
 VI = true;
@@ -96,7 +58,7 @@ while true
     %% Establish distribution to sample from
     for i = 1:romObj.nTrain
         Tf_i_minus_mu = romObj.fineScaleDataOutput(:, i) - romObj.theta_cf.mu;
-        PhiMat = Phi.designMatrices{i};
+        PhiMat = romObj.designMatrix{i};
         %this transfers less data in parfor loops
         tcf = romObj.theta_cf;
         tcf.Sinv = [];
@@ -124,7 +86,7 @@ while true
     if MonteCarlo
         for i = 1:romObj.nTrain
             %take MCMC initializations at mode of p_c
-            MCMC(i).Xi_start = Phi.designMatrices{i}*romObj.theta_c.theta;
+            MCMC(i).Xi_start = obj.designMatrix{i}*romObj.theta_c.theta;
         end
         %% Test run for step sizes
         disp('test sampling...')
@@ -315,7 +277,7 @@ while true
     end
     
     romObj.theta_c = optTheta_c(romObj.theta_c, romObj.nTrain, romObj.coarseScaleDomain.nEl, XSqMean,...
-        Phi, XMean, sigma_prior_type, sigma_prior_hyperparam);
+        romObj.designMatrix, XMean, sigma_prior_type, sigma_prior_hyperparam);
     romObj.theta_c.Sigma = (1 - mix_sigma)*romObj.theta_c.Sigma + mix_sigma*Sigma_old;
     
     k
@@ -324,23 +286,23 @@ while true
         disp('M-step done, current params:')
         [~, index] = sort(abs(romObj.theta_c.theta));
         if strcmp(romObj.mode, 'useNeighbor')
-            feature = mod((index - 1), numel(Phi.featureFunctions)) + 1;
+            feature = mod((index - 1), numel(romObj.featureFunctions)) + 1;
             %counted counterclockwise from right to lower neighbor
-            neighborElement = floor((index - 1)/numel(Phi.featureFunctions));
+            neighborElement = floor((index - 1)/numel(romObj.featureFunctions));
             curr_theta = [romObj.theta_c.theta(index) feature neighborElement]
         elseif strcmp(romObj.mode, 'useDiagNeighbor')
-            feature = mod((index - 1), numel(Phi.featureFunctions)) + 1;
+            feature = mod((index - 1), numel(romObj.featureFunctions)) + 1;
             %counted counterclockwise from right to lower right neighbor
-            neighborElement = floor((index - 1)/numel(Phi.featureFunctions));
+            neighborElement = floor((index - 1)/numel(romObj.featureFunctions));
             curr_theta = [romObj.theta_c.theta(index) feature neighborElement]
         elseif strcmp(romObj.mode, 'useLocal')
-            feature = mod((index - 1), size(Phi.featureFunctions, 2) + size(Phi.globalFeatureFunctions, 2)) + 1;
-            Element = floor((index - 1)/(size(Phi.featureFunctions, 2) + size(Phi.globalFeatureFunctions, 2))) + 1;
+            feature = mod((index - 1), size(romObj.featureFunctions, 2) + size(romObj.globalFeatureFunctions, 2)) + 1;
+            Element = floor((index - 1)/(size(romObj.featureFunctions, 2) + size(romObj.globalFeatureFunctions, 2))) + 1;
             curr_theta = [romObj.theta_c.theta(index) feature Element]
         elseif(strcmp(romObj.mode, 'useLocalNeighbor') || strcmp(romObj.mode, 'useLocalDiagNeighbor'))
             disp('theta feature coarseElement neighbor')
-            curr_theta = [romObj.theta_c.theta(index) Phi.neighborDictionary(index, 1)...
-                Phi.neighborDictionary(index, 2) Phi.neighborDictionary(index, 3)]
+            curr_theta = [romObj.theta_c.theta(index) romObj.neighborDictionary(index, 1)...
+                romObj.neighborDictionary(index, 2) romObj.neighborDictionary(index, 3)]
         else
             curr_theta = [romObj.theta_c.theta(index) index]
         end
@@ -353,7 +315,7 @@ while true
             [romObj, Phi] = romObj.addGlobalLinearFilterFeature(XMean, Phi);
             %Recompute theta_c and sigma
             romObj.theta_c = optTheta_c(romObj.theta_c, romObj.nTrain, romObj.coarseScaleDomain.nEl, XSqMean,...
-                Phi, XMean, sigma_prior_type, sigma_prior_hyperparam);
+                romObj, XMean, sigma_prior_type, sigma_prior_hyperparam);
             romObj.theta_c.Sigma = (1 - mix_sigma)*romObj.theta_c.Sigma + mix_sigma*Sigma_old;
         end
         
@@ -426,7 +388,7 @@ while true
             m = predict(romObj.theta_c.theta, xkNN(:, :, 1, 1:romObj.coarseScaleDomain.nEl));
             Lambda_eff1_mode = conductivityBackTransform(m, romObj.conductivityTransformation)
         else
-            Lambda_eff1_mode = conductivityBackTransform(Phi.designMatrices{1}*romObj.theta_c.theta,...
+            Lambda_eff1_mode = conductivityBackTransform(romObj.designMatrix{1}*romObj.theta_c.theta,...
                 romObj.conductivityTransformation)
         end
     end

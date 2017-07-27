@@ -88,7 +88,7 @@ end
 %neighbor dictionary
 saveNeighborDictionary = true;
 if saveNeighborDictionary
-    nbdict = Phi.neighborDictionary;
+    nbdict = romObj.neighborDictionary;
     filename = './data/neighborDictionary';
     save(filename, 'nbdict', '-ascii');
     clear nbdict;

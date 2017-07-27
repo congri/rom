@@ -1,5 +1,5 @@
 function [theta_c] = optTheta_c(theta_c, nTrain, nCoarse, XSqMean,...
-    Phi, XMean, sigma_prior_type, sigma_prior_hyperparam)
+    designMatrix, XMean, sigma_prior_type, sigma_prior_hyperparam)
 %Find optimal theta_c and sigma
 
 %% set options for iterative methods
@@ -33,23 +33,10 @@ SigmaInvXMean = SigmaInv*XMean;
 sumPhiTSigmaInvPhi = 0;
 PhiThetaMat = zeros(nCoarse, nTrain);
 
-if theta_c.useNeuralNet
-    finePerCoarse = [sqrt(size(Phi.xk{1}, 1)), sqrt(size(Phi.xk{1}, 1))];
-    xkNN = zeros(finePerCoarse(1), finePerCoarse(2), 1, nTrain*nCoarse);
-    k = 1;
-end
 for i = 1:nTrain
-    if theta_c.useNeuralNet
-        for j = 1:nCoarse
-            xkNN(:, :, 1, k) =...
-                reshape(Phi.xk{i}(:, j), finePerCoarse(1), finePerCoarse(2)); %for neural net
-            k = k + 1;
-        end
-    else
-        sumPhiTSigmaInvXmean = sumPhiTSigmaInvXmean + Phi.designMatrices{i}'*SigmaInvXMean(:, i);
-        sumPhiTSigmaInvPhi = sumPhiTSigmaInvPhi + Phi.designMatrices{i}'*SigmaInv*Phi.designMatrices{i};
-        PhiThetaMat(:, i) = Phi.designMatrices{i}*theta;
-    end 
+    sumPhiTSigmaInvXmean = sumPhiTSigmaInvXmean + designMatrix{i}'*SigmaInvXMean(:, i);
+    sumPhiTSigmaInvPhi = sumPhiTSigmaInvPhi + designMatrix{i}'*SigmaInv*designMatrix{i};
+    PhiThetaMat(:, i) = designMatrix{i}*theta;
 end
 
 if(strcmp(theta_c.thetaPriorType, 'gaussian') || strcmp(theta_c.thetaPriorType, 'RVM'))
@@ -173,7 +160,7 @@ while(~converged)
         
         PhiThetaMat = zeros(nCoarse, nTrain);
         for i = 1:nTrain
-            PhiThetaMat(:, i) = Phi.designMatrices{i}*theta;
+            PhiThetaMat(:, i) = designMatrix{i}*theta;
         end
         
         %     theta = .5*theta + .5*theta_old;    %for stability
@@ -205,8 +192,8 @@ while(~converged)
             sumPhiTSigmaInvPhi = 0;
             
             for i = 1:nTrain
-                sumPhiTSigmaInvXmean = sumPhiTSigmaInvXmean + Phi.designMatrices{i}'*SigmaInvXMean(:, i);
-                sumPhiTSigmaInvPhi = sumPhiTSigmaInvPhi + Phi.designMatrices{i}'*SigmaInv*Phi.designMatrices{i};
+                sumPhiTSigmaInvXmean = sumPhiTSigmaInvXmean + designMatrix{i}'*SigmaInvXMean(:, i);
+                sumPhiTSigmaInvPhi = sumPhiTSigmaInvPhi + designMatrix{i}'*SigmaInv*designMatrix{i};
             end
         elseif strcmp(sigma_prior_type, 'expSigSq')
             %Vector of variances
@@ -224,8 +211,8 @@ while(~converged)
             sumPhiTSigmaInvPhi = 0;
             
             for i = 1:nTrain
-                sumPhiTSigmaInvXmean = sumPhiTSigmaInvXmean + Phi.designMatrices{i}'*SigmaInvXMean(:, i);
-                sumPhiTSigmaInvPhi = sumPhiTSigmaInvPhi + Phi.designMatrices{i}'*SigmaInv*Phi.designMatrices{i};
+                sumPhiTSigmaInvXmean = sumPhiTSigmaInvXmean + designMatrix{i}'*SigmaInvXMean(:, i);
+                sumPhiTSigmaInvPhi = sumPhiTSigmaInvPhi + designMatrix{i}'*SigmaInv*designMatrix{i};
             end
 %             error('Prior on diagonal Sigma not yet implemented')
 %             gradHessLogSigmaMinus2 = @(lSigmaMinus2) dF_dlogSigmaMinus2(lSigmaMinus2, theta, nCoarse, nTrain, XNormSqMean,...
@@ -251,8 +238,8 @@ while(~converged)
             sumPhiTSigmaInvPhi = 0;
             
             for i = 1:nTrain
-                sumPhiTSigmaInvXmean = sumPhiTSigmaInvXmean + Phi.designMatrices{i}'*SigmaInvXMean(:, i);
-                sumPhiTSigmaInvPhi = sumPhiTSigmaInvPhi + Phi.designMatrices{i}'*SigmaInv*Phi.designMatrices{i};
+                sumPhiTSigmaInvXmean = sumPhiTSigmaInvXmean + designMatrix{i}'*SigmaInvXMean(:, i);
+                sumPhiTSigmaInvPhi = sumPhiTSigmaInvPhi + designMatrix{i}'*SigmaInv*designMatrix{i};
             end
         end
         

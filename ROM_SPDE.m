@@ -34,7 +34,7 @@ classdef ROM_SPDE
         %% Model training parameters
         nStart = 1;             %first training data sample in file
         nTrain = 32;            %number of samples used for training
-        mode = 'useLocal';          %useNeighbor, useLocalNeighbor, useDiagNeighbor, useLocalDiagNeighbor, useLocal, global
+        mode = 'none';          %useNeighbor, useLocalNeighbor, useDiagNeighbor, useLocalDiagNeighbor, useLocal, global
                                 %global: take whole microstructure as feature function input, not
                                 %only local window (only recommended for pooling)
         linFiltSeq = false;
@@ -49,6 +49,7 @@ classdef ROM_SPDE
         %transformation of finescale conductivity to real axis
         conductivityTransformation;
         latentDim;              %If autoencoder is used
+        sumPhiTPhi;             %Design matrix precomputation
         
         %% Feature function rescaling parameters
         featureFunctionMean;
@@ -70,6 +71,10 @@ classdef ROM_SPDE
         meanSquaredDistance;               %mean squared distance of predicted mean to true solution
         meanSquaredDistanceError;          %Monte Carlo error
         meanMahalanobisError;
+        
+        %% Finescale data- only load this to memory when needed!
+        lambdak
+        xk
     end
     
     
@@ -135,6 +140,10 @@ classdef ROM_SPDE
             
             %Set up feature function handles
             obj = obj.setFeatureFunctions;
+            
+            if(obj.linFiltSeq && ~strcmp(obj.mode, 'useLocal'))
+                error('Use local mode for sequential addition of basis functions')
+            end
             
         end
 
@@ -371,7 +380,7 @@ classdef ROM_SPDE
             obj.testDataMatfile = matfile(strcat(obj.fineScaleDataPath, testFileName));
         end
 
-        function obj = loadTrainingData(obj)            
+        function obj = loadTrainingData(obj)
             %load data params; warning for variable FD can be ignored
             try
                 load(strcat(obj.fineScaleDataPath, 'fineScaleDomain.mat'));
@@ -395,6 +404,317 @@ classdef ROM_SPDE
             
             %load finescale temperatures partially
             obj.fineScaleDataOutput = obj.trainingDataMatfile.Tf(:, obj.nStart:(obj.nStart + obj.nTrain - 1));
+        end
+        
+        function obj = genCoarseDomain(obj)
+            %Generate coarse domain object
+            nX = length(obj.coarseGridVectorX);
+            nY = length(obj.coarseGridVectorY);
+            addpath('./heatFEM')        %to find Domain class
+            obj.coarseScaleDomain = Domain(nX, nY, obj.coarseGridVectorX, obj.coarseGridVectorY);
+            %ATTENTION: natural nodes have to be set manually
+            %and consistently in coarse and fine scale domain!!
+            obj.coarseScaleDomain = setBoundaries(obj.coarseScaleDomain, [2:(2*nX + 2*nY)],...
+                obj.boundaryTemperature, obj.boundaryHeatFlux);
+            
+            %Legacy, for predictions
+            if ~exist('./data/', 'dir')
+                mkdir('./data/');
+            end
+            filename = './data/coarseScaleDomain.mat';
+            coarseScaleDomain = obj.coarseScaleDomain;
+            save(filename, 'coarseScaleDomain');
+        end
+        
+        function obj = estimateDataVariance(obj)
+            
+            Tftemp = obj.trainingDataMatfile.Tf(:, 1);
+            Tf_true_mean = zeros(size(Tftemp));
+            Tf_true_sq_mean = zeros(size(Tftemp));
+            nSamples = obj.nSets(1);
+            window = nSamples;
+            nWindows = ceil(nSamples/window);
+            tic
+            for i = 1:nWindows
+                initial = 1 + (i - 1)*window;
+                final = i*window;
+                if final > nSamples
+                    final = nSamples;
+                end
+                Tftemp = obj.trainingDataMatfile.Tf(:, initial:final);
+                Tf_mean_temp = mean(Tftemp, 2);
+                Tf_sq_mean_temp = mean(Tftemp.^2, 2);
+                clear Tftemp;
+                Tf_true_mean = ((i - 1)/i)*Tf_true_mean + (1/i)*Tf_mean_temp;
+                Tf_true_sq_mean = ((i - 1)/i)*Tf_true_sq_mean + (1/i)*Tf_sq_mean_temp;
+            end
+            
+            Tf_true_var = Tf_true_sq_mean - Tf_true_mean.^2;
+            obj.outputVariance = Tf_true_var;
+            obj.meanOutputVariance = mean(Tf_true_var);
+            toc
+            
+            sv = false;
+            if sv
+                %     savedir = '~/matlab/data/trueMC/';
+                savedir = './';
+                if ~exist(savedir, 'dir')
+                    mkdir(savedir);
+                end
+                save(strcat(savedir, '', '_nSamples=', num2str(nSamples), '.mat'), 'Tf_true_mean', 'Tf_true_var')
+            end
+        end
+        
+        function [Xopt, LambdaOpt, s2] = detOpt_p_cf(obj, nStart, nTrain)
+            %Deterministic optimization of log(p_cf) to check capabilities of model
+            
+            %don't change these!
+            theta_cfOptim.S = 1;
+            theta_cfOptim.sumLogS = 0;
+            theta_cfOptim.Sinv = 1;
+            theta_cfOptim.Sinv_vec = ones(obj.fineScaleDomain.nNodes, 1);
+            theta_cfOptim.W = obj.theta_cf.W;
+            theta_cfOptim.WTSinv = obj.theta_cf.WTSinv;
+            
+            options = optimoptions(@fminunc,'Display','iter', 'Algorithm', 'trust-region',...
+                'SpecifyObjectiveGradient', true);
+            Xinit = 0*ones(obj.coarseScaleDomain.nEl, 1);
+            Xopt = zeros(obj.coarseScaleDomain.nEl, nTrain);
+            LambdaOpt = Xopt;
+            s2 = zeros(1, nTrain);
+            j = 1;
+            addpath('./tests/detOptP_cf')
+            for i = nStart:(nStart + nTrain -1)
+                Tf = obj.trainingDataMatfile.Tf(:, i);
+                objFun = @(X) objective(X, Tf, obj.coarseScaleDomain, obj.conductivityTransformation, theta_cfOptim);
+                [XoptTemp, fvalTemp] = fminunc(objFun, Xinit, options);
+                LambdaOptTemp = conductivityBackTransform(XoptTemp, obj.conductivityTransformation);
+                Xopt(:, j) = XoptTemp;
+                LambdaOpt(:, j) = LambdaOptTemp;
+                
+                %s2 is the squared distance of truth to optimal coarse averaged over all nodes
+                s2(j) = fvalTemp/obj.fineScaleDomain.nNodes
+                j = j + 1;
+            end
+        end
+        
+        function obj = loadTrainedParams(obj)
+            %Load trained model parameters from disk to workspace
+            
+            %Load trained params from disk
+            disp('Loading optimal parameters from disk...')
+            obj.theta_c.theta = dlmread('./data/theta');
+            obj.theta_c.theta = obj.theta_c.theta(end, :)';
+            obj.theta_c.Sigma = dlmread('./data/sigma');
+            obj.theta_c.Sigma = diag(obj.theta_c.Sigma(end, :));
+            obj.theta_cf.S = dlmread('./data/S')';
+            W = dlmread('./data/Wmat');
+            W = reshape(W, length(W)/3, 3)';
+            obj.theta_cf.W = sparse(W(1, :), W(2, :), W(3, :));
+            obj.theta_cf.mu = dlmread('./data/mu')';
+            disp('done')
+            
+            disp('Loading data normalization data...')
+            try
+                obj.featureFunctionMean = dlmread('./data/featureFunctionMean');
+                obj.featureFunctionSqMean = dlmread('./data/featureFunctionSqMean');
+            catch
+                warning('featureFunctionMean, featureFunctionSqMean not found, setting it to 0.')
+                obj.featureFunctionMean = 0;
+                obj.featureFunctionSqMean = 0;
+            end
+            
+            try
+                obj.featureFunctionMin = dlmread('./data/featureFunctionMin');
+                obj.featureFunctionMax = dlmread('./data/featureFunctionMax');
+            catch
+                warning('featureFunctionMin, featureFunctionMax not found, setting it to 0.')
+                obj.featureFunctionMin = 0;
+                obj.featureFunctionMax = 0;
+            end
+            disp('done')
+            
+            if(isempty(obj.coarseScaleDomain) || isempty(obj.fineScaleDomain))
+                disp('Loading fine and coarse domain objects...')
+                addpath('./heatFEM')        %to find Domain class
+                try
+                    load(strcat(obj.fineScaleDataPath, 'fineScaleDomain.mat'));
+                    obj.fineScaleDomain = fineScaleDomain;
+                catch
+                    temp = load(strcat(obj.fineScaleDataPath, 'romObj.mat'));
+                    obj.fineScaleDomain = temp.obj.fineScaleDomain;
+                end
+                
+                if exist(strcat('./data/coarseScaleDomain.mat'), 'file')
+                    load(strcat('./data/coarseScaleDomain.mat'));
+                    obj.coarseScaleDomain = coarseScaleDomain;
+                else
+                    warning(strcat('No coarse domain file found.',...
+                        'Take boundary conditions from finescale data and regenerate.',...
+                        'Please make sure everything is correct!'))
+                    obj = obj.genCoarseDomain;
+                end
+                disp('done')
+            end
+            
+            %Generate same basis functions as in training
+            disp('Setting up function handles to p_c basis functions...')
+            addpath('./params')
+            obj = obj.setFeatureFunctions;
+            nFeatures = size(obj.featureFunctions, 2);
+            nGlobalFeatures = size(obj.globalFeatureFunctions, 2);
+            if obj.linFiltSeq
+                if exist('./data/w.mat', 'file')
+                    load('./data/w.mat');   %to load w_all
+                    for i = 1:size(w_all, 2)
+                        for m = 1:obj.coarseScaleDomain.nEl
+                            obj.featureFunctions{m, nFeatures + 1} = @(lambda) sum(w_all{m, i}'.*...
+                                conductivityTransform(lambda(:), obj.conductivityTransformation));
+                        end
+                        nFeatures = nFeatures + 1;
+                    end
+                end
+                
+                if exist('./data/wGlobal.mat', 'file')
+                    load('./data/wGlobal.mat');   %to load w_allGlobal, i.e. global linear filters
+                    for i = 1:size(w_allGlobal, 2)
+                        for m = 1:obj.coarseScaleDomain.nEl
+                            obj.globalFeatureFunctions{m, nGlobalFeatures + 1} = @(lambda) sum(w_allGlobal{m, i}'.*...
+                                conductivityTransform(lambda(:), obj.conductivityTransformation));
+                        end
+                        nGlobalFeatures = nGlobalFeatures + 1;
+                    end
+                end
+            end
+            disp('done')
+        end
+        
+        function obj = predict(obj)
+            %Function to predict finescale output from generative model
+            
+            %Load test file
+            Tf = obj.testDataMatfile.Tf(:, obj.testSamples);
+            obj = obj.loadTrainedParams;
+
+            obj = obj.computeDesignMatrix('test');
+            
+            %% Sample from p_c
+            disp('Sampling from p_c...')
+            nTest = numel(obj.testSamples);
+            Xsamples = zeros(obj.coarseScaleDomain.nEl, obj.nSamples_p_c, nTest);
+            LambdaSamples{1} = zeros(obj.coarseScaleDomain.nEl, obj.nSamples_p_c);
+            LambdaSamples = repmat(LambdaSamples, nTest, 1);
+            meanEffCond = zeros(obj.coarseScaleDomain.nEl, nTest);
+            
+            for i = 1:nTest
+                Xsamples(:, :, i) = mvnrnd(obj.designMatrix{i}*obj.theta_c.theta,...
+                    obj.theta_c.Sigma, obj.nSamples_p_c)';
+                LambdaSamples{i} = conductivityBackTransform(Xsamples(:, :, i), obj.conductivityTransformation);
+                if(strcmp(obj.conductivityTransformation.type, 'log') && ~useNeuralNet)
+                    meanEffCond(:, i) = exp(obj.designMatrix{i}*obj.theta_c.theta + .5*diag(obj.theta_c.Sigma));
+                else
+                    meanEffCond(:, i) = mean(LambdaSamples{i}, 2);
+                end
+            end
+            disp('done')
+            
+            %% Run coarse model and sample from p_cf
+            disp('Solving coarse model and sample from p_cf...')
+            %             addpath('./heatFEM')
+            TfMeanArray{1} = zeros(obj.fineScaleDomain.nNodes, 1);
+            TfMeanArray = repmat(TfMeanArray, nTest, 1);
+            TfVarArray = TfMeanArray;
+            Tf_sq_mean = TfMeanArray;
+            
+            %To avoid broadcasting overhead
+            nSamples = obj.nSamples_p_c;
+            coarseDomain = obj.coarseScaleDomain;
+            t_cf = obj.theta_cf;
+            %             t_c = obj.theta_c;
+            addpath('./heatFEM');
+            parfor j = 1:nTest
+                for i = 1:nSamples
+                    D = zeros(2, 2, coarseDomain.nEl);
+                    for e = 1:coarseDomain.nEl
+                        D(:, :, e) = LambdaSamples{j}(e, i)*eye(2);
+                    end
+                    FEMout = heat2d(coarseDomain, D);
+                    Tctemp = FEMout.Tff';
+                    
+                    %sample from p_cf
+                    mu_cf = t_cf.mu + t_cf.W*Tctemp(:);
+                    %only for diagonal S!!
+                    %Sequentially compute mean and <Tf^2> to save memory
+                    TfMeanArray{j} = ((i - 1)/i)*TfMeanArray{j} + (1/i)*mu_cf;  %U_f-integration can be done analyt.
+                    Tf_sq_mean{j} = ((i - 1)/i)*Tf_sq_mean{j} + (1/i)*mu_cf.^2;
+                end
+                Tf_sq_mean{j} = Tf_sq_mean{j} + t_cf.S;
+                Tf_var = abs(Tf_sq_mean{j} - TfMeanArray{j}.^2);  %abs to avoid negative variance due to numerical error
+                meanTf_meanMCErr = mean(sqrt(Tf_var/nSamples))
+                TfVarArray{j} = Tf_var;
+                
+                meanMahaErrTemp{j} = mean(sqrt((.5./(Tf_var)).*(Tf(:, j) - TfMeanArray{j}).^2));
+                sqDist{j} = (Tf(:, j) - TfMeanArray{j}).^2;
+                meanSqDistTemp{j} = mean(sqDist{j})
+            end
+            
+            obj.meanPredMeanOutput = mean(cell2mat(TfMeanArray'), 2);
+            obj.meanMahalanobisError = mean(cell2mat(meanMahaErrTemp));
+            obj.meanSquaredDistance = mean(cell2mat(meanSqDistTemp));
+            meanSqDistSq = mean(cell2mat(meanSqDistTemp).^2);
+            obj.meanSquaredDistanceError = sqrt((meanSqDistSq - obj.meanSquaredDistance^2)/nTest);
+            storeArray = false;
+            if storeArray
+                obj.predMeanArray = TfMeanArray;
+                obj.predVarArray = TfVarArray;
+            end
+            
+            plotPrediction = true;
+            if plotPrediction
+                f = figure('units','normalized','outerposition',[0 0 1 1]);
+                pstart = 1;
+                j = 1;
+                max_Tf = max(max(Tf(:, pstart:(pstart + 5))));
+                min_Tf = min(min(Tf(:, pstart:(pstart + 5))));
+                cond = obj.testDataMatfile.cond(:, pstart:(pstart + 5));
+                %to use same color scale
+                cond = ((min_Tf - max_Tf)/(min(min(cond)) - max(max(cond))))*cond + max_Tf - ...
+                    ((min_Tf - max_Tf)/(min(min(cond)) - max(max(cond))))*max(max(cond));
+                for i = pstart:(pstart + 5)
+                    subplot(2, 3, j)
+                    s(j, 1) = surf(reshape(Tf(:, i), (obj.nElFX + 1), (obj.nElFY + 1)));
+                    s(j, 1).LineStyle = 'none';
+                    hold on;
+                    s(j, 2) = surf(reshape(TfMeanArray{i}, (obj.nElFX + 1), (obj.nElFY + 1)));
+                    s(j, 2).LineStyle = 'none';
+                    s(j, 2).FaceColor = 'b';
+                    s(j, 3) = surf(reshape(TfMeanArray{i}, (obj.nElFX + 1), (obj.nElFY + 1)) +...
+                        sqrt(reshape(TfVarArray{i}, (obj.nElFX + 1), (obj.nElFY + 1))));
+                    s(j, 3).LineStyle = 'none';
+                    s(j, 3).FaceColor = [.85 .85 .85];
+                    s(j, 4) = surf(reshape(TfMeanArray{i}, (obj.nElFX + 1), (obj.nElFY + 1)) -...
+                        sqrt(reshape(TfVarArray{i}, (obj.nElFX + 1), (obj.nElFY + 1))));
+                    s(j, 4).LineStyle = 'none';
+                    s(j, 4).FaceColor = [.85 .85 .85];
+                    ax = gca;
+                    ax.FontSize = 30;
+                    im(j) = imagesc(reshape(cond(:, i), obj.fineScaleDomain.nElX, obj.fineScaleDomain.nElY));
+                    xticks([0 64 128 192 256]);
+                    yticks([0 64 128 192 256]);
+                    zticks(100:100:800)
+                    xticklabels({});
+                    yticklabels({});
+                    zticklabels({});
+                    axis tight;
+                    axis square;
+                    box on;
+                    view(-60, 15)
+                    zlim([0 800]);
+                    caxis([min_Tf max_Tf]);
+                    j = j + 1;
+                end
+                print(f, './predictions', '-dpng', '-r300')
+            end
         end
 
         %% Design matrix functions
@@ -433,6 +753,7 @@ classdef ROM_SPDE
             else
                 error('Either train or test mode')
             end
+            nData = size(conductivity, 2);
             %Mapping from fine cell index to coarse cell index
             obj = obj.getCoarseElement;
                         
@@ -442,11 +763,11 @@ classdef ROM_SPDE
             EHold = obj.E;  %this is for parfor efficiency
             
             %prealloc
-            lambdak = cell(obj.nTrain, obj.coarseScaleDomain.nEl);
+            lambdak = cell(nData, obj.coarseScaleDomain.nEl);
             if(nargout > 1)
                 xk = lambdak;
             end
-            for s = 1:obj.nTrain
+            for s = 1:nData
                 %inputs belonging to same coarse element are in the same column of xk. They are ordered in
                 %x-direction.
                 %Get conductivity fields in coarse cell windows
@@ -471,7 +792,7 @@ classdef ROM_SPDE
             %Actual computation of design matrix
             debug = false; %for debug mode
             tic
-            disp('Compute design matrices Phi...')
+            disp('Compute design matrices...')
             
             if strcmp(mode, 'train')
                 dataFile = obj.trainingDataMatfile;
@@ -482,6 +803,7 @@ classdef ROM_SPDE
             else
                 error('Compute design matrices for train or test data?')
             end
+            nData = numel(dataSamples);
             
             %load finescale conductivity field
             conductivity = dataFile.cond(:, dataSamples);
@@ -493,9 +815,9 @@ classdef ROM_SPDE
             
             %Open parallel pool
             %addpath('./computation')
-            %parPoolInit(obj.nTrain);
+            %parPoolInit(nData);
             PhiCell{1} = zeros(obj.coarseScaleDomain.nEl, nFeatureFunctions + nGlobalFeatureFunctions);
-            PhiCell = repmat(PhiCell, obj.nTrain, 1);
+            PhiCell = repmat(PhiCell, nData, 1);
             [lambdak, xk] = obj.get_coarseElementConductivities(mode);
             if obj.linFiltSeq
                 %These only need to be stored if we sequentially add features
@@ -522,16 +844,16 @@ classdef ROM_SPDE
                 if ~debug
                     clear ba;
                 end
-                latentMu = reshape(latentMu, obj.latentDim, obj.coarseScaleDomain.nEl, obj.nTrain);
+                latentMu = reshape(latentMu, obj.latentDim, obj.coarseScaleDomain.nEl, nData);
             end
             
             
             %parfor s = 1:nTrain
-            for s = 1:obj.nTrain    %for very cheap features, serial evaluation might be more efficient
+            for s = 1:nData    %for very cheap features, serial evaluation might be more efficient
                 %inputs belonging to same coarse element are in the same column of xk. They are ordered in
                 %x-direction.
                 
-                %construct design matrix Phi
+                %construct design matrix 
                 for i = 1:obj.coarseScaleDomain.nEl
                     %local features
                     for j = 1:nFeatureFunctions
@@ -555,7 +877,7 @@ classdef ROM_SPDE
             end
             
             if debug
-                for n = 1:obj.nTrain
+                for n = 1:nData
                     for k = 1:obj.coarseScaleDomain.nEl
                         decodedDataTest = ba.decode(latentMu(:, k, n));
                         subplot(1,3,1)
@@ -585,15 +907,14 @@ classdef ROM_SPDE
                 end
             end
             
-            %             Phi.transformedConductivity = transformedConductivityHold;
             obj.designMatrix = PhiCell;
             %Check for real finite inputs
-            for i = 1:obj.nTrain
+            for i = 1:nData
                 if(~all(all(all(isfinite(obj.designMatrix{i})))))
                     dataPoint = i
                     [coarseElement, featureFunction] = ind2sub(size(obj.designMatrix{i}),...
                         find(~isfinite(obj.designMatrix{i})))
-                    warning('Non-finite design matrix Phi. Setting non-finite component to 0.')
+                    warning('Non-finite design matrix. Setting non-finite component to 0.')
                     obj.designMatrix{i}(~isfinite(obj.designMatrix{i})) = 0;
                 elseif(~all(all(all(isreal(obj.designMatrix{i})))))
                     warning('Complex feature function output:')
@@ -629,6 +950,7 @@ classdef ROM_SPDE
                 %Use separate parameters for every macro-cell
                 obj = obj.localTheta_c;
             end
+            obj = obj.computeSumPhiTPhi;
             Phi_computation_time = toc
         end
         
@@ -719,7 +1041,7 @@ classdef ROM_SPDE
             %Check for finiteness
             for i = 1:numel(obj.designMatrix)
                 if(~all(all(all(isfinite(obj.designMatrix{i})))))
-                    warning('Non-finite design matrix Phi. Setting non-finite component to 0.')
+                    warning('Non-finite design matrix. Setting non-finite component to 0.')
                     obj.designMatrix{i}(~isfinite(obj.designMatrix{i})) = 0;
                 elseif(~all(all(all(isreal(obj.designMatrix{i})))))
                     warning('Complex feature function output:')
@@ -771,7 +1093,7 @@ classdef ROM_SPDE
             %Check for finiteness
             for n = 1:numel(obj.designMatrix)
                 if(~all(all(all(isfinite(obj.designMatrix{n})))))
-                    warning('Non-finite design matrix Phi. Setting non-finite component to 0.')
+                    warning('Non-finite design matrix. Setting non-finite component to 0.')
                     obj.designMatrix{n}(~isfinite(obj.designMatrix{n})) = 0;
                     dataPoint = n
                     [coarseElement, featureFunction] = ind2sub(size(obj.designMatrix{n}),...
@@ -790,7 +1112,7 @@ classdef ROM_SPDE
         end
         
         function saveNormalization(obj, type)
-            disp('Saving Phi-normalization...')
+            disp('Saving design matrix normalization...')
             if(isempty(obj.featureFunctionMean))
                 obj = obj.computeFeatureFunctionMean;
             end
@@ -1159,7 +1481,7 @@ classdef ROM_SPDE
             for n = 1:nData
                 for i = 1:obj.coarseScaleDomain.nEl
                     PhiCell{n}(i, ((i - 1)*nFeatureFunctionsTotal + 1):(i*nFeatureFunctionsTotal)) = ...
-                      obj.designMatrix{n}(i, :);
+                        obj.designMatrix{n}(i, :);
                 end
                 PhiCell{n} = sparse(PhiCell{n});
             end
@@ -1172,370 +1494,16 @@ classdef ROM_SPDE
             disp('done')
         end%localTheta_c
         
-        function obj = genCoarseDomain(obj)
-            %Generate coarse domain object
-            nX = length(obj.coarseGridVectorX);
-            nY = length(obj.coarseGridVectorY);
-            addpath('./heatFEM')        %to find Domain class
-            obj.coarseScaleDomain = Domain(nX, nY, obj.coarseGridVectorX, obj.coarseGridVectorY);
-            %ATTENTION: natural nodes have to be set manually
-            %and consistently in coarse and fine scale domain!!
-            obj.coarseScaleDomain = setBoundaries(obj.coarseScaleDomain, [2:(2*nX + 2*nY)],...
-                obj.boundaryTemperature, obj.boundaryHeatFlux);
-            
-            %Legacy, for predictions
-            if ~exist('./data/', 'dir')
-                mkdir('./data/');
+        function obj = computeSumPhiTPhi(obj)
+            obj.sumPhiTPhi = 0;
+            for n = 1:numel(obj.designMatrix)
+                obj.sumPhiTPhi = obj.sumPhiTPhi + obj.designMatrix{n}'*obj.designMatrix{n};
             end
-            filename = './data/coarseScaleDomain.mat';
-            coarseScaleDomain = obj.coarseScaleDomain;
-            save(filename, 'coarseScaleDomain');
-        end
-        
-        function obj = estimateDataVariance(obj)
-            
-            Tftemp = obj.trainingDataMatfile.Tf(:, 1);
-            Tf_true_mean = zeros(size(Tftemp));
-            Tf_true_sq_mean = zeros(size(Tftemp));
-            nSamples = obj.nSets(1);
-            window = nSamples;
-            nWindows = ceil(nSamples/window);
-            tic
-            for i = 1:nWindows
-                initial = 1 + (i - 1)*window;
-                final = i*window;
-                if final > nSamples
-                    final = nSamples;
-                end
-                Tftemp = obj.trainingDataMatfile.Tf(:, initial:final);
-                Tf_mean_temp = mean(Tftemp, 2);
-                Tf_sq_mean_temp = mean(Tftemp.^2, 2);
-                clear Tftemp;
-                Tf_true_mean = ((i - 1)/i)*Tf_true_mean + (1/i)*Tf_mean_temp;
-                Tf_true_sq_mean = ((i - 1)/i)*Tf_true_sq_mean + (1/i)*Tf_sq_mean_temp;
-            end
-            
-            Tf_true_var = Tf_true_sq_mean - Tf_true_mean.^2;
-            obj.outputVariance = Tf_true_var;
-            obj.meanOutputVariance = mean(Tf_true_var);
-            toc
-            
-            sv = false;
-            if sv
-                %     savedir = '~/matlab/data/trueMC/';
-                savedir = './';
-                if ~exist(savedir, 'dir')
-                    mkdir(savedir);
-                end
-                save(strcat(savedir, '', '_nSamples=', num2str(nSamples), '.mat'), 'Tf_true_mean', 'Tf_true_var')
+            if strcmp(obj.mode, 'useLocal')
+                obj.sumPhiTPhi = sparse(obj.sumPhiTPhi);
             end
         end
-        
-        function [Xopt, LambdaOpt, s2] = detOpt_p_cf(obj, nStart, nTrain)
-            %Deterministic optimization of log(p_cf) to check capabilities of model
-            
-            %don't change these!
-            theta_cfOptim.S = 1;
-            theta_cfOptim.sumLogS = 0;
-            theta_cfOptim.Sinv = 1;
-            theta_cfOptim.Sinv_vec = ones(obj.fineScaleDomain.nNodes, 1);
-            theta_cfOptim.W = obj.theta_cf.W;
-            theta_cfOptim.WTSinv = obj.theta_cf.WTSinv;
-            
-            options = optimoptions(@fminunc,'Display','iter', 'Algorithm', 'trust-region',...
-                'SpecifyObjectiveGradient', true);
-            Xinit = 0*ones(obj.coarseScaleDomain.nEl, 1);
-            Xopt = zeros(obj.coarseScaleDomain.nEl, nTrain);
-            LambdaOpt = Xopt;
-            s2 = zeros(1, nTrain);
-            j = 1;
-            addpath('./tests/detOptP_cf')
-            for i = nStart:(nStart + nTrain -1)
-                Tf = obj.trainingDataMatfile.Tf(:, i);
-                objFun = @(X) objective(X, Tf, obj.coarseScaleDomain, obj.conductivityTransformation, theta_cfOptim);
-                [XoptTemp, fvalTemp] = fminunc(objFun, Xinit, options);
-                LambdaOptTemp = conductivityBackTransform(XoptTemp, obj.conductivityTransformation);
-                Xopt(:, j) = XoptTemp;
-                LambdaOpt(:, j) = LambdaOptTemp;
-                
-                %s2 is the squared distance of truth to optimal coarse averaged over all nodes
-                s2(j) = fvalTemp/obj.fineScaleDomain.nNodes
-                j = j + 1;
-            end
-        end
-        
-        function obj = loadTrainedParams(obj)
-            %Load trained model parameters from disk to workspace
-            
-            %Load trained params from disk
-            disp('Loading optimal parameters from disk...')
-            obj.theta_c.theta = dlmread('./data/theta');
-            obj.theta_c.theta = obj.theta_c.theta(end, :)';
-            obj.theta_c.Sigma = dlmread('./data/sigma');
-            obj.theta_c.Sigma = diag(obj.theta_c.Sigma(end, :));
-            obj.theta_cf.S = dlmread('./data/S')';
-            W = dlmread('./data/Wmat');
-            W = reshape(W, length(W)/3, 3)';
-            obj.theta_cf.W = sparse(W(1, :), W(2, :), W(3, :));
-            obj.theta_cf.mu = dlmread('./data/mu')';
-            disp('done')
-            
-            disp('Loading data normalization data...')
-            try
-                obj.featureFunctionMean = dlmread('./data/featureFunctionMean');
-                obj.featureFunctionSqMean = dlmread('./data/featureFunctionSqMean');
-            catch
-                warning('featureFunctionMean, featureFunctionSqMean not found, setting it to 0.')
-                obj.featureFunctionMean = 0;
-                obj.featureFunctionSqMean = 0;
-            end
-            
-            try
-                obj.featureFunctionMin = dlmread('./data/featureFunctionMin');
-                obj.featureFunctionMax = dlmread('./data/featureFunctionMax');
-            catch
-                warning('featureFunctionMin, featureFunctionMax not found, setting it to 0.')
-                obj.featureFunctionMin = 0;
-                obj.featureFunctionMax = 0;
-            end
-            disp('done')
-            
-            if(isempty(obj.coarseScaleDomain) || isempty(obj.fineScaleDomain))
-                disp('Loading fine and coarse domain objects...')
-                addpath('./heatFEM')        %to find Domain class
-                try
-                    load(strcat(obj.fineScaleDataPath, 'fineScaleDomain.mat'));
-                    obj.fineScaleDomain = fineScaleDomain;
-                catch
-                    temp = load(strcat(obj.fineScaleDataPath, 'romObj.mat'));
-                    obj.fineScaleDomain = temp.obj.fineScaleDomain;
-                end
-                
-                if exist(strcat('./data/coarseScaleDomain.mat'), 'file')
-                    load(strcat('./data/coarseScaleDomain.mat'));
-                    obj.coarseScaleDomain = coarseScaleDomain;
-                else
-                    warning(strcat('No coarse domain file found.',...
-                        'Take boundary conditions from finescale data and regenerate.',...
-                        'Please make sure everything is correct!'))
-                    obj = obj.genCoarseDomain;
-                end
-                disp('done')
-            end
-            
-            %Generate same basis functions as in training
-            disp('Setting up function handles to p_c basis functions...')
-            addpath('./params')
-            obj = obj.setFeatureFunctions;
-            nFeatures = size(obj.featureFunctions, 2);
-            nGlobalFeatures = size(obj.globalFeatureFunctions, 2);
-            if obj.linFiltSeq
-                if exist('./data/w.mat', 'file')
-                    load('./data/w.mat');   %to load w_all
-                    for i = 1:size(w_all, 2)
-                        for m = 1:obj.coarseScaleDomain.nEl
-                            obj.featureFunctions{m, nFeatures + 1} = @(lambda) sum(w_all{m, i}'.*...
-                                conductivityTransform(lambda(:), obj.conductivityTransformation));
-                        end
-                        nFeatures = nFeatures + 1;
-                    end
-                end
-                
-                if exist('./data/wGlobal.mat', 'file')
-                    load('./data/wGlobal.mat');   %to load w_allGlobal, i.e. global linear filters
-                    for i = 1:size(w_allGlobal, 2)
-                        for m = 1:obj.coarseScaleDomain.nEl
-                            obj.globalFeatureFunctions{m, nGlobalFeatures + 1} = @(lambda) sum(w_allGlobal{m, i}'.*...
-                                conductivityTransform(lambda(:), obj.conductivityTransformation));
-                        end
-                        nGlobalFeatures = nGlobalFeatures + 1;
-                    end
-                end
-            end
-            disp('done')
-        end
-        
-        function obj = predict(obj)
-            %Function to predict finescale output from generative model
-            
-            %Load test file
-            Tf = obj.testDataMatfile.Tf(:, obj.testSamples);
-            obj = obj.loadTrainedParams;
-            
-            %to find DesignMatrix class
-            addpath('./rom')
-            %% Compute design matrices
-            Phi = DesignMatrix(obj.fineScaleDomain, obj.coarseScaleDomain, obj.featureFunctions,...
-                obj.globalFeatureFunctions, obj.testDataMatfile, obj.testSamples);
-            addpath('./aux')    %for conductivityBackTransform
-            Phi.useAutoEnc = obj.useAutoEnc;
-            Phi = Phi.computeDesignMatrix(obj.coarseScaleDomain.nEl, obj.fineScaleDomain.nEl,...
-                obj.conductivityTransformation);
-            Phi = Phi.secondOrderFeatures(obj.secondOrderTerms); %Include second order terms phi_i*phi_j
-            
-            %Normalize design matrices
-            if obj.rescaleFeatures
-                Phi = Phi.rescaleDesignMatrix(obj.featureFunctionMin, obj.featureFunctionMax);
-            elseif obj.standardizeFeatures
-                Phi = Phi.standardizeDesignMatrix(obj.featureFunctionMean, obj.featureFunctionSqMean);
-            end
-            if strcmp(obj.mode, 'useNeighbor')
-                %use feature function information from nearest neighbors
-                Phi = Phi.includeNearestNeighborFeatures([obj.coarseScaleDomain.nElX obj.coarseScaleDomain.nElY]);
-            elseif strcmp(obj.mode, 'useLocalNeighbor')
-                Phi = Phi.includeLocalNearestNeighborFeatures([obj.coarseScaleDomain.nElX obj.coarseScaleDomain.nElY]);
-            elseif strcmp(obj.mode, 'useLocalDiagNeighbor')
-                Phi = Phi.includeLocalDiagNeighborFeatures([obj.coarseScaleDomain.nElX obj.coarseScaleDomain.nElY]);
-            elseif strcmp(obj.mode, 'useDiagNeighbor')
-                %use feature function information from nearest and diagonal neighbors
-                Phi = Phi.includeDiagNeighborFeatures([obj.coarseScaleDomain.nElX obj.coarseScaleDomain.nElY]);
-            elseif strcmp(obj.mode, 'useLocal')
-                Phi = Phi.localTheta_c([obj.coarseScaleDomain.nElX obj.coarseScaleDomain.nElY]);
-            end
-            
-            %% Sample from p_c
-            disp('Sampling from p_c...')
-            nTest = numel(obj.testSamples);
-            Xsamples = zeros(obj.coarseScaleDomain.nEl, obj.nSamples_p_c, nTest);
-            LambdaSamples{1} = zeros(obj.coarseScaleDomain.nEl, obj.nSamples_p_c);
-            LambdaSamples = repmat(LambdaSamples, nTest, 1);
-            meanEffCond = zeros(obj.coarseScaleDomain.nEl, nTest);
-            
-            useNeuralNet = false;
-            if useNeuralNet
-                %Only valid for square grids!!!
-                finePerCoarse = [sqrt(size(Phi.xk{1}, 1)), sqrt(size(Phi.xk{1}, 1))];
-                xkNN = zeros(finePerCoarse(1), finePerCoarse(2), 1, nTest*obj.coarseScaleDomain.nEl);
-                k = 1;
-                for i = 1:nTest
-                    for j = 1:obj.coarseScaleDomain.nEl
-                        xkNN(:, :, 1, k) =...
-                            reshape(Phi.xk{i}(:, j), finePerCoarse(1), finePerCoarse(2)); %for neural net
-                        k = k + 1;
-                    end
-                end
-            end
-            
-            for i = 1:nTest
-                if useNeuralNet
-                    PhiMat = xkNN(:, :, 1, ((i - 1)*obj.coarseScaleDomain.nEl + 1):(i*obj.coarseScaleDomain.nEl));
-                    mu = double(predict(obj.theta_c.theta, PhiMat));
-                    Xsamples(:, :, i) = mvnrnd(mu, obj.theta_c.Sigma, obj.nSamples_p_c)';
-                else
-                    Xsamples(:, :, i) = mvnrnd(Phi.designMatrices{i}*obj.theta_c.theta,...
-                        obj.theta_c.Sigma, obj.nSamples_p_c)';
-                end
-                LambdaSamples{i} = conductivityBackTransform(Xsamples(:, :, i), obj.conductivityTransformation);
-                if(strcmp(obj.conductivityTransformation.type, 'log') && ~useNeuralNet)
-                    meanEffCond(:, i) = exp(Phi.designMatrices{i}*obj.theta_c.theta + .5*diag(obj.theta_c.Sigma));
-                else
-                    meanEffCond(:, i) = mean(LambdaSamples{i}, 2);
-                end
-            end
-            disp('done')
-            
-            %% Run coarse model and sample from p_cf
-            disp('Solving coarse model and sample from p_cf...')
-            %             addpath('./heatFEM')
-            TfMeanArray{1} = zeros(obj.fineScaleDomain.nNodes, 1);
-            TfMeanArray = repmat(TfMeanArray, nTest, 1);
-            TfVarArray = TfMeanArray;
-            Tf_sq_mean = TfMeanArray;
-            
-            %To avoid broadcasting overhead
-            nSamples = obj.nSamples_p_c;
-            coarseDomain = obj.coarseScaleDomain;
-            t_cf = obj.theta_cf;
-            %             t_c = obj.theta_c;
-            addpath('./heatFEM');
-            parfor j = 1:nTest
-                for i = 1:nSamples
-                    D = zeros(2, 2, coarseDomain.nEl);
-                    for e = 1:coarseDomain.nEl
-                        D(:, :, e) = LambdaSamples{j}(e, i)*eye(2);
-                    end
-                    FEMout = heat2d(coarseDomain, D);
-                    Tctemp = FEMout.Tff';
-                    
-                    %sample from p_cf
-                    mu_cf = t_cf.mu + t_cf.W*Tctemp(:);
-                    %only for diagonal S!!
-                    %Sequentially compute mean and <Tf^2> to save memory
-                    TfMeanArray{j} = ((i - 1)/i)*TfMeanArray{j} + (1/i)*mu_cf;  %U_f-integration can be done analyt.
-                    Tf_sq_mean{j} = ((i - 1)/i)*Tf_sq_mean{j} + (1/i)*mu_cf.^2;
-                end
-                Tf_sq_mean{j} = Tf_sq_mean{j} + t_cf.S;
-                Tf_var = abs(Tf_sq_mean{j} - TfMeanArray{j}.^2);  %abs to avoid negative variance due to numerical error
-                meanTf_meanMCErr = mean(sqrt(Tf_var/nSamples))
-                TfVarArray{j} = Tf_var;
-                
-                meanMahaErrTemp{j} = mean(sqrt((.5./(Tf_var)).*(Tf(:, j) - TfMeanArray{j}).^2));
-                sqDist{j} = (Tf(:, j) - TfMeanArray{j}).^2;
-                meanSqDistTemp{j} = mean(sqDist{j})
-            end
-            
-            obj.meanPredMeanOutput = mean(cell2mat(TfMeanArray'), 2);
-            obj.meanMahalanobisError = mean(cell2mat(meanMahaErrTemp));
-            obj.meanSquaredDistance = mean(cell2mat(meanSqDistTemp));
-            meanSqDistSq = mean(cell2mat(meanSqDistTemp).^2);
-            obj.meanSquaredDistanceError = sqrt((meanSqDistSq - obj.meanSquaredDistance^2)/nTest);
-            storeArray = false;
-            if storeArray
-                obj.predMeanArray = TfMeanArray;
-                obj.predVarArray = TfVarArray;
-            end
-            
-            plotPrediction = true;
-            if plotPrediction
-                f = figure('units','normalized','outerposition',[0 0 1 1]);
-                pstart = 1;
-                j = 1;
-                max_Tf = max(max(Tf(:, pstart:(pstart + 5))));
-                min_Tf = min(min(Tf(:, pstart:(pstart + 5))));
-                cond = obj.testDataMatfile.cond(:, pstart:(pstart + 5));
-                %to use same color scale
-                cond = ((min_Tf - max_Tf)/(min(min(cond)) - max(max(cond))))*cond + max_Tf - ...
-                    ((min_Tf - max_Tf)/(min(min(cond)) - max(max(cond))))*max(max(cond));
-                for i = pstart:(pstart + 5)
-                    subplot(2, 3, j)
-                    s(j, 1) = surf(reshape(Tf(:, i), (obj.nElFX + 1), (obj.nElFY + 1)));
-                    s(j, 1).LineStyle = 'none';
-                    hold on;
-                    s(j, 2) = surf(reshape(TfMeanArray{i}, (obj.nElFX + 1), (obj.nElFY + 1)));
-                    s(j, 2).LineStyle = 'none';
-                    s(j, 2).FaceColor = 'b';
-                    s(j, 3) = surf(reshape(TfMeanArray{i}, (obj.nElFX + 1), (obj.nElFY + 1)) +...
-                        sqrt(reshape(TfVarArray{i}, (obj.nElFX + 1), (obj.nElFY + 1))));
-                    s(j, 3).LineStyle = 'none';
-                    s(j, 3).FaceColor = [.85 .85 .85];
-                    s(j, 4) = surf(reshape(TfMeanArray{i}, (obj.nElFX + 1), (obj.nElFY + 1)) -...
-                        sqrt(reshape(TfVarArray{i}, (obj.nElFX + 1), (obj.nElFY + 1))));
-                    s(j, 4).LineStyle = 'none';
-                    s(j, 4).FaceColor = [.85 .85 .85];
-                    ax = gca;
-                    ax.FontSize = 30;
-                    im(j) = imagesc(reshape(cond(:, i), obj.fineScaleDomain.nElX, obj.fineScaleDomain.nElY));
-                    xticks([0 64 128 192 256]);
-                    yticks([0 64 128 192 256]);
-                    zticks(100:100:800)
-                    xticklabels({});
-                    yticklabels({});
-                    zticklabels({});
-                    axis tight;
-                    axis square;
-                    box on;
-                    view(-60, 15)
-                    zlim([0 800]);
-                    caxis([min_Tf max_Tf]);
-                    j = j + 1;
-                end
-                print(f, './predictions', '-dpng', '-r300')
-            end
-        end
-        
-        
-        
-        
+
         %% plot functions
         function [p] = plotTrainingInput(obj, samples, titl)
             %Load microstructures
@@ -1566,10 +1534,7 @@ classdef ROM_SPDE
             end
             
         end
-        
-        
-        
-        
+
         function [p, im] = plotTrainingOutput(obj, samples, titl)
             %Load microstructures
             samplesTemp = min(samples):max(samples);
@@ -1644,11 +1609,8 @@ classdef ROM_SPDE
             end
             
         end
-        
-        
-        
-        
-        function p = plot_p_c_regression(obj, Phi, XMean)
+
+        function p = plot_p_c_regression(obj, XMean)
             %Plots regressions of single features to the data <X>_q
             totalFeatures = size(obj.featureFunctions, 2) + size(obj.globalFeatureFunctions, 2);
             for feature = 1:min([4, totalFeatures])
@@ -1666,14 +1628,14 @@ classdef ROM_SPDE
                                     if l~= feature
                                     yData(k, s) = yData(k, s) -...
                                         obj.theta_c.theta(totalFeatures*(k - 1) + l)*...
-                                        Phi.designMatrices{s}(k, totalFeatures*(k - 1) + l);
+                                        obj.designMatrix{s}(k, totalFeatures*(k - 1) + l);
                                     end
                                 end
-                                plot(Phi.designMatrices{s}(k, totalFeatures*(k - 1) + feature), yData(k, s), 'xb')
-                                if(Phi.designMatrices{s}(k, totalFeatures*(k - 1) + feature) < mink(k))
-                                    mink(k) = Phi.designMatrices{s}(k, totalFeatures*(k - 1) + feature);
-                                elseif(Phi.designMatrices{s}(k, totalFeatures*(k - 1) + feature) > maxk(k))
-                                    maxk(k) = Phi.designMatrices{s}(k, totalFeatures*(k - 1) + feature);
+                                plot(obj.designMatrix{s}(k, totalFeatures*(k - 1) + feature), yData(k, s), 'xb')
+                                if(obj.designMatrix{s}(k, totalFeatures*(k - 1) + feature) < mink(k))
+                                    mink(k) = obj.designMatrix{s}(k, totalFeatures*(k - 1) + feature);
+                                elseif(obj.designMatrix{s}(k, totalFeatures*(k - 1) + feature) > maxk(k))
+                                    maxk(k) = obj.designMatrix{s}(k, totalFeatures*(k - 1) + feature);
                                 end
                                 hold on;
                             end
@@ -1701,11 +1663,11 @@ classdef ROM_SPDE
                     for i = 1:romObj.coarseScaleDomain.nElX
                         for j = 1:romObj.coarseScaleDomain.nElY
                             for s = 1:romObj.nTrain
-                                plot(Phi.designMatrices{s}(k, feature), XMean(k, s), 'xb')
+                                plot(obj.designMatrix{s}(k, feature), XMean(k, s), 'xb')
                                 hold on;
                             end
-                            x = linspace(min(min(cell2mat(Phi.designMatrices))),...
-                                max(max(cell2mat(Phi.designMatrices))), 100);
+                            x = linspace(min(min(cell2mat(obj.designMatrix))),...
+                                max(max(cell2mat(obj.designMatrix))), 100);
                             y = romObj.theta_c.theta(feature)*x;
                             plot(x, y);
                             axis tight;
@@ -1715,20 +1677,15 @@ classdef ROM_SPDE
                 end
             end
         end
-        
-        
-        
-        
-        function [obj, Phi] = addLinearFilterFeature(obj, XMean, Phi)
-            %Phi is a design matrix object
-            
+
+        function obj = addLinearFilterFeature(obj, XMean)            
             assert(strcmp(obj.mode, 'useLocal'),...
                 'Error: sequential addition of linear filters only working in useLocal mode');
             
 %             sigma2Inv_vec = (1./diag(obj.theta_c.Sigma));
             XMeanMinusPhiThetac = zeros(obj.coarseScaleDomain.nEl, obj.nTrain);
             for i = 1:obj.nTrain
-                XMeanMinusPhiThetac(:, i) = XMean(:, i) - Phi.designMatrices{i}*obj.theta_c.theta;
+                XMeanMinusPhiThetac(:, i) = XMean(:, i) - obj.designMatrix{i}*obj.theta_c.theta;
             end
             
             %We use different linear filters for different macro-cells k
@@ -1737,9 +1694,9 @@ classdef ROM_SPDE
             E = zeros(1, obj.coarseScaleDomain.nEl);
             for m = 1:obj.coarseScaleDomain.nEl
                 for i = 1:obj.nTrain
-%                     w{m} = w{m} + sigma2Inv_vec(m)*XMeanMinusPhiThetac(m, i)*Phi.xk{i, m}(:);
+%                     w{m} = w{m} + sigma2Inv_vec(m)*XMeanMinusPhiThetac(m, i)*obj.xk{i, m}(:);
                     %should be still correct without the sigma and subsequent normalization
-                    w{m} = w{m} + XMeanMinusPhiThetac(m, i)*Phi.xk{i, m}(:);
+                    w{m} = w{m} + XMeanMinusPhiThetac(m, i)*obj.xk{i, m}(:);
                 end
                 %normalize
                 E(m) = norm(w{m});
@@ -1761,7 +1718,6 @@ classdef ROM_SPDE
                 w_all{m, nLinFiltersBefore + 1} = w{m};
                 obj.featureFunctions{m, nFeaturesBefore + 1} = @(lambda) sum(w{m}'.*...
                     conductivityTransform(lambda(:), obj.conductivityTransformation));
-                Phi.featureFunctions{m, nFeaturesBefore + 1} = obj.featureFunctions{m, nFeaturesBefore + 1};
             end
             
             save(filename, 'w_all');
@@ -1772,7 +1728,7 @@ classdef ROM_SPDE
             f = figure;
             for m = 1:obj.coarseScaleDomain.nEl
                 subplot(obj.coarseScaleDomain.nElX, obj.coarseScaleDomain.nElY, m);
-                imagesc(reshape(w{m}, size(Phi.xk{1, m})))
+                imagesc(reshape(w{m}, size(obj.xk{1, m})))
                 axis square
                 grid off
                 xticks({})
@@ -1783,16 +1739,10 @@ classdef ROM_SPDE
             
             %% recompute design matrices
             %this can be done more efficiently!
-%             Phi = Phi.addLinearFilter(w);
-            Phi = Phi.computeDesignMatrix(obj.coarseScaleDomain.nEl, obj.fineScaleDomain.nEl,...
-                obj.conductivityTransformation);
-            Phi = Phi.localTheta_c([obj.coarseScaleDomain.nElX obj.coarseScaleDomain.nElY]);
-            %Compute sum_i Phi^T(x_i)^Phi(x_i)
-            Phi = Phi.computeSumPhiTPhi;
-            Phi.sumPhiTPhi = sparse(Phi.sumPhiTPhi);
+            obj = obj.computeDesignMatrix('train');
             
             %% append theta-value
-            nTotalFeaturesAfter = size(Phi.designMatrices{1}, 2);
+            nTotalFeaturesAfter = size(obj.designMatrix{1}, 2);
             theta_new = zeros(nTotalFeaturesAfter, 1);
             j = 1;
             for i = 1:nTotalFeaturesAfter
@@ -1804,22 +1754,17 @@ classdef ROM_SPDE
                 end
             end
             obj.theta_c.theta = theta_new;
-            
         end
-        
-        
-        
-        
-        
-        function [obj, Phi] = addGlobalLinearFilterFeature(obj, XMean, Phi)
-            %Phi is a design matrix object
-            
+
+        function obj = addGlobalLinearFilterFeature(obj, XMean)
             assert(strcmp(obj.mode, 'useLocal'),...
                 'Error: sequential addition of linear filters only working in useLocal mode');
             XMeanMinusPhiThetac = zeros(obj.coarseScaleDomain.nEl, obj.nTrain);
             for i = 1:obj.nTrain
-                XMeanMinusPhiThetac(:, i) = XMean(:, i) - Phi.designMatrices{i}*obj.theta_c.theta;
+                XMeanMinusPhiThetac(:, i) = XMean(:, i) - obj.designMatrix{i}*obj.theta_c.theta;
             end
+            
+            conductivity = obj.trainingDataMatfile.cond(:, obj.trainingSamples);
             
             %We use different linear filters for different macro-cells k
             w{1} = 0;
@@ -1827,7 +1772,8 @@ classdef ROM_SPDE
             EGlobal = zeros(1, obj.coarseScaleDomain.nEl);
             for m = 1:obj.coarseScaleDomain.nEl
                 for i = 1:obj.nTrain
-                    w{m} = w{m} + XMeanMinusPhiThetac(m, i)*Phi.transformedConductivity{i}(:);
+                    w{m} = w{m} + XMeanMinusPhiThetac(m, i)*conductivityTransform(conductivity(:, i),...
+                        obj.conductivityTransformation);
                 end
                 %normalize
                 EGlobal(m) = norm(w{m});
@@ -1849,8 +1795,6 @@ classdef ROM_SPDE
                 w_allGlobal{m, nGlobalLinFiltersBefore + 1} = w{m};
                 obj.globalFeatureFunctions{m, nGlobalFeaturesBefore + 1} = @(lambda) sum(w{m}'.*...
                     conductivityTransform(lambda(:), obj.conductivityTransformation));
-                Phi.globalFeatureFunctions{m, nGlobalFeaturesBefore + 1} =...
-                    obj.globalFeatureFunctions{m, nGlobalFeaturesBefore + 1};
             end
             
             save(filename, 'w_allGlobal');
@@ -1861,7 +1805,7 @@ classdef ROM_SPDE
             f = figure;
             for m = 1:obj.coarseScaleDomain.nEl
                 subplot(obj.coarseScaleDomain.nElX, obj.coarseScaleDomain.nElY, m);
-                imagesc(reshape(w{m}, size(Phi.transformedConductivity{1})))
+                imagesc(reshape(w{m}, obj.fineScaleDomain.nElX, obj.fineScaleDomain.nElY)))
                 axis square
                 grid off
                 xticks({})
@@ -1872,16 +1816,10 @@ classdef ROM_SPDE
             
             %% recompute design matrices
             %this can be done more efficiently!
-            %             Phi = Phi.addLinearFilter(w);
-            Phi = Phi.computeDesignMatrix(obj.coarseScaleDomain.nEl, obj.fineScaleDomain.nEl,...
-                obj.conductivityTransformation);
-            Phi = Phi.localTheta_c([obj.coarseScaleDomain.nElX obj.coarseScaleDomain.nElY]);
-            %Compute sum_i Phi^T(x_i)^Phi(x_i)
-            Phi = Phi.computeSumPhiTPhi;
-            Phi.sumPhiTPhi = sparse(Phi.sumPhiTPhi);
+            obj = obj.computeDesignMatrix('train');
             
             %% extend theta vector
-            nTotalFeaturesAfter = size(Phi.designMatrices{1}, 2);
+            nTotalFeaturesAfter = size(obj.designMatrix{1}, 2);
             theta_new = zeros(nTotalFeaturesAfter, 1);
             j = 1;
             for i = 1:nTotalFeaturesAfter
@@ -1895,9 +1833,7 @@ classdef ROM_SPDE
             obj.theta_c.theta = theta_new;
             
         end
-        
-        
-        
+
         function [X, Y, corrX_log_p_cf, corrX, corrY, corrXp_cf, corrpcfX, corrpcfY] = findMeshRefinement(obj)
             %Script to sample d_log_p_cf under p_c to find where to refine mesh next
 
@@ -1916,28 +1852,8 @@ classdef ROM_SPDE
             theta_cfTemp.sumLogS = sum(log(theta_cfTemp.S));
             
             %% Compute design matrices
-            Phi = DesignMatrix(obj.fineScaleDomain, obj.coarseScaleDomain, obj.featureFunctions,...
-                obj.globalFeatureFunctions, obj.trainingDataMatfile, obj.nStart:(obj.nStart + obj.nTrain - 1));
-            Phi = Phi.computeDesignMatrix(obj.coarseScaleDomain.nEl, obj.fineScaleDomain.nEl,...
-                obj.conductivityTransformation);
-            %Normalize design matrices
-            if obj.rescaleFeatures
-                Phi = Phi.rescaleDesignMatrix(obj.featureFunctionMin, obj.featureFunctionMax);
-            elseif obj.standardizeFeatures
-                Phi = Phi.standardizeDesignMatrix(obj.featureFunctionMean, obj.featureFunctionSqMean);
-            end
-            if strcmp(obj.mode, 'useNeighbor')
-                %use feature function information from nearest neighbors
-                Phi = Phi.includeNearestNeighborFeatures([obj.coarseScaleDomain.nElX obj.coarseScaleDomain.nElY]);
-            elseif strcmp(obj.mode, 'useLocalNeighbor')
-                Phi = Phi.includeLocalNearestNeighborFeatures([obj.coarseScaleDomain.nElX obj.coarseScaleDomain.nElY]);
-            elseif strcmp(obj.mode, 'useLocalDiagNeighbor')
-                Phi = Phi.includeLocalDiagNeighborFeatures([obj.coarseScaleDomain.nElX obj.coarseScaleDomain.nElY]);
-            elseif strcmp(obj.mode, 'useDiagNeighbor')
-                %use feature function information from nearest and diagonal neighbors
-                Phi = Phi.includeDiagNeighborFeatures([obj.coarseScaleDomain.nElX obj.coarseScaleDomain.nElY]);
-            elseif strcmp(obj.mode, 'useLocal')
-                Phi = Phi.localTheta_c([obj.coarseScaleDomain.nElX obj.coarseScaleDomain.nElY]);
+            if isempty(obj.designMatrix)
+                obj = obj.computeDesignMatrix('train');
             end
             
             nSamples = 1000;
@@ -1953,7 +1869,7 @@ classdef ROM_SPDE
             Xlog_p_cf_mean = 0;
             Xp_cfMean = 0;
             for i = obj.nStart:(obj.nStart + obj.nTrain - 1)
-                mu_i = Phi.designMatrices{i}*obj.theta_c.theta;
+                mu_i = obj.designMatrix{i}*obj.theta_c.theta;
                 XsampleMean = ((i - 1)/i)*XsampleMean + (1/i)*mu_i;
                 XsampleSqMean = ((i - 1)/i)*XsampleSqMean + (1/i)*mu_i.^2;
                 for j = 1:nSamples
@@ -2009,28 +1925,20 @@ classdef ROM_SPDE
                     ((obj.coarseScaleDomain.nElY - 1)*obj.coarseScaleDomain.nElX + i))).^2);
             end
         end
-        
-        
-        
+
         %% Setter functions
         function obj = setConductivityDistributionParams(obj, condDistParams)
             obj.conductivityDistributionParams = condDistParams;
             obj = obj.generateFineScaleDataPath;
         end
-        
-        
-        
-        
+
         function obj = setBoundaryConditions(obj, boundaryConditions)
             %Coefficients of boundary condition functions must be given as string
             assert(ischar(boundaryConditions), 'boundaryConditions must be given as string');
             obj.boundaryConditions = boundaryConditions;
             obj = obj.genBoundaryConditionFunctions;
         end
-        
-        
-        
-        
+
         function obj = setFeatureFunctions(obj)
             %Set up feature function handles;
             %First cell array index is for macro-cell. This allows different features for different
@@ -2124,10 +2032,7 @@ classdef ROM_SPDE
             assert(sum(sum(tril(obj.secondOrderTerms, -1))) == 0, 'Second order matrix must be upper triangular')
             
         end
-        
-        
-        
-        
+
         function obj = setCoarseGrid(obj, coarseGridX, coarseGridY)
             %coarseGridX and coarseGridY are coarse model grid vectors
             obj.coarseGridVectorX = coarseGridX;
