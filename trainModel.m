@@ -57,7 +57,6 @@ elseif romObj.rescaleFeatures
     romObj = romObj.rescaleDesignMatrix('train');
     Phi.saveNormalization('rescaling');
 end
-error
 %Compute sum_i Phi^T(x_i)^Phi(x_i)
 if strcmp(romObj.mode, 'useNeighbor')
     %use feature function information from nearest neighbors
@@ -73,6 +72,7 @@ elseif strcmp(romObj.mode, 'useLocal')
     %Use separate parameters for every macro-cell
     Phi = Phi.localTheta_c([romObj.coarseScaleDomain.nElX romObj.coarseScaleDomain.nElY]);
 end
+error
 Phi = Phi.computeSumPhiTPhi;
 if strcmp(romObj.mode, 'useLocal')
     Phi.sumPhiTPhi = sparse(Phi.sumPhiTPhi);

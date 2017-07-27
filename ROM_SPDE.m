@@ -29,11 +29,12 @@ classdef ROM_SPDE
         outputVariance;
         meanOutputVariance;
         E;  %Mapping from fine to coarse cell index
+        neighborDictionary; %Gives neighbors of macrocells
                 
         %% Model training parameters
         nStart = 1;             %first training data sample in file
         nTrain = 32;            %number of samples used for training
-        mode = 'none';      %useNeighbor, useLocalNeighbor, useDiagNeighbor, useLocalDiagNeighbor, useLocal, global
+        mode = 'useLocalNeighbor';          %useNeighbor, useLocalNeighbor, useDiagNeighbor, useLocalDiagNeighbor, useLocal, global
                                 %global: take whole microstructure as feature function input, not
                                 %only local window (only recommended for pooling)
         linFiltSeq = false;
@@ -54,7 +55,7 @@ classdef ROM_SPDE
         featureFunctionMin;
         featureFunctionMax;
         standardizeFeatures = false;    %Rescale s.t. feature outputs have mean 0 and std 1
-        rescaleFeatures = true;        %Rescale s.t. feature outputs are all between 0 and 1
+        rescaleFeatures = false;        %Rescale s.t. feature outputs are all between 0 and 1
         
         %% Prediction parameters
         nSamples_p_c = 1000;
@@ -135,11 +136,7 @@ classdef ROM_SPDE
             obj = obj.setFeatureFunctions;
             
         end
-        
-        
-        
-        
-        
+
         function obj = genFineScaleData(obj, boundaryConditions, condDistParams)
             %Function to generate and save finescale data
             
@@ -184,10 +181,7 @@ classdef ROM_SPDE
             
             disp('done')
         end
-        
-        
-        
-        
+
         function obj = genBoundaryConditionFunctions(obj)
             %Set up boundary condition functions
             if isempty(obj.boundaryConditions)
@@ -200,10 +194,7 @@ classdef ROM_SPDE
             obj.boundaryHeatFlux{3} = @(x) (bc(3) + bc(4)*x);       %upper bound
             obj.boundaryHeatFlux{4} = @(y) -(bc(2) + bc(4)*y);      %left bound
         end
-        
-        
-        
-        
+
         function cond = generateConductivityField(obj, nSet)
             %nSet is the number of the data set
             %nSet is the set (file number) index
@@ -302,10 +293,7 @@ classdef ROM_SPDE
             disp('done')
             conductivity_generation_time = toc
         end
-        
-        
-        
-        
+
         function obj = solveFEM(obj, nSet, savepath)
             
             cond = obj.generateConductivityField(nSet);
@@ -338,10 +326,7 @@ classdef ROM_SPDE
                 disp('done')
             end
         end
-        
-        
-        
-        
+
         function obj = genFineScaleDataPath(obj)
             volFrac = obj.conductivityDistributionParams{1};
             sigma_f2 = obj.conductivityDistributionParams{3};
@@ -384,10 +369,7 @@ classdef ROM_SPDE
             testFileName = strcat('set2-samples=', num2str(obj.nSets(2)), '.mat');
             obj.testDataMatfile = matfile(strcat(obj.fineScaleDataPath, testFileName));
         end
-        
-        
-        
-        
+
         function obj = loadTrainingData(obj)            
             %load data params; warning for variable FD can be ignored
             try
@@ -630,6 +612,22 @@ classdef ROM_SPDE
             elseif obj.rescaleFeatures
                 obj = obj.rescaleDesignMatrix('mode');
             end
+            
+            %Use specific nonlocality mode
+            if strcmp(obj.mode, 'useNeighbor')
+                %use feature function information from nearest neighbors
+                obj = obj.includeNearestNeighborFeatures;
+            elseif strcmp(obj.mode, 'useLocalNeighbor')
+                obj = obj.includeLocalNearestNeighborFeatures;
+            elseif strcmp(obj.mode, 'useLocalDiagNeighbor')
+                Phi = Phi.includeLocalDiagNeighborFeatures([obj.coarseScaleDomain.nElX obj.coarseScaleDomain.nElY]);
+            elseif strcmp(obj.mode, 'useDiagNeighbor')
+                %use feature function information from nearest and diagonal neighbors
+                Phi = Phi.includeDiagNeighborFeatures([obj.coarseScaleDomain.nElX obj.coarseScaleDomain.nElY]);
+            elseif strcmp(obj.mode, 'useLocal')
+                %Use separate parameters for every macro-cell
+                Phi = Phi.localTheta_c([obj.coarseScaleDomain.nElX obj.coarseScaleDomain.nElY]);
+            end
             Phi_computation_time = toc
         end
         
@@ -813,10 +811,132 @@ classdef ROM_SPDE
             end
         end
         
+        function obj = includeNearestNeighborFeatures(obj)
+            %Includes feature function information of neighboring cells
+            %Can only be executed after standardization/rescaling!
+            %nc/nf: coarse/fine elements in x/y direction
+            disp('Including nearest neighbor feature function information...')
+            nFeatureFunctionsTotal = size(obj.designMatrix{1}, 2);
+            PhiCell{1} = zeros(obj.coarseScaleDomain.nEl, 5*nFeatureFunctionsTotal);
+            nData = numel(obj.designMatrix);
+            PhiCell = repmat(PhiCell, nData, 1);
+            
+            for n = 1:nData
+                %The first columns contain feature function information of the original cell
+                PhiCell{n}(:, 1:nFeatureFunctionsTotal) = obj.designMatrix{n};
+                
+                %Only assign nonzero values to design matrix for neighboring elements if
+                %neighbor in respective direction exists
+                for k = 1:obj.coarseScaleDomain.nEl
+                    if(mod(k, obj.coarseScaleDomain.nElX) ~= 0)
+                        %right neighbor of coarse element exists
+                        PhiCell{n}(k, (nFeatureFunctionsTotal + 1):(2*nFeatureFunctionsTotal)) =...
+                           obj.designMatrix{n}(k + 1, :);
+                    end
+                    
+                    if(k <= obj.coarseScaleDomain.nElX*(obj.coarseScaleDomain.nElY - 1))
+                        %upper neighbor of coarse element exists
+                        PhiCell{n}(k, (2*nFeatureFunctionsTotal + 1):(3*nFeatureFunctionsTotal)) =...
+                            obj.designMatrix{n}(k + obj.coarseScaleDomain.nElX, :);
+                    end
+                    
+                    if(mod(k - 1, obj.coarseScaleDomain.nElX) ~= 0)
+                        %left neighbor of coarse element exists
+                        PhiCell{n}(k, (3*nFeatureFunctionsTotal + 1):(4*nFeatureFunctionsTotal)) =...
+                            obj.designMatrix{n}(k - 1, :);
+                    end
+                    
+                    if(k > obj.coarseScaleDomain.nElX)
+                        %lower neighbor of coarse element exists
+                        PhiCell{n}(k, (4*nFeatureFunctionsTotal + 1):(5*nFeatureFunctionsTotal)) =...
+                            obj.designMatrix{n}(k - obj.coarseScaleDomain.nElX, :);
+                    end
+                end
+            end
+            obj.designMatrix = PhiCell;
+            disp('done')
+        end%includeNearestNeighborFeatures
         
-        
-        
-        
+        function obj = includeLocalNearestNeighborFeatures(obj)
+            %Includes feature function information of neighboring cells
+            %Can only be executed after standardization/rescaling!
+            %nc/nf: coarse/fine elements in x/y direction
+            disp('Including nearest neighbor feature function information separately for each cell...')
+            nFeatureFunctionsTotal = size(obj.designMatrix{1}, 2);
+            PhiCell{1} = zeros(obj.coarseScaleDomain.nEl, 5*nFeatureFunctionsTotal);
+            nData = numel(obj.designMatrix);
+            PhiCell = repmat(PhiCell, nData, 1);
+            
+            for n = 1:nData
+                %Only assign nonzero values to design matrix for neighboring elements if
+                %neighbor in respective direction exists
+                k = 0;
+                for i = 1:obj.coarseScaleDomain.nEl
+                    PhiCell{n}(i, (k*nFeatureFunctionsTotal + 1):((k + 1)*nFeatureFunctionsTotal)) =...
+                        obj.designMatrix{n}(i, :);
+                    obj.neighborDictionary((k*nFeatureFunctionsTotal + 1):((k + 1)*nFeatureFunctionsTotal), 1) = ...
+                        (1:nFeatureFunctionsTotal)'; %feature index
+                    obj.neighborDictionary((k*nFeatureFunctionsTotal + 1):((k + 1)*nFeatureFunctionsTotal), 2) = ...
+                        i; %coarse element index
+                    obj.neighborDictionary((k*nFeatureFunctionsTotal + 1):((k + 1)*nFeatureFunctionsTotal), 3) = ...
+                        0; %center element
+                    k = k + 1;
+                    if(mod(i, obj.coarseScaleDomain.nElX) ~= 0)
+                        %right neighbor of coarse element exists
+                        PhiCell{n}(i, (k*nFeatureFunctionsTotal + 1):((k + 1)*nFeatureFunctionsTotal)) =...
+                            obj.designMatrix{n}(i + 1, :);
+                        obj.neighborDictionary((k*nFeatureFunctionsTotal + 1):((k + 1)*nFeatureFunctionsTotal), 1) = ...
+                            (1:nFeatureFunctionsTotal)'; %feature index
+                        obj.neighborDictionary((k*nFeatureFunctionsTotal + 1):((k + 1)*nFeatureFunctionsTotal), 2) = ...
+                            i; %coarse element index
+                        obj.neighborDictionary((k*nFeatureFunctionsTotal + 1):((k + 1)*nFeatureFunctionsTotal), 3) = ...
+                            1; %right neighbor
+                        k = k + 1;
+                    end
+                    
+                    if(i <= obj.coarseScaleDomain.nElX*(obj.coarseScaleDomain.nElY - 1))
+                        %upper neighbor of coarse element exists
+                        PhiCell{n}(i, (k*nFeatureFunctionsTotal + 1):((k + 1)*nFeatureFunctionsTotal)) =...
+                            obj.designMatrix{n}(i + obj.coarseScaleDomain.nElX, :);
+                        obj.neighborDictionary((k*nFeatureFunctionsTotal + 1):((k + 1)*nFeatureFunctionsTotal), 1) = ...
+                            (1:nFeatureFunctionsTotal)'; %feature index
+                        obj.neighborDictionary((k*nFeatureFunctionsTotal + 1):((k + 1)*nFeatureFunctionsTotal), 2) = ...
+                            i; %coarse element index
+                        obj.neighborDictionary((k*nFeatureFunctionsTotal + 1):((k + 1)*nFeatureFunctionsTotal), 3) = ...
+                            2; %upper neighbor
+                        k = k + 1;
+                    end
+                    
+                    if(mod(i - 1, obj.coarseScaleDomain.nElX) ~= 0)
+                        %left neighbor of coarse element exists
+                        PhiCell{n}(i, (k*nFeatureFunctionsTotal + 1):((k + 1)*nFeatureFunctionsTotal)) =...
+                            obj.designMatrix{n}(i - 1, :);
+                        obj.neighborDictionary((k*nFeatureFunctionsTotal + 1):((k + 1)*nFeatureFunctionsTotal), 1) = ...
+                            (1:nFeatureFunctionsTotal)'; %feature index
+                        obj.neighborDictionary((k*nFeatureFunctionsTotal + 1):((k + 1)*nFeatureFunctionsTotal), 2) = ...
+                            i; %coarse element index
+                        obj.neighborDictionary((k*nFeatureFunctionsTotal + 1):((k + 1)*nFeatureFunctionsTotal), 3) = ...
+                            3; %left neighbor
+                        k = k + 1;
+                    end
+                    
+                    if(i > obj.coarseScaleDomain.nElX)
+                        %lower neighbor of coarse element exists
+                        PhiCell{n}(i, (k*nFeatureFunctionsTotal + 1):((k + 1)*nFeatureFunctionsTotal)) =...
+                            obj.designMatrix{n}(i - obj.coarseScaleDomain.nElX, :);
+                        obj.neighborDictionary((k*nFeatureFunctionsTotal + 1):((k + 1)*nFeatureFunctionsTotal), 1) = ...
+                            (1:nFeatureFunctionsTotal)'; %feature index
+                        obj.neighborDictionary((k*nFeatureFunctionsTotal + 1):((k + 1)*nFeatureFunctionsTotal), 2) = ...
+                            i; %coarse element index
+                        obj.neighborDictionary((k*nFeatureFunctionsTotal + 1):((k + 1)*nFeatureFunctionsTotal), 3) = ...
+                            4; %lower neighbor
+                        k = k + 1;
+                    end
+                end
+            end
+            obj.designMatrix = PhiCell;
+            disp('done')
+        end%includeLocalNearestNeighborFeatures
         
         function obj = genCoarseDomain(obj)
             %Generate coarse domain object
@@ -838,11 +958,8 @@ classdef ROM_SPDE
             save(filename, 'coarseScaleDomain');
         end
         
-        
-        
-        
         function obj = estimateDataVariance(obj)
-
+            
             Tftemp = obj.trainingDataMatfile.Tf(:, 1);
             Tf_true_mean = zeros(size(Tftemp));
             Tf_true_sq_mean = zeros(size(Tftemp));
@@ -880,12 +997,9 @@ classdef ROM_SPDE
             end
         end
         
-        
-        
-        
         function [Xopt, LambdaOpt, s2] = detOpt_p_cf(obj, nStart, nTrain)
             %Deterministic optimization of log(p_cf) to check capabilities of model
-
+            
             %don't change these!
             theta_cfOptim.S = 1;
             theta_cfOptim.sumLogS = 0;
@@ -913,15 +1027,12 @@ classdef ROM_SPDE
                 %s2 is the squared distance of truth to optimal coarse averaged over all nodes
                 s2(j) = fvalTemp/obj.fineScaleDomain.nNodes
                 j = j + 1;
-            end        
+            end
         end
-        
-        
-        
         
         function obj = loadTrainedParams(obj)
             %Load trained model parameters from disk to workspace
-
+            
             %Load trained params from disk
             disp('Loading optimal parameters from disk...')
             obj.theta_c.theta = dlmread('./data/theta');
@@ -1010,16 +1121,13 @@ classdef ROM_SPDE
             disp('done')
         end
         
-        
-        
-        
         function obj = predict(obj)
             %Function to predict finescale output from generative model
             
             %Load test file
             Tf = obj.testDataMatfile.Tf(:, obj.testSamples);
             obj = obj.loadTrainedParams;
-
+            
             %to find DesignMatrix class
             addpath('./rom')
             %% Compute design matrices
@@ -1050,7 +1158,7 @@ classdef ROM_SPDE
             elseif strcmp(obj.mode, 'useLocal')
                 Phi = Phi.localTheta_c([obj.coarseScaleDomain.nElX obj.coarseScaleDomain.nElY]);
             end
-
+            
             %% Sample from p_c
             disp('Sampling from p_c...')
             nTest = numel(obj.testSamples);
@@ -1094,17 +1202,17 @@ classdef ROM_SPDE
             
             %% Run coarse model and sample from p_cf
             disp('Solving coarse model and sample from p_cf...')
-%             addpath('./heatFEM')
+            %             addpath('./heatFEM')
             TfMeanArray{1} = zeros(obj.fineScaleDomain.nNodes, 1);
             TfMeanArray = repmat(TfMeanArray, nTest, 1);
             TfVarArray = TfMeanArray;
             Tf_sq_mean = TfMeanArray;
             
             %To avoid broadcasting overhead
-            nSamples = obj.nSamples_p_c; 
+            nSamples = obj.nSamples_p_c;
             coarseDomain = obj.coarseScaleDomain;
             t_cf = obj.theta_cf;
-%             t_c = obj.theta_c;
+            %             t_c = obj.theta_c;
             addpath('./heatFEM');
             parfor j = 1:nTest
                 for i = 1:nSamples
