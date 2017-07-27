@@ -28,6 +28,7 @@ classdef ROM_SPDE
         %Output data characteristics
         outputVariance;
         meanOutputVariance;
+        E;  %Mapping from fine to coarse cell index
                 
         %% Model training parameters
         nStart = 1;             %first training data sample in file
@@ -58,6 +59,7 @@ classdef ROM_SPDE
         %% Prediction parameters
         nSamples_p_c = 1000;
         testSamples;       %pick out specific test samples here
+        trainingSamples;   %pick out specific training samples here 
         
         %% Prediction outputs
         predMeanArray;
@@ -85,6 +87,10 @@ classdef ROM_SPDE
         coarseScaleDomain;
         coarseGridVectorX = [1/4 1/4 1/4 1/4];
         coarseGridVectorY = [1/4 1/4 1/4 1/4];
+        
+        %Design matrices. Cell index gives data point, row index coarse cell, and column index
+        %feature function
+        designMatrix
     end
     
     
@@ -109,6 +115,7 @@ classdef ROM_SPDE
                         
             %Set up default value for test samples
             obj.testSamples = 1:obj.nSets(2);
+            obj.trainingSamples = obj.nStart:(obj.nStart + obj.nTrain - 1);
             
             %Set conductivity transformation
             obj.conductivityTransformation.anisotropy = false;
@@ -126,6 +133,9 @@ classdef ROM_SPDE
             
             %Set up feature function handles
             obj = obj.setFeatureFunctions;
+            
+            %Mapping from fine cell index to coarse cell index
+            obj = obj.getCoarseElement;
         end
         
         
@@ -404,6 +414,224 @@ classdef ROM_SPDE
             
             %load finescale temperatures partially
             obj.fineScaleDataOutput = obj.trainingDataMatfile.Tf(:, obj.nStart:(obj.nStart + obj.nTrain - 1));
+        end
+        
+        
+        
+        %% Design matrix functions
+        function obj = getCoarseElement(obj)
+            debug = false;
+            obj.E = zeros(obj.fineScaleDomain.nEl, 1);
+            e = 1;  %element number
+            for row_fine = 1:obj.fineScaleDomain.nElY
+                %coordinate of lower boundary of fine element
+                y_coord = obj.fineScaleDomain.cum_lElY(row_fine);
+                row_coarse = sum(y_coord >= obj.coarseScaleDomain.cum_lElY);
+                for col_fine = 1:obj.fineScaleDomain.nElX
+                    %coordinate of left boundary of fine element
+                    x_coord = obj.fineScaleDomain.cum_lElX(col_fine);
+                    col_coarse = sum(x_coord >= obj.coarseScaleDomain.cum_lElX);
+                    obj.E(e) = (row_coarse - 1)*obj.coarseScaleDomain.nElX + col_coarse;
+                    e = e + 1;
+                end
+            end
+            
+            obj.E = reshape(obj.E, domainf.nElX, domainf.nElY);
+            if debug
+                figure
+                imagesc(obj.E)
+                pause
+            end
+        end
+        
+        
+        
+        
+        function [lambdak, xk] = get_coarseElementConductivities(obj, mode)
+            %load finescale conductivity field
+            if strcmp(mode, 'train')
+                conductivity = obj.trainingDataMatfile.cond(:, obj.trainingSamples);
+            elseif strcmp(mode, 'test')
+                conductivity = obj.testDataMatfile.cond(:, obj.testSamples);
+            else
+                error('Either train or test mode')
+            end
+                        
+            %Open parallel pool
+            %addpath('./computation')
+            %parPoolInit(nTrain);
+            EHold = obj.E;  %this is for parfor efficiency
+            
+            %prealloc
+            lambdak = cell(obj.nTrain, obj.coarseScaleDomain.nEl);
+            if(nargout > 1)
+                xk = lambdak;
+            end
+            for s = 1:obj.nTrain
+                %inputs belonging to same coarse element are in the same column of xk. They are ordered in
+                %x-direction.
+                %Get conductivity fields in coarse cell windows
+                %Might be wrong for non-square fine scale domains
+                conductivityMat = reshape(conductivity(:, s), obj.fineScaleDomain.nElX,...
+                    obj.fineScaleDomain.nElY);
+                for e = 1:obj.coarseScaleDomain.nEl
+                    indexMat = (EHold == e);
+                    lambdakTemp = conductivityMat.*indexMat;
+                    %Cut elements from matrix that do not belong to coarse cell
+                    lambdakTemp(~any(lambdakTemp, 2), :) = [];
+                    lambdakTemp(:, ~any(lambdakTemp, 1)) = [];
+                    lambdak{s, e} = lambdakTemp;
+                    if(nargout > 1)
+                        xk{s, e} = conductivityTransform(lambdak{s, e}, condTransOpts);
+                    end
+                end
+            end
+        end
+        
+        
+        
+        
+        
+        function obj = computeDesignMatrix(obj, mode)
+            %Actual computation of design matrix
+            debug = false; %for debug mode
+            tic
+            disp('Compute design matrices Phi...')
+            
+            if strcmp(mode, 'train')
+                dataFile = obj.trainingDataMatfile;
+                dataSamples = obj.trainingSamples;
+            elseif strcmp(mode, 'test')
+                dataFile = obj.testDataMatfile;
+                dataSamples = obj.testSamples;
+            else
+                error('Compute design matrices for train or test data?')
+            end
+            
+            %load finescale conductivity field
+            conductivity = dataFile.cond(:, dataSamples);
+            conductivity = num2cell(conductivity, 1);   %to avoid parallelization communication overhead
+            nFeatureFunctions = size(obj.featureFunctions, 2);
+            nGlobalFeatureFunctions = size(obj.globalFeatureFunctions, 2);
+            phi = obj.featureFunctions;
+            phiGlobal = obj.globalFeatureFunctions;
+            
+            %Open parallel pool
+            %addpath('./computation')
+            %parPoolInit(obj.nTrain);
+            PhiCell{1} = zeros(romObj.coarseScaleDomain.nEl, nFeatureFunctions + nGlobalFeatureFunctions);
+            PhiCell = repmat(PhiCell, obj.nTrain, 1);
+            [lambdak, xk] = obj.get_coarseElementConductivities(obj.coarseScaleDomain.nEl,...
+                obj.fineScaleDomain.nEl, obj.conductivityTransformation);
+            if obj.linFiltSeq
+                %These only need to be stored if we sequentially add features
+                obj.lambdak = lambdak;
+                obj.xk = xk;
+            end
+            
+            if obj.useAutoEnc
+                %should work for training as well as testing
+                %Only for square grids!!!
+                lambdakMat = zeros(numel(lambdak{1}), numel(lambdak));
+                m = 1;
+                for n = 1:size(lambdak, 1)
+                    for k = 1:size(lambdak, 2)
+                        lambdakMat(:, m) = lambdak{n, k}(:);
+                        m = m + 1;
+                    end
+                end
+                lambdakMatBin = logical(lambdakMat - obj.lowerConductivity);
+                %Encoded version of test samples
+                load('./autoencoder/trainedAutoencoder.mat');
+                latentMu = ba.encode(lambdakMatBin);
+                obj.latentDim = ba.latentDim;
+                if ~debug
+                    clear ba;
+                end
+                latentMu = reshape(latentMu, obj.latentDim, nElc, obj.nTrain);
+            end
+            
+            
+            %parfor s = 1:nTrain
+            for s = 1:obj.nTrain    %for very cheap features, serial evaluation might be more efficient
+                %inputs belonging to same coarse element are in the same column of xk. They are ordered in
+                %x-direction.
+                
+                %construct design matrix Phi
+                for i = 1:obj.coarseScaleDomain.nEl
+                    %local features
+                    for j = 1:nFeatureFunctions
+                        %only take pixels of corresponding macro-cell as input for features
+                        PhiCell{s}(i, j) = phi{i, j}(lambdak{s, i});
+                    end
+                    %global features
+                    for j = 1:nGlobalFeatureFunctions
+                        %Take whole microstructure as input for feature function
+                        %Might be wrong for non-square fine scale domains
+                        conductivityMat = reshape(conductivity(:, s), obj.fineScaleDomain.nElX,...
+                            obj.fineScaleDomain.nElY);
+                        PhiCell{s}(i, nFeatureFunctions + j) = phiGlobal{i, j}(conductivityMat);
+                    end
+                    if obj.useAutoEnc
+                        for j = 1:obj.latentDim
+                            PhiCell{s}(i, nFeatureFunctions + nGlobalFeatureFunctions + j) = latentMu(j, i, s);
+                        end
+                    end
+                end
+            end
+            
+            if debug
+                for n = 1:obj.nTrain
+                    for k = 1:nElc
+                        decodedDataTest = ba.decode(latentMu(:, k, n));
+                        subplot(1,3,1)
+                        imagesc(reshape(decodedDataTest, 64, 64))
+                        axis square
+                        grid off
+                        yticks({})
+                        xticks({})
+                        colorbar
+                        subplot(1,3,2)
+                        imagesc(reshape(decodedDataTest > 0.5, 64, 64))
+                        axis square
+                        grid off
+                        yticks({})
+                        xticks({})
+                        colorbar
+                        subplot(1,3,3)
+                        imagesc(lambdak{n, k})
+                        axis square
+                        yticks({})
+                        xticks({})
+                        grid off
+                        colorbar
+                        drawnow
+                        pause(.5)
+                    end
+                end
+            end
+            
+            %             Phi.transformedConductivity = transformedConductivityHold;
+            obj.designMatrix = PhiCell;
+            %Check for real finite inputs
+            for i = 1:obj.nTrain
+                if(~all(all(all(isfinite(obj.designMatrix{i})))))
+                    dataPoint = i
+                    [coarseElement, featureFunction] = ind2sub(size(obj.designMatrix{i}),...
+                        find(~isfinite(obj.designMatrix{i})))
+                    warning('Non-finite design matrix Phi. Setting non-finite component to 0.')
+                    obj.designMatrix{i}(~isfinite(obj.designMatrix{i})) = 0;
+                elseif(~all(all(all(isreal(obj.designMatrix{i})))))
+                    warning('Complex feature function output:')
+                    dataPoint = i
+                    [coarseElement, featureFunction] = ind2sub(size(obj.designMatrix{i}),...
+                        find(imag(obj.designMatrix{i})))
+                    disp('Ignoring imaginary part...')
+                    obj.designMatrix{i} = real(obj.designMatrix{i});
+                end
+            end
+            disp('done')
+            Phi_computation_time = toc
         end
         
         
