@@ -41,10 +41,18 @@ XSqMean = ones(romObj.coarseScaleDomain.nEl, romObj.nTrain);
 Phi = DesignMatrix(romObj.fineScaleDomain, romObj.coarseScaleDomain, romObj.featureFunctions,...
     romObj.globalFeatureFunctions, romObj.trainingDataMatfile, romObj.nStart:(romObj.nStart + romObj.nTrain - 1));
 Phi.useAutoEnc = romObj.useAutoEnc;
-Phi = Phi.computeDesignMatrix(romObj.coarseScaleDomain.nEl, romObj.fineScaleDomain.nEl,...
-    romObj.conductivityTransformation);
+Phi.useDataKernels = romObj.useDataKernels;
+if romObj.useDataKernels
+    Phi = Phi.computeDesignMatrix(romObj.coarseScaleDomain.nEl, romObj.fineScaleDomain.nEl,...
+        romObj.conductivityTransformation, romObj.theta_c.bandwidth, 'train');
+else
+    Phi = Phi.computeDesignMatrix(romObj.coarseScaleDomain.nEl, romObj.fineScaleDomain.nEl,...
+        romObj.conductivityTransformation);
+end
 
-Phi = Phi.secondOrderFeatures(romObj.secondOrderTerms); %Include second order terms phi_i*phi_j
+if(sum(sum(romObj.secondOrderTerms)))
+    Phi = Phi.secondOrderFeatures(romObj.secondOrderTerms); %Include second order terms phi_i*phi_j
+end
 
     %Normalize design matrices
 if romObj.standardizeFeatures
@@ -74,15 +82,17 @@ if strcmp(romObj.mode, 'useLocal')
     Phi.sumPhiTPhi = sparse(Phi.sumPhiTPhi);
 end
 
-romObj.theta_c.nu = zeros(romObj.theta_c.nKernels, size(romObj.featureFunctions, 2));
-iter = 1;
-for n = 1:romObj.nTrain
-    for k = 1:romObj.coarseScaleDomain.nEl
-        romObj.theta_c.nu = ((iter - 1)/iter)*romObj.theta_c.nu + (1/iter)*Phi.designMatrices{n}(k, :);
-        iter = iter + 1;
+if romObj.useKernels
+    romObj.theta_c.nu = zeros(romObj.theta_c.nKernels, size(romObj.featureFunctions, 2));
+    iter = 1;
+    for n = 1:romObj.nTrain
+        for k = 1:romObj.coarseScaleDomain.nEl
+            romObj.theta_c.nu = ((iter - 1)/iter)*romObj.theta_c.nu + (1/iter)*Phi.designMatrices{n}(k, :);
+            iter = iter + 1;
+        end
     end
+    romObj.theta_c.nu = romObj.theta_c.nu + normrnd(0, 1, size(romObj.theta_c.nu));
 end
-romObj.theta_c.nu = romObj.theta_c.nu + normrnd(0, 1, size(romObj.theta_c.nu));
 
 MonteCarlo = false;
 VI = true;
@@ -369,7 +379,9 @@ while true
         else
             curr_theta = [romObj.theta_c.theta(index) index]
         end
-        curr_nu = romObj.theta_c.nu
+        if romObj.useKernels
+            curr_nu = romObj.theta_c.nu
+        end
 %         curr_theta_hyperparam = romObj.theta_c.priorHyperparam
         
         if(romObj.linFiltSeq && epoch > initialEpochs && mod((epoch - initialEpochs + 1), basisUpdateGap) == 0 &&...

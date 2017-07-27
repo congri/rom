@@ -26,6 +26,7 @@ classdef DesignMatrix
         neighborDictionary      %This array holds the index of theta,
                                 %the corresponding feature function number, coarse element and neighboring number
         useAutoEnc
+        useDataKernels
         latentDim = 0;          %If autoencoder is used
         
     end
@@ -98,7 +99,7 @@ classdef DesignMatrix
             end
         end
         
-        function Phi = computeDesignMatrix(Phi, nElc, nElf, condTransOpts)
+        function Phi = computeDesignMatrix(Phi, nElc, nElf, condTransOpts, bandwidth, mode, trainingFile, trainingSamples)
             %Actual computation of design matrix
             debug = false; %for debug mode
             tic
@@ -179,6 +180,69 @@ classdef DesignMatrix
                     end
                 end
             end
+                        
+%             Phi.transformedConductivity = transformedConductivityHold;
+            Phi.designMatrices = PhiCell;
+            %Check for real finite inputs
+            for i = 1:nTrain
+                if(~all(all(all(isfinite(Phi.designMatrices{i})))))
+                    dataPoint = i
+                    [coarseElement, featureFunction] = ind2sub(size(Phi.designMatrices{i}),...
+                        find(~isfinite(Phi.designMatrices{i})))
+                    warning('Non-finite design matrix Phi. Setting non-finite component to 0.')
+                    Phi.designMatrices{i}(~isfinite(Phi.designMatrices{i})) = 0;
+                elseif(~all(all(all(isreal(Phi.designMatrices{i})))))
+                    warning('Complex feature function output:')
+                    dataPoint = i
+                    [coarseElement, featureFunction] = ind2sub(size(Phi.designMatrices{i}),...
+                        find(imag(Phi.designMatrices{i})))
+                    disp('Ignoring imaginary part...')
+                    Phi.designMatrices{i} = real(Phi.designMatrices{i});
+                end
+            end
+            disp('done')
+            Phi_computation_time = toc
+            
+            if Phi.useDataKernels
+                if strcmp(mode, 'train')
+                    PhiCell{1} = zeros(nElc, nElc*nTrain);
+                    PhiCell = repmat(PhiCell, nTrain, 1);
+                    for n = 1:nTrain
+                        for k = 1:nElc
+                            f = 1;
+                            for nn = 1:nTrain
+                                for kk = 1:nElc
+                                    PhiCell{n}(k, f) = exp(-((1/(2*bandwidth^2)))*...
+                                        norm(Phi.designMatrices{n}(k, :) - Phi.designMatrices{nn}(kk, :))^2);
+                                    f = f + 1;
+                                end
+                            end
+                        end
+                    end
+                elseif strcmp(mode, 'test')
+                    PhiCell{1} = zeros(nElc, nElc*nTrain);
+                    PhiCell = repmat(PhiCell, nTrain, 1);
+                    for n = 1:nTrain
+                        for k = 1:nElc
+                            f = 1;
+                            for nn = 1:nTrain
+                                for kk = 1:nElc
+                                    PhiCell{n}(k, f) = exp(-((1/(2*bandwidth^2)))*...
+                                        norm(Phi.designMatrices{n}(k, :) - Phi.designMatrices{nn}(kk, :))^2);
+                                    f = f + 1;
+                                end
+                            end
+                        end
+                    end
+                else
+                    error('mode must be either train or test')
+                end
+                Phi.designMatrices = PhiCell;
+            end
+            
+            
+            
+            
             
             if debug
                 for n = 1:nTrain
@@ -210,28 +274,6 @@ classdef DesignMatrix
                     end
                 end
             end
-            
-%             Phi.transformedConductivity = transformedConductivityHold;
-            Phi.designMatrices = PhiCell;
-            %Check for real finite inputs
-            for i = 1:nTrain
-                if(~all(all(all(isfinite(Phi.designMatrices{i})))))
-                    dataPoint = i
-                    [coarseElement, featureFunction] = ind2sub(size(Phi.designMatrices{i}),...
-                        find(~isfinite(Phi.designMatrices{i})))
-                    warning('Non-finite design matrix Phi. Setting non-finite component to 0.')
-                    Phi.designMatrices{i}(~isfinite(Phi.designMatrices{i})) = 0;
-                elseif(~all(all(all(isreal(Phi.designMatrices{i})))))
-                    warning('Complex feature function output:')
-                    dataPoint = i
-                    [coarseElement, featureFunction] = ind2sub(size(Phi.designMatrices{i}),...
-                        find(imag(Phi.designMatrices{i})))
-                    disp('Ignoring imaginary part...')
-                    Phi.designMatrices{i} = real(Phi.designMatrices{i});
-                end
-            end
-            disp('done')
-            Phi_computation_time = toc
         end
         
         

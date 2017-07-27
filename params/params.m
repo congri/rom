@@ -41,6 +41,10 @@ else
         romObj.theta_c.nKernels = 5;
         romObj.theta_c.theta = normrnd(0, .01, romObj.theta_c.nKernels, 1);
         romObj.theta_c.tau = .3*ones(1, romObj.theta_c.nKernels);
+    elseif romObj.useDataKernels
+        nCoarseTotal = romObj.coarseScaleDomain.nEl*romObj.nTrain;
+        romObj.theta_c.theta = (1/nCoarseTotal)*ones(nCoarseTotal, 1);
+        romObj.theta_c.bandwidth = 1;
     else
     romObj.theta_c.theta = 0*ones(size(romObj.featureFunctions, 2) +...
         size(romObj.globalFeatureFunctions, 2) + latentDim + nSecondOrderTerms, 1);
@@ -75,7 +79,7 @@ if ~loadOldConf
 end
 
 %what kind of prior for theta_c
-romObj.theta_c.thetaPriorType = 'gaussian';              %hierarchical_gamma, hierarchical_laplace, laplace,
+romObj.theta_c.thetaPriorType = 'RVM';              %hierarchical_gamma, hierarchical_laplace, laplace,
                                                          %gaussian, RVM or none
 sigma_prior_type = 'none';                  %expSigSq, delta or none. A delta prior keeps sigma at its initial value
 sigma_prior_type_hold = sigma_prior_type;

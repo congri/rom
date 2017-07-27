@@ -38,7 +38,8 @@ classdef ROM_SPDE
         linFiltSeq = false;
         useAutoEnc = false;      %Use autoencoder information? Do not forget to pre-train autoencoder!
         secondOrderTerms;
-        useKernels = true;
+        useKernels = false;
+        useDataKernels = true;
         
         %% Model parameters
         theta_c;
@@ -620,9 +621,17 @@ classdef ROM_SPDE
                 obj.globalFeatureFunctions, obj.testDataMatfile, obj.testSamples);
             addpath('./aux')    %for conductivityBackTransform
             Phi.useAutoEnc = obj.useAutoEnc;
-            Phi = Phi.computeDesignMatrix(obj.coarseScaleDomain.nEl, obj.fineScaleDomain.nEl,...
-                obj.conductivityTransformation);
-            Phi = Phi.secondOrderFeatures(obj.secondOrderTerms); %Include second order terms phi_i*phi_j
+            Phi.useDataKernels = obj.useDataKernels;
+            if obj.useDataKernels
+                Phi = Phi.computeDesignMatrix(obj.coarseScaleDomain.nEl, obj.fineScaleDomain.nEl,...
+                    obj.conductivityTransformation, obj.theta_c.bandwidth, 'test', obj.trainingDataMatfile);
+            else
+                Phi = Phi.computeDesignMatrix(obj.coarseScaleDomain.nEl, obj.fineScaleDomain.nEl,...
+                    obj.conductivityTransformation);
+            end
+            if sum(sum(obj.secondOrderTerms))
+                Phi = Phi.secondOrderFeatures(obj.secondOrderTerms); %Include second order terms phi_i*phi_j
+            end
             
             %Normalize design matrices
             if obj.rescaleFeatures
