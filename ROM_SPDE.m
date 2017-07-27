@@ -34,7 +34,7 @@ classdef ROM_SPDE
         %% Model training parameters
         nStart = 1;             %first training data sample in file
         nTrain = 32;            %number of samples used for training
-        mode = 'useLocalNeighbor';          %useNeighbor, useLocalNeighbor, useDiagNeighbor, useLocalDiagNeighbor, useLocal, global
+        mode = 'useLocal';          %useNeighbor, useLocalNeighbor, useDiagNeighbor, useLocalDiagNeighbor, useLocal, global
                                 %global: take whole microstructure as feature function input, not
                                 %only local window (only recommended for pooling)
         linFiltSeq = false;
@@ -48,6 +48,7 @@ classdef ROM_SPDE
         globalFeatureFunctions  %cell array with handles to global feature functions
         %transformation of finescale conductivity to real axis
         conductivityTransformation;
+        latentDim;              %If autoencoder is used
         
         %% Feature function rescaling parameters
         featureFunctionMean;
@@ -521,7 +522,7 @@ classdef ROM_SPDE
                 if ~debug
                     clear ba;
                 end
-                latentMu = reshape(latentMu, obj.latentDim, nElc, obj.nTrain);
+                latentMu = reshape(latentMu, obj.latentDim, obj.coarseScaleDomain.nEl, obj.nTrain);
             end
             
             
@@ -555,7 +556,7 @@ classdef ROM_SPDE
             
             if debug
                 for n = 1:obj.nTrain
-                    for k = 1:nElc
+                    for k = 1:obj.coarseScaleDomain.nEl
                         decodedDataTest = ba.decode(latentMu(:, k, n));
                         subplot(1,3,1)
                         imagesc(reshape(decodedDataTest, 64, 64))
@@ -620,13 +621,13 @@ classdef ROM_SPDE
             elseif strcmp(obj.mode, 'useLocalNeighbor')
                 obj = obj.includeLocalNearestNeighborFeatures;
             elseif strcmp(obj.mode, 'useLocalDiagNeighbor')
-                Phi = Phi.includeLocalDiagNeighborFeatures([obj.coarseScaleDomain.nElX obj.coarseScaleDomain.nElY]);
+                obj = obj.includeLocalDiagNeighborFeatures;
             elseif strcmp(obj.mode, 'useDiagNeighbor')
                 %use feature function information from nearest and diagonal neighbors
-                Phi = Phi.includeDiagNeighborFeatures([obj.coarseScaleDomain.nElX obj.coarseScaleDomain.nElY]);
+                obj = obj.includeDiagNeighborFeatures;
             elseif strcmp(obj.mode, 'useLocal')
                 %Use separate parameters for every macro-cell
-                Phi = Phi.localTheta_c([obj.coarseScaleDomain.nElX obj.coarseScaleDomain.nElY]);
+                obj = obj.localTheta_c;
             end
             Phi_computation_time = toc
         end
@@ -937,6 +938,239 @@ classdef ROM_SPDE
             obj.designMatrix = PhiCell;
             disp('done')
         end%includeLocalNearestNeighborFeatures
+        
+        function obj = includeDiagNeighborFeatures(obj)
+            %includes feature function information of all other cells
+            %Can only be executed after standardization/rescaling!
+            %nc/nf: coarse/fine elements in x/y direction
+            disp('Including nearest and diagonal neighbor feature function information...')
+            nFeatureFunctionsTotal = size(obj.designMatrix{1}, 2);
+            PhiCell{1} = zeros(obj.coarseScaleDomain.nEl, 9*nFeatureFunctionsTotal);
+            nData = numel(obj.designMatrix);
+            PhiCell = repmat(PhiCell, nData, 1);
+            
+            for n = 1:nData
+                %The first columns contain feature function information of the original cell
+                PhiCell{n}(:, 1:nFeatureFunctionsTotal) = obj.designMatrix{n};
+                
+                %Only assign nonzero values to design matrix for neighboring elements if
+                %neighbor in respective direction exists
+                for i = 1:obj.coarseScaleDomain.nEl
+                    if(mod(i, obj.coarseScaleDomain.nElX) ~= 0)
+                        %right neighbor of coarse element exists
+                        PhiCell{n}(i, (nFeatureFunctionsTotal + 1):(2*nFeatureFunctionsTotal)) =...
+                            obj.designMatrix{n}(i + 1, :);
+                        if(i <= obj.coarseScaleDomain.nElX*(obj.coarseScaleDomain.nElY - 1))
+                            %upper right neighbor of coarse element exists
+                            PhiCell{n}(i, (2*nFeatureFunctionsTotal + 1):(3*nFeatureFunctionsTotal)) =...
+                                obj.designMatrix{n}(i + obj.coarseScaleDomain.nElX + 1, :);
+                        end
+                    end
+                    
+                    if(i <= obj.coarseScaleDomain.nElX*(obj.coarseScaleDomain.nElY - 1))
+                        %upper neighbor of coarse element exists
+                        PhiCell{n}(i, (3*nFeatureFunctionsTotal + 1):(4*nFeatureFunctionsTotal)) =...
+                            obj.designMatrix{n}(i + obj.coarseScaleDomain.nElX, :);
+                        if(mod(i - 1, obj.coarseScaleDomain.nElX) ~= 0)
+                            %upper left neighbor exists
+                            PhiCell{n}(i, (4*nFeatureFunctionsTotal + 1):(5*nFeatureFunctionsTotal)) =...
+                            obj.designMatrix{n}(i + obj.coarseScaleDomain.nElX - 1, :);
+                        end
+                    end
+                    
+                    if(mod(i - 1, obj.coarseScaleDomain.nElX) ~= 0)
+                        %left neighbor of coarse element exists
+                        PhiCell{n}(i, (5*nFeatureFunctionsTotal + 1):(6*nFeatureFunctionsTotal)) =...
+                            obj.designMatrix{n}(i - 1, :);
+                        if(i > obj.coarseScaleDomain.nElX)
+                            %lower left neighbor exists
+                            PhiCell{n}(i, (6*nFeatureFunctionsTotal + 1):(7*nFeatureFunctionsTotal)) =...
+                            obj.designMatrix{n}(i - obj.coarseScaleDomain.nElX - 1, :);
+                        end
+                    end
+                    
+                    if(i > obj.coarseScaleDomain.nElX)
+                        %lower neighbor of coarse element exists
+                        PhiCell{n}(i, (7*nFeatureFunctionsTotal + 1):(8*nFeatureFunctionsTotal)) =...
+                            obj.designMatrix{n}(i - obj.coarseScaleDomain.nElX, :);
+                        if(mod(i, obj.coarseScaleDomain.nElX) ~= 0)
+                            %lower right neighbor exists
+                            PhiCell{n}(i, (8*nFeatureFunctionsTotal + 1):(9*nFeatureFunctionsTotal)) =...
+                            obj.designMatrix{n}(i - obj.coarseScaleDomain.nElX + 1, :);
+                        end
+                    end
+                end
+            end
+            obj.designMatrix = PhiCell;
+            disp('done')
+        end%includeDiagNeighborFeatures
+
+        function obj = includeLocalDiagNeighborFeatures(obj)
+            %Includes feature function information of direct and diagonal neighboring cells
+            %Can only be executed after standardization/rescaling!
+            %nc/nf: coarse/fine elements in x/y direction
+            disp('Including nearest + diagonal neighbor feature function information separately for each cell...')
+            nFeatureFunctionsTotal = size(obj.designMatrix{1}, 2);
+            nData = numel(obj.designMatrix);
+%             PhiCell = repmat(PhiCell, nTrain, 1);
+            
+            for n = 1:nData
+                %Only assign nonzero values to design matrix for neighboring elements if
+                %neighbor in respective direction exists
+                k = 0;
+                for i = 1:obj.coarseScaleDomain.nEl
+                    PhiCell{n}(i, (k*nFeatureFunctionsTotal + 1):((k + 1)*nFeatureFunctionsTotal)) =...
+                        obj.designMatrix{n}(i, :);
+                    obj.neighborDictionary((k*nFeatureFunctionsTotal + 1):((k + 1)*nFeatureFunctionsTotal), 1) = ...
+                        (1:nFeatureFunctionsTotal)'; %feature index
+                    obj.neighborDictionary((k*nFeatureFunctionsTotal + 1):((k + 1)*nFeatureFunctionsTotal), 2) = ...
+                        i; %coarse element index
+                    obj.neighborDictionary((k*nFeatureFunctionsTotal + 1):((k + 1)*nFeatureFunctionsTotal), 3) = ...
+                        0; %center element
+                    k = k + 1;
+                    if(mod(i, obj.coarseScaleDomain.nElX) ~= 0)
+                        %right neighbor of coarse element exists
+                        PhiCell{n}(i, (k*nFeatureFunctionsTotal + 1):((k + 1)*nFeatureFunctionsTotal)) =...
+                            obj.designMatrix{n}(i + 1, :);
+                        obj.neighborDictionary((k*nFeatureFunctionsTotal + 1):((k + 1)*nFeatureFunctionsTotal), 1) = ...
+                            (1:nFeatureFunctionsTotal)'; %feature index
+                        obj.neighborDictionary((k*nFeatureFunctionsTotal + 1):((k + 1)*nFeatureFunctionsTotal), 2) = ...
+                            i; %coarse element index
+                        obj.neighborDictionary((k*nFeatureFunctionsTotal + 1):((k + 1)*nFeatureFunctionsTotal), 3) = ...
+                            1; %right neighbor
+                        k = k + 1;
+                        
+                        if(i <= obj.coarseScaleDomain.nElX*(obj.coarseScaleDomain.nElY - 1))
+                            %upper right neighbor of coarse element exists
+                            PhiCell{n}(i, (k*nFeatureFunctionsTotal + 1):((k + 1)*nFeatureFunctionsTotal)) =...
+                                obj.designMatrix{n}(i + obj.coarseScaleDomain.nElX + 1, :);
+                            obj.neighborDictionary((k*nFeatureFunctionsTotal + 1):((k + 1)*nFeatureFunctionsTotal), 1) = ...
+                                (1:nFeatureFunctionsTotal)'; %feature index
+                            obj.neighborDictionary((k*nFeatureFunctionsTotal + 1):((k + 1)*nFeatureFunctionsTotal), 2) = ...
+                                i; %coarse element index
+                            obj.neighborDictionary((k*nFeatureFunctionsTotal + 1):((k + 1)*nFeatureFunctionsTotal), 3) = ...
+                                2; % upper right neighbor
+                            k = k + 1;
+                        end
+                        
+                    end
+                    
+                    
+                    if(i <= obj.coarseScaleDomain.nElX*(obj.coarseScaleDomain.nElY - 1))
+                        %upper neighbor of coarse element exists
+                        PhiCell{n}(i, (k*nFeatureFunctionsTotal + 1):((k + 1)*nFeatureFunctionsTotal)) =...
+                            obj.designMatrix{n}(i + obj.coarseScaleDomain.nElX, :);
+                        obj.neighborDictionary((k*nFeatureFunctionsTotal + 1):((k + 1)*nFeatureFunctionsTotal), 1) = ...
+                            (1:nFeatureFunctionsTotal)'; %feature index
+                        obj.neighborDictionary((k*nFeatureFunctionsTotal + 1):((k + 1)*nFeatureFunctionsTotal), 2) = ...
+                            i; %coarse element index
+                        obj.neighborDictionary((k*nFeatureFunctionsTotal + 1):((k + 1)*nFeatureFunctionsTotal), 3) = ...
+                            2; %upper neighbor
+                        k = k + 1;
+                        
+                        if(mod(i - 1, obj.coarseScaleDomain.nElX) ~= 0)
+                            %upper left neighbor of coarse element exists
+                            PhiCell{n}(i, (k*nFeatureFunctionsTotal + 1):((k + 1)*nFeatureFunctionsTotal)) =...
+                                obj.designMatrix{n}(i + obj.coarseScaleDomain.nElX - 1, :);
+                            obj.neighborDictionary((k*nFeatureFunctionsTotal + 1):((k + 1)*nFeatureFunctionsTotal), 1) = ...
+                                (1:nFeatureFunctionsTotal)'; %feature index
+                            obj.neighborDictionary((k*nFeatureFunctionsTotal + 1):((k + 1)*nFeatureFunctionsTotal), 2) = ...
+                                i; %coarse element index
+                            obj.neighborDictionary((k*nFeatureFunctionsTotal + 1):((k + 1)*nFeatureFunctionsTotal), 3) = ...
+                                4; % upper left neighbor
+                            k = k + 1;
+                        end
+                        
+                    end
+                    
+                    
+                    if(mod(i - 1, obj.coarseScaleDomain.nElX) ~= 0)
+                        %left neighbor of coarse element exists
+                        PhiCell{n}(i, (k*nFeatureFunctionsTotal + 1):((k + 1)*nFeatureFunctionsTotal)) =...
+                            obj.designMatrix{n}(i - 1, :);
+                        obj.neighborDictionary((k*nFeatureFunctionsTotal + 1):((k + 1)*nFeatureFunctionsTotal), 1) = ...
+                            (1:nFeatureFunctionsTotal)'; %feature index
+                        obj.neighborDictionary((k*nFeatureFunctionsTotal + 1):((k + 1)*nFeatureFunctionsTotal), 2) = ...
+                            i; %coarse element index
+                        obj.neighborDictionary((k*nFeatureFunctionsTotal + 1):((k + 1)*nFeatureFunctionsTotal), 3) = ...
+                            3; %left neighbor
+                        k = k + 1;
+                        
+                        if(i > obj.coarseScaleDomain.nElX)
+                            %lower left neighbor of coarse element exists
+                            PhiCell{n}(i, (k*nFeatureFunctionsTotal + 1):((k + 1)*nFeatureFunctionsTotal)) =...
+                                obj.designMatrix{n}(i - obj.coarseScaleDomain.nElX - 1, :);
+                            obj.neighborDictionary((k*nFeatureFunctionsTotal + 1):((k + 1)*nFeatureFunctionsTotal), 1) = ...
+                                (1:nFeatureFunctionsTotal)'; %feature index
+                            obj.neighborDictionary((k*nFeatureFunctionsTotal + 1):((k + 1)*nFeatureFunctionsTotal), 2) = ...
+                                i; %coarse element index
+                            obj.neighborDictionary((k*nFeatureFunctionsTotal + 1):((k + 1)*nFeatureFunctionsTotal), 3) = ...
+                                6; % lower left neighbor
+                            k = k + 1;
+                        end
+                        
+                    end
+                    
+                    
+                    if(i > obj.coarseScaleDomain.nElX)
+                        %lower neighbor of coarse element exists
+                        PhiCell{n}(i, (k*nFeatureFunctionsTotal + 1):((k + 1)*nFeatureFunctionsTotal)) =...
+                            obj.designMatrix{n}(i - obj.coarseScaleDomain.nElX, :);
+                        obj.neighborDictionary((k*nFeatureFunctionsTotal + 1):((k + 1)*nFeatureFunctionsTotal), 1) = ...
+                            (1:nFeatureFunctionsTotal)'; %feature index
+                        obj.neighborDictionary((k*nFeatureFunctionsTotal + 1):((k + 1)*nFeatureFunctionsTotal), 2) = ...
+                            i; %coarse element index
+                        obj.neighborDictionary((k*nFeatureFunctionsTotal + 1):((k + 1)*nFeatureFunctionsTotal), 3) = ...
+                            4; %lower neighbor
+                        k = k + 1;
+                        
+                        if(mod(i, obj.coarseScaleDomain.nElX) ~= 0)
+                            %lower right neighbor of coarse element exists
+                            PhiCell{n}(i, (k*nFeatureFunctionsTotal + 1):((k + 1)*nFeatureFunctionsTotal)) =...
+                                obj.designMatrix{n}(i - obj.coarseScaleDomain.nElX + 1, :);
+                            obj.neighborDictionary((k*nFeatureFunctionsTotal + 1):((k + 1)*nFeatureFunctionsTotal), 1) = ...
+                                (1:nFeatureFunctionsTotal)'; %feature index
+                            obj.neighborDictionary((k*nFeatureFunctionsTotal + 1):((k + 1)*nFeatureFunctionsTotal), 2) = ...
+                                i; %coarse element index
+                            obj.neighborDictionary((k*nFeatureFunctionsTotal + 1):((k + 1)*nFeatureFunctionsTotal), 3) = ...
+                                8; % lower right neighbor
+                            k = k + 1;
+                        end
+                        
+                    end
+                end
+            end
+            obj.designMatrix = PhiCell;
+            disp('done')
+        end%includeLocalDiagNeighborFeatures
+
+        function obj = localTheta_c(obj)
+            %Sets separate coefficients theta_c for each macro-cell in a single microstructure
+            %sample
+            %Can never be executed before rescaling/standardization of design Matrix!
+            debug = false; %debug mode
+            disp('Using separate feature coefficients theta_c for each macro-cell in a microstructure...')
+            nFeatureFunctionsTotal = size(obj.designMatrix{1}, 2);
+            PhiCell{1} = zeros(obj.coarseScaleDomain.nEl, obj.coarseScaleDomain.nEl*nFeatureFunctionsTotal);
+            nData = numel(obj.designMatrix);
+            PhiCell = repmat(PhiCell, nData, 1);
+            
+            %Reassemble design matrix
+            for n = 1:nData
+                for i = 1:obj.coarseScaleDomain.nEl
+                    PhiCell{n}(i, ((i - 1)*nFeatureFunctionsTotal + 1):(i*nFeatureFunctionsTotal)) = ...
+                      obj.designMatrix{n}(i, :);
+                end
+                PhiCell{n} = sparse(PhiCell{n});
+            end
+            if debug
+                firstDesignMatrixBeforeLocal = obj.designMatrix{1}
+                firstDesignMatrixAfterLocal = full(PhiCell{1})
+                pause
+            end
+            obj.designMatrix = PhiCell;
+            disp('done')
+        end%localTheta_c
         
         function obj = genCoarseDomain(obj)
             %Generate coarse domain object
