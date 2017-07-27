@@ -54,7 +54,7 @@ classdef ROM_SPDE
         featureFunctionMin;
         featureFunctionMax;
         standardizeFeatures = false;    %Rescale s.t. feature outputs have mean 0 and std 1
-        rescaleFeatures = false;        %Rescale s.t. feature outputs are all between 0 and 1
+        rescaleFeatures = true;        %Rescale s.t. feature outputs are all between 0 and 1
         
         %% Prediction parameters
         nSamples_p_c = 1000;
@@ -134,8 +134,6 @@ classdef ROM_SPDE
             %Set up feature function handles
             obj = obj.setFeatureFunctions;
             
-            %Mapping from fine cell index to coarse cell index
-            obj = obj.getCoarseElement;
         end
         
         
@@ -415,12 +413,11 @@ classdef ROM_SPDE
             %load finescale temperatures partially
             obj.fineScaleDataOutput = obj.trainingDataMatfile.Tf(:, obj.nStart:(obj.nStart + obj.nTrain - 1));
         end
-        
-        
-        
+
         %% Design matrix functions
         function obj = getCoarseElement(obj)
             debug = false;
+            obj
             obj.E = zeros(obj.fineScaleDomain.nEl, 1);
             e = 1;  %element number
             for row_fine = 1:obj.fineScaleDomain.nElY
@@ -436,17 +433,14 @@ classdef ROM_SPDE
                 end
             end
             
-            obj.E = reshape(obj.E, domainf.nElX, domainf.nElY);
+            obj.E = reshape(obj.E, obj.fineScaleDomain.nElX, obj.fineScaleDomain.nElY);
             if debug
                 figure
                 imagesc(obj.E)
                 pause
             end
         end
-        
-        
-        
-        
+
         function [lambdak, xk] = get_coarseElementConductivities(obj, mode)
             %load finescale conductivity field
             if strcmp(mode, 'train')
@@ -456,6 +450,8 @@ classdef ROM_SPDE
             else
                 error('Either train or test mode')
             end
+            %Mapping from fine cell index to coarse cell index
+            obj = obj.getCoarseElement;
                         
             %Open parallel pool
             %addpath('./computation')
@@ -482,16 +478,12 @@ classdef ROM_SPDE
                     lambdakTemp(:, ~any(lambdakTemp, 1)) = [];
                     lambdak{s, e} = lambdakTemp;
                     if(nargout > 1)
-                        xk{s, e} = conductivityTransform(lambdak{s, e}, condTransOpts);
+                        xk{s, e} = conductivityTransform(lambdak{s, e}, obj.conductivityTransformation);
                     end
                 end
             end
         end
-        
-        
-        
-        
-        
+
         function obj = computeDesignMatrix(obj, mode)
             %Actual computation of design matrix
             debug = false; %for debug mode
@@ -519,10 +511,9 @@ classdef ROM_SPDE
             %Open parallel pool
             %addpath('./computation')
             %parPoolInit(obj.nTrain);
-            PhiCell{1} = zeros(romObj.coarseScaleDomain.nEl, nFeatureFunctions + nGlobalFeatureFunctions);
+            PhiCell{1} = zeros(obj.coarseScaleDomain.nEl, nFeatureFunctions + nGlobalFeatureFunctions);
             PhiCell = repmat(PhiCell, obj.nTrain, 1);
-            [lambdak, xk] = obj.get_coarseElementConductivities(obj.coarseScaleDomain.nEl,...
-                obj.fineScaleDomain.nEl, obj.conductivityTransformation);
+            [lambdak, xk] = obj.get_coarseElementConductivities(mode);
             if obj.linFiltSeq
                 %These only need to be stored if we sequentially add features
                 obj.lambdak = lambdak;
@@ -631,8 +622,198 @@ classdef ROM_SPDE
                 end
             end
             disp('done')
+            %Include second order combinations of features
+            obj = obj.secondOrderFeatures(mode);
+            %Normalize design matrices
+            if obj.standardizeFeatures
+                obj = obj.standardizeDesignMatrix('mode');
+            elseif obj.rescaleFeatures
+                obj = obj.rescaleDesignMatrix('mode');
+            end
             Phi_computation_time = toc
         end
+        
+        function obj = secondOrderFeatures(obj, mode)
+            %Includes second order multinomial terms, i.e. a_ij phi_i phi_j, where a_ij is logical.
+            %Squared term phi_i^2 if a_ii ~= 0. To be executed directly after feature function
+            %computation.
+            
+            assert(all(all(islogical(obj.secondOrderTerms))), 'A must be a logical array of nFeatures x nFeatures')
+            %Consider every term only once
+            assert(sum(sum(tril(obj.secondOrderTerms, -1))) == 0, 'Matrix A must be upper triangular')
+            
+            disp('Using second order terms of feature functions...')
+            nFeatureFunctions = size(obj.featureFunctions, 2);
+            nSecondOrderTerms = sum(sum(obj.secondOrderTerms));
+            PhiCell{1} = zeros(obj.coarseScaleDomain.nEl, nSecondOrderTerms + nFeatureFunctions);
+            if strcmp(mode, 'train')
+                nData = obj.nTrain;
+            elseif strcmp(mode, 'test')
+                nData = numel(obj.testSamples);
+            end
+            PhiCell = repmat(PhiCell, nData, 1);
+            
+            for s = 1:nData
+                %The first columns contain first order terms
+                PhiCell{s}(:, 1:nFeatureFunctions) = obj.designMatrix{s};
+                
+                %Second order terms
+                f = 1;
+                for r = 1:size(obj.secondOrderTerms, 1)
+                    for c = r:size(obj.secondOrderTerms, 2)
+                        if obj.secondOrderTerms(r, c)
+                            PhiCell{s}(:, nFeatureFunctions + f) = ...
+                                PhiCell{s}(:, r).*PhiCell{s}(:, c);
+                            f = f + 1;
+                        end
+                    end
+                end
+            end
+            obj.designMatrix = PhiCell;
+            disp('done')
+        end%secondOrderFeatures
+        
+        function obj = computeFeatureFunctionMean(obj)
+            %Must be executed BEFORE useLocal etc.
+            obj.featureFunctionMean = 0;
+            for n = 1:numel(obj.designMatrix)
+                obj.featureFunctionMean = obj.featureFunctionMean + mean(obj.designMatrix{n}, 1);
+            end
+            obj.featureFunctionMean = obj.featureFunctionMean/numel(obj.designMatrix);
+        end
+
+        function obj = computeFeatureFunctionSqMean(obj)
+            featureFunctionSqSum = 0;
+            for i = 1:numel(obj.designMatrix)
+                featureFunctionSqSum = featureFunctionSqSum + sum(obj.designMatrix{i}.^2, 1);
+            end
+            obj.featureFunctionSqMean = featureFunctionSqSum/...
+                (numel(obj.designMatrix)*size(obj.designMatrix{1}, 1));
+        end
+
+        function obj = standardizeDesignMatrix(obj, mode)
+            %Standardize covariates to have 0 mean and unit variance
+            disp('Standardize design matrix')
+            %Compute std
+            if strcmp(mode, 'test')
+                featureFunctionStd = sqrt(obj.featureFunctionSqMean - obj.featureFunctionMean.^2);
+            else
+                obj = obj.computeFeatureFunctionMean;
+                obj = obj.computeFeatureFunctionSqMean;
+                featureFunctionStd = sqrt(obj.featureFunctionSqMean - obj.featureFunctionMean.^2);
+                if(any(~isreal(featureFunctionStd)))
+                    warning('Imaginary standard deviation. Setting it to 0.')
+                    featureFunctionStd = real(featureFunctionStd);
+                end
+            end
+            
+            %centralize
+            for i = 1:numel(obj.designMatrix)
+                obj.designMatrix{i} = obj.designMatrix{i} - obj.featureFunctionMean;
+            end
+            
+            %normalize
+            for i = 1:numel(obj.designMatrix)
+                obj.designMatrix{i} = obj.designMatrix{i}./featureFunctionStd;
+            end
+            
+            %Check for finiteness
+            for i = 1:numel(obj.designMatrix)
+                if(~all(all(all(isfinite(obj.designMatrix{i})))))
+                    warning('Non-finite design matrix Phi. Setting non-finite component to 0.')
+                    obj.designMatrix{i}(~isfinite(obj.designMatrix{i})) = 0;
+                elseif(~all(all(all(isreal(obj.designMatrix{i})))))
+                    warning('Complex feature function output:')
+                    dataPoint = i
+                    [coarseElement, featureFunction] = ind2sub(size(obj.designMatrix{i}),...
+                        find(imag(obj.designMatrix{i})))
+                    disp('Ignoring imaginary part...')
+                    obj.designMatrix{i} = real(obj.designMatrix{i});
+                end
+            end
+            obj.saveNormalization('standardization');
+            disp('done')
+        end
+        
+        function obj = computeFeatureFunctionMinMax(obj)
+            %Computes min/max of feature function outputs over training data, separately for every
+            %macro cell
+            obj.featureFunctionMin = obj.designMatrix{1};
+            obj.featureFunctionMax = obj.designMatrix{1};
+            for n = 1:numel(obj.designMatrix)
+                obj.featureFunctionMin(obj.featureFunctionMin > obj.designMatrix{n}) =...
+                    obj.designMatrix{n}(obj.featureFunctionMin > obj.designMatrix{n});
+                obj.featureFunctionMax(obj.featureFunctionMax < obj.designMatrix{n}) =...
+                    obj.designMatrix{n}(obj.featureFunctionMax < obj.designMatrix{n});
+            end
+        end
+        
+        function obj = rescaleDesignMatrix(obj, mode)
+            %Rescale design matrix s.t. outputs are between 0 and 1
+            disp('Rescale design matrix...')
+            if strcmp(mode, 'test')
+                featFuncDiff = obj.featureFunctionMax - obj.featureFunctionMin;
+                %to avoid irregularities due to rescaling (if every macro cell has the same feature function output)
+                obj.featureFunctionMin(featFuncDiff == 0) = 0;
+                featFuncDiff(featFuncDiff == 0) = 1;
+                for n = 1:numel(obj.designMatrix)
+                    obj.designMatrix{n} = (obj.designMatrix{n} - obj.featureFunctionMin)./(featFuncDiff);
+                end
+            else
+                obj = obj.computeFeatureFunctionMinMax;
+                featFuncDiff = obj.featureFunctionMax - obj.featureFunctionMin;
+                %to avoid irregularities due to rescaling (if every macro cell has the same feature function output)
+                obj.featureFunctionMin(featFuncDiff == 0) = 0;
+                featFuncDiff(featFuncDiff == 0) = 1;
+                for n = 1:numel(obj.designMatrix)
+                    obj.designMatrix{n} = (obj.designMatrix{n} - obj.featureFunctionMin)./(featFuncDiff);
+                end
+            end
+            %Check for finiteness
+            for n = 1:numel(obj.designMatrix)
+                if(~all(all(all(isfinite(obj.designMatrix{n})))))
+                    warning('Non-finite design matrix Phi. Setting non-finite component to 0.')
+                    obj.designMatrix{n}(~isfinite(obj.designMatrix{n})) = 0;
+                    dataPoint = n
+                    [coarseElement, featureFunction] = ind2sub(size(obj.designMatrix{n}),...
+                        find(~isfinite(obj.designMatrix{n})))
+                elseif(~all(all(all(isreal(obj.designMatrix{n})))))
+                    warning('Complex feature function output:')
+                    dataPoint = n
+                    [coarseElement, featureFunction] = ind2sub(size(obj.designMatrix{n}),...
+                        find(imag(obj.designMatrix{n})))
+                    disp('Ignoring imaginary part...')
+                    obj.designMatrix{n} = real(obj.designMatrix{n});
+                end
+            end
+            obj.saveNormalization('rescaling');
+            disp('done')
+        end
+        
+        function saveNormalization(obj, type)
+            disp('Saving Phi-normalization...')
+            if(isempty(obj.featureFunctionMean))
+                obj = obj.computeFeatureFunctionMean;
+            end
+            if(isempty(obj.featureFunctionSqMean))
+                obj = obj.computeFeatureFunctionSqMean;
+            end
+            if strcmp(type, 'standardization')
+                featureFunctionMean = obj.featureFunctionMean;
+                featureFunctionSqMean = obj.featureFunctionSqMean;
+                save('./data/featureFunctionMean', 'featureFunctionMean', '-ascii');
+                save('./data/featureFunctionSqMean', 'featureFunctionSqMean', '-ascii');
+            elseif strcmp(type, 'rescaling')
+                featureFunctionMin = obj.featureFunctionMin;
+                featureFunctionMax = obj.featureFunctionMax;
+                save('./data/featureFunctionMin', 'featureFunctionMin', '-ascii');
+                save('./data/featureFunctionMax', 'featureFunctionMax', '-ascii');
+            else
+                error('Which type of data normalization?')
+            end
+        end
+        
+        
         
         
         
@@ -1596,8 +1777,8 @@ classdef ROM_SPDE
             
             obj.secondOrderTerms = zeros(nFeatures, 'logical');
             obj.secondOrderTerms(2, 2) = true;
-            obj.secondOrderTerms(2, 3) = true;
-            obj.secondOrderTerms(3, 3) = true;
+%             obj.secondOrderTerms(2, 3) = true;
+%             obj.secondOrderTerms(3, 3) = true;
             assert(sum(sum(tril(obj.secondOrderTerms, -1))) == 0, 'Second order matrix must be upper triangular')
             
         end

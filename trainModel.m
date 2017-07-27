@@ -43,17 +43,21 @@ Phi = DesignMatrix(romObj.fineScaleDomain, romObj.coarseScaleDomain, romObj.feat
 Phi.useAutoEnc = romObj.useAutoEnc;
 Phi = Phi.computeDesignMatrix(romObj.coarseScaleDomain.nEl, romObj.fineScaleDomain.nEl,...
     romObj.conductivityTransformation);
+romObj = romObj.computeDesignMatrix('train');
 
 Phi = Phi.secondOrderFeatures(romObj.secondOrderTerms); %Include second order terms phi_i*phi_j
 
     %Normalize design matrices
 if romObj.standardizeFeatures
     Phi = Phi.standardizeDesignMatrix;
+    romObj = romObj.standardizeDesignMatrix('train');
     Phi.saveNormalization('standardization');
 elseif romObj.rescaleFeatures
     Phi = Phi.rescaleDesignMatrix;
+    romObj = romObj.rescaleDesignMatrix('train');
     Phi.saveNormalization('rescaling');
 end
+error
 %Compute sum_i Phi^T(x_i)^Phi(x_i)
 if strcmp(romObj.mode, 'useNeighbor')
     %use feature function information from nearest neighbors
