@@ -8,7 +8,7 @@ NTRAIN=$NSET1
 VOLFRAC=-1	#Theoretical volume fraction; negative value leads to uniform random volume fraction
 LOCOND=1
 UPCOND=10
-LATENTDIM=10
+LATENTDIM=2
 #best change boundary conditions in matlab
 
 #Set up file paths

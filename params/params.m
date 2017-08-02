@@ -6,10 +6,10 @@ loadOldConf = false;
 
 %linear filter options
 romObj.linFilt.type = 'local';  %local or global
-romObj.linFilt.gap = 3;
+romObj.linFilt.gap = 100;
 romObj.linFilt.initialEpochs = 0;
 romObj.linFilt.updates = 0;     %Already added linear filters
-romObj.linFilt.totalUpdates = 1;
+romObj.linFilt.totalUpdates = 0;
 romObj.maxEpochs = (romObj.linFilt.totalUpdates + 1)*romObj.linFilt.gap - 2 + romObj.linFilt.initialEpochs;
 
 
@@ -69,16 +69,6 @@ if ~loadOldConf
         romObj.theta_c.theta = zeros(romObj.fineScaleDomain.nEl*romObj.coarseScaleDomain.nEl/prod(wndw), 1); %wndw is set in genBasisFunctions
     end
 end
-
-%what kind of prior for theta_c
-romObj.theta_c.thetaPriorType = 'none';              %hierarchical_gamma, hierarchical_laplace, laplace,
-
-%prior hyperparams; obsolete for no prior
-% theta_prior_hyperparamArray = [0 1e-4];                   %a and b params for Gamma hyperprior
-romObj.theta_c.priorHyperparam = 1;
-romObj.theta_c.priorHyperparam = ones(size(romObj.theta_c.theta));     %start value. this is adjusted using max marginal likelihood
-% theta_prior_hyperparam = 10;
-sigma_prior_hyperparam = 1e0*ones(romObj.coarseScaleDomain.nEl, 1);  %   expSigSq: x*exp(-x*sigmaSq), where x is the hyperparam
 
 %% MCMC options
 MCMC.method = 'MALA';                                %proposal type: randomWalk, nonlocal or MALA

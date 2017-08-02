@@ -5,14 +5,14 @@ clear;
 addpath('./autoencoder')
 
 %data specs
-deterministic = true;
+deterministic = false;
 if deterministic
     ba = DeterministicBinaryAutoencoder;
 else
     ba = BinaryAutoencoder;
-    ba.maxIterations = 8;
+    ba.maxIterations = 50;
 end
-ba.latentDim = 10;
+ba.latentDim = 2;
 
 nElFX = 256;
 nElFY = 256;

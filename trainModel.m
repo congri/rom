@@ -35,10 +35,17 @@ ppool = parPoolInit(romObj.nTrain);
 pend = 0;       %for sequential qi-updates
 
 %Compute design matrices
-romObj = romObj.computeDesignMatrix('train');
+romObj = romObj.computeDesignMatrix('train', false);
+if(size(romObj.designMatrix{1}, 2) ~= size(romObj.theta_c.theta))
+    warning('Wrong dimension of theta_c. Setting it to 0 with correct dimension.')
+    romObj.theta_c.theta = zeros(size(romObj.designMatrix{1}, 2), 1);
+end
 
-MonteCarlo = false;
-VI = true;
+if strcmp(romObj.inferenceMethod, 'monteCarlo')
+    MonteCarlo = true;
+else
+    MonteCarlo = false;
+end
 
 %% EM optimization - main body
 romObj.EM_iterations = 1;          %EM iteration index
@@ -64,7 +71,7 @@ while true
         log_qi{i} = @(Xi) log_q_i(Xi, Tf_i_minus_mu, tcf, tc,...
             PhiMat, cd, ct);
         premax = false;
-        if(VI && premax)
+        if(strcmp(romObj.inferenceMethod, 'variationalInference') && premax)
             %This might be not worth the overhead, i.e. it is expensive
             if(romObj.EM_iterations == 2 && ~loadOldConf)
                 %Initialize VI distributions from maximum of q_i's
@@ -85,7 +92,6 @@ while true
         %% Test run for step sizes
         disp('test sampling...')
         parfor i = 1:romObj.nTrain
-            Tf_i_minus_mu = romObj.fineScaleDataOutput(:, i) - romObj.theta_cf.mu;
             %find maximum of qi for thermalization
             %start value has some randomness to drive transitions between local optima
             X_start{i} = normrnd(MCMC(i).Xi_start, .01);
@@ -169,7 +175,7 @@ while true
             
         end
         clear Tc_samples;
-    elseif VI
+    elseif strcmp(romObj.inferenceMethod, 'variationalInference')
         
         if (strcmp(update_qi, 'sequential') && romObj.EM_iterations > 2)
             %Sequentially update N_threads qi's at a time, then perform M-step
