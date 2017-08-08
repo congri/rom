@@ -1604,6 +1604,9 @@ classdef ROM_SPDE
             if(isempty(obj.featureFunctionSqMean))
                 obj = obj.computeFeatureFunctionSqMean;
             end
+            if ~exist('./data')
+                mkdir('./data');
+            end
             if strcmp(type, 'standardization')
                 featureFunctionMean = obj.featureFunctionMean;
                 featureFunctionSqMean = obj.featureFunctionSqMean;
@@ -2109,7 +2112,8 @@ classdef ROM_SPDE
 
         function p = plot_p_c_regression(obj)
             %Plots regressions of single features to the data <X>_q
-            totalFeatures = size(obj.featureFunctions, 2) + size(obj.globalFeatureFunctions, 2);
+            totalFeatures = size(obj.featureFunctions, 2) + size(obj.globalFeatureFunctions, 2) + ...
+                obj.latentDim;
 %             %Setting up handles to feature function vectors
 %             function phi_vec = phiVec(xk, k)
 %                 phi_vec = zeros(totalFeatures, 1);
@@ -2205,11 +2209,12 @@ classdef ROM_SPDE
                         for j = 1:obj.coarseScaleDomain.nElY
                             for s = 1:obj.nTrain
                                 if obj.useKernels
-                                    if(size(obj.featureFunctions, 2) == 1)
+                                    if(totalFeatures == 1)
                                         plot(designMatrix{s}(k, feature), obj.XMean(k, s), 'xb')
                                     else
                                         if(feature == 1)
-                                            plot3(designMatrix{s}(k, 1), designMatrix{s}(k, 2), obj.XMean(k, s), 'xb')
+                                            plot3(designMatrix{s}(k, 1), designMatrix{s}(k, 2), obj.XMean(k, s),...
+                                                'xb', 'linewidth', 2)
                                         end
                                     end
                                 else
@@ -2221,17 +2226,17 @@ classdef ROM_SPDE
                         end
                     end
                     if obj.useKernels
-                        if(size(obj.featureFunctions, 2) == 1)
+                        if(totalFeatures == 1)
                             x = linspace(min(min(cell2mat(designMatrix))),...
                                 max(max(cell2mat(designMatrix))), 100);
                             y = 0*x;
                         else
                             designMatrixArray = cell2mat(designMatrix');
                             %Maxima and minima of first and second feature
-                            max1 = max(max(designMatrixArray(:, 1:size(obj.featureFunctions, 2):end)));
-                            max2 = max(max(designMatrixArray(:, 2:size(obj.featureFunctions, 2):end)));
-                            min1 = min(min(designMatrixArray(:, 1:size(obj.featureFunctions, 2):end)));
-                            min2 = min(min(designMatrixArray(:, 2:size(obj.featureFunctions, 2):end)));
+                            max1 = max(max(designMatrixArray(:, 1:totalFeatures:end)));
+                            max2 = max(max(designMatrixArray(:, 2:totalFeatures:end)));
+                            min1 = min(min(designMatrixArray(:, 1:totalFeatures:end)));
+                            min2 = min(min(designMatrixArray(:, 2:totalFeatures:end)));
                             [X, Y] = meshgrid(linspace(min1, max1, 30), linspace(min2, max2, 30));
                         end
                     else
@@ -2240,7 +2245,7 @@ classdef ROM_SPDE
                         y = 0*x;
                     end
                     if obj.useKernels
-                        if(size(obj.featureFunctions, 2) == 1)
+                        if(totalFeatures == 1)
                             for m = 1:length(x)
                                 for n = 1:obj.nTrain
                                     for h = 1:obj.coarseScaleDomain.nEl
@@ -2269,8 +2274,8 @@ classdef ROM_SPDE
                                     end
                                 end
                                 surf(X, Y, Z)
-                                axis tight;
                                 axis square;
+                                axis tight;
                                 box on;
                             end
                         end
@@ -2619,9 +2624,9 @@ classdef ROM_SPDE
 %                 obj.featureFunctions{k, nFeatures + 1} = @(lambda) 1;
 %                 nFeatures = nFeatures + 1;
 %                 
-%                 obj.featureFunctions{k, nFeatures + 1} = @(lambda)...
-%                     SCA(lambda, conductivities, obj.conductivityTransformation);
-%                 nFeatures = nFeatures + 1;
+                obj.featureFunctions{k, nFeatures + 1} = @(lambda)...
+                    SCA(lambda, conductivities, obj.conductivityTransformation);
+                nFeatures = nFeatures + 1;
 % %                 obj.featureFunctions{k, nFeatures + 1} = @(lambda)...
 % %                     maxwellGarnett(lambda, conductivities, obj.conductivityTransformation, 'lo');
 % %                 nFeatures = nFeatures + 1;

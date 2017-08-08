@@ -8,12 +8,12 @@ NTRAIN=$NSET1
 VOLFRAC=-1	#Theoretical volume fraction; negative value leads to uniform random volume fraction
 LOCOND=1
 UPCOND=10
-LATENTDIM=2
+LATENTDIM=6
 #best change boundary conditions in matlab
 
 #Set up file paths
 PROJECTDIR="/home/constantin/matlab/projects/rom"
-JOBNAME="trainAutoencoder${NF}contrast${LOCOND}-${UPCOND}corrlength=${LENGTHSCALEDIST}${CORRLENGTH1}_${CORRLENGTH2}volfrac${VOLFRAC}"
+JOBNAME="trainAutoencoder${NF}contrast${LOCOND}-${UPCOND}corrlength=${LENGTHSCALEDIST}${CORRLENGTH1}_${CORRLENGTH2}volfrac${VOLFRAC}latentdim=${LATENTDIM}"
 JOBDIR="/home/constantin/matlab/data/$JOBNAME"
 
 #Create job directory and copy source code
