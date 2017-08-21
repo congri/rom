@@ -33,7 +33,7 @@ classdef ROM_SPDE
                 
         %% Model training parameters
         nStart = 1;             %first training data sample in file
-        nTrain = 64;            %number of samples used for training
+        nTrain = 32;            %number of samples used for training
         mode = 'none';          %useNeighbor, useLocalNeighbor, useDiagNeighbor, useLocalDiagNeighbor, useLocal, global
                                 %global: take whole microstructure as feature function input, not
                                 %only local window (only recommended for pooling)
@@ -110,6 +110,9 @@ classdef ROM_SPDE
         epoch = 0;      %how often every data point has been seen
         epoch_old = 0;  %To check if epoch has changed
         maxEpochs;      %Maximum number of epochs
+        
+        useConvection = true;      %Include a convection term to the pde?
+        convectionField;            %Convection field as a function handle
     end
     
     
@@ -201,6 +204,7 @@ classdef ROM_SPDE
             disp('Generate finescale domain...')
             addpath('./heatFEM')    %to find Domain class
             obj.fineScaleDomain = Domain(obj.nElFX, obj.nElFY);
+            obj.fineScaleDomain.useConvection = obj.useConvection;
             obj.fineScaleDomain = setBoundaries(obj.fineScaleDomain, [2:(2*obj.nElFX + 2*obj.nElFY)],...
                 obj.boundaryTemperature, obj.boundaryHeatFlux);       %Only fix lower left corner as essential node
             disp('done')
@@ -345,18 +349,45 @@ classdef ROM_SPDE
             D{1} = zeros(2, 2, obj.fineScaleDomain.nEl);
             D = repmat(D, obj.nSets(nSet), 1);
             domain = obj.fineScaleDomain;   %To avoid broadcasting overhead
+            useConv = obj.useConvection;
             parPoolInit(obj.nSets(nSet));
+            if useConv
+                %Random convection field
+                convectionCoeffs = normrnd(0, 1, 1, 5)
+                obj = obj.setConvectionField(convectionCoeffs);
+                %Compute coordinates of element centers
+                x = .5*(obj.fineScaleDomain.cum_lElX(1:(end - 1)) + obj.fineScaleDomain.cum_lElX(2:end));
+                y = .5*(obj.fineScaleDomain.cum_lElY(1:(end - 1)) + obj.fineScaleDomain.cum_lElY(2:end));
+                [X, Y] = meshgrid(x, y);
+                %directly clear potentially large arrays
+                clear y;
+                x = [X(:) Y(:)]';
+                clear X Y;
+                convFieldArray = zeros(2, obj.fineScaleDomain.nEl);
+                for e = 1:obj.fineScaleDomain.nEl
+                    convFieldArray(:, e) = obj.convectionField(x(:, e));
+                end
+            else
+                %To avoid communication overhead
+                convFieldArray = [];
+            end
+            ticBytes(gcp)
             parfor i = 1:obj.nSets(nSet)
                 %Conductivity matrix D, only consider isotropic materials here
                 for j = 1:domain.nEl
                     D{i}(:, :, j) =  cond{i}(j)*eye(2);
                 end
-                FEMout = heat2d(domain, D{i});
+                if(useConv)
+                    FEMout = heat2d(domain, D{i}, convFieldArray);
+                else
+                    FEMout = heat2d(domain, D{i});
+                end
                 %Store fine temperatures as a vector Tf. Use reshape(Tf(:, i), domain.nElX + 1, domain.nElY + 1)
                 %and then transpose result to reconvert it to original temperature field
                 Ttemp = FEMout.Tff';
                 Tf(:, i) = Ttemp(:);
             end
+            tocBytes(gcp)
             disp('FEM systems solved')
             tot_FEM_time = toc
             
@@ -2113,7 +2144,7 @@ classdef ROM_SPDE
         function p = plot_p_c_regression(obj)
             %Plots regressions of single features to the data <X>_q
             totalFeatures = size(obj.featureFunctions, 2) + size(obj.globalFeatureFunctions, 2) + ...
-                obj.latentDim;
+                obj.latentDim
 %             %Setting up handles to feature function vectors
 %             function phi_vec = phiVec(xk, k)
 %                 phi_vec = zeros(totalFeatures, 1);
@@ -2703,6 +2734,12 @@ classdef ROM_SPDE
 %             obj.secondOrderTerms(3, 3) = true;
             assert(sum(sum(tril(obj.secondOrderTerms, -1))) == 0, 'Second order matrix must be upper triangular')
             
+        end
+        
+        function obj = setConvectionField(obj, coeff)
+            %Set up handle to incompressible convection field here
+            obj.convectionField = @(x) [coeff(1) + coeff(2)*x(1) + coeff(3)*x(2);...
+                coeff(4) - coeff(2)*x(2) + coeff(5)*x(1)];
         end
 
         function obj = setCoarseGrid(obj, coarseGridX, coarseGridY)

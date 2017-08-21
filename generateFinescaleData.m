@@ -2,5 +2,5 @@
 
 ro = ROM_SPDE;
 ro.lowerConductivity = 1;
-ro.upperConductivity = 10;
+ro.upperConductivity = 1;
 ro = ro.genFineScaleData;

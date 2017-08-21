@@ -29,6 +29,10 @@ classdef Domain
         globalNodeNumber            %globalNodeNumber holds the global node number, given the element number as row
                                     %and the local node number as column indices
         Bvec                        %Shape function gradient array, precomputed for performance
+        d_N                         %Shape function gradient array for Gauss quadrature of convection matrix
+        NArray
+        convectionMatrix            %Precomputed matrix to accelerate convection term integration
+        useConvection               %Use a convection term in the PDE
         
         essentialBoundary           %essential boundary (yes or no) given local node and element number
         lm                          %lm takes element number as row and local node number as column index
@@ -95,11 +99,7 @@ classdef Domain
             
             domainObj = setHeatSource(domainObj, zeros(domainObj.nEl, 1));  %zero as default
         end
-        
-        
-        
-        
-        
+
         function domainObj = setLocCoord(domainObj)
             %Gives arrays taking the element and local node number and giving the nodal coordinate
             
@@ -121,11 +121,7 @@ classdef Domain
                 domainObj.lc(e, 4, 2) = domainObj.lc(e, 3, 2);
             end
         end
-        
-        
-        
-        
-        
+
         function domainObj = setGlobalNodeNumber(domainObj)
             %Get global node number from global element number and local node number
             
@@ -139,10 +135,7 @@ classdef Domain
                 end
             end
         end
-        
-        
-        
-        
+
         function domainObj = setId(domainObj)
             %put in equation number, get back global node number
             
@@ -157,10 +150,7 @@ classdef Domain
             domainObj.id = domainObj.id(:, 2);
             domainObj.id = uint32(domainObj.id);
         end
-        
-        
-        
-        
+
         function domainObj = getEquations(domainObj)
             %Equation number array for sparse global stiffness assembly
             
@@ -188,10 +178,7 @@ classdef Domain
             domainObj.Equations((eq + 1):end, :) = [];
             domainObj.LocalNode((eq + 1):end, :) = [];
         end
-        
-        
-        
-        
+
         function domainObj = getCoord(domainObj)
             %Gives nodal coordinates in the first two rows and equation number from
             %global node number in the third row. Temperature of essential boundaries
@@ -222,11 +209,7 @@ classdef Domain
                 end
             end 
         end
-        
-        
-        
-        
-        
+
         function domainObj = setNodalCoordinates(domainObj)
             domainObj = getCoord(domainObj);
             domainObj.lm = domainObj.globalNodeNumber;
@@ -241,11 +224,7 @@ classdef Domain
             domainObj.kIndex = sub2ind([4 4 domainObj.nEl], domainObj.LocalNode(:,1),...
                 domainObj.LocalNode(:,2), domainObj.LocalNode(:,3));
         end
-        
-        
-        
-        
-        
+
         function domainObj = setBvec(domainObj)
             domainObj.nEq = max(domainObj.nodalCoordinates(3,:));
             %Gauss points
@@ -279,14 +258,23 @@ classdef Domain
                 
                 %Note:in Gauss quadrature, the differential transforms as dx = (l_x/2) d xi. Hence
                 %we take the additional factor of sqrt(A)/2 onto B
-                domainObj.Bvec(:,:,e) = (1/(2*sqrt(domainObj.AEl(e))))*[B1; B2; B3; B4];
+                domainObj.Bvec(:, :, e) = (1/(2*sqrt(domainObj.AEl(e))))*[B1; B2; B3; B4];
             end
         end
         
-        
-        
-        
-        
+        function domainObj = setConvectionMatrix(domainObj)
+            %Only call if necessary. This is memory consuming!
+            disp('Setting convection matrix...')
+            
+            domainObj = domainObj.elementShapeFunctionArray;
+            domainObj = domainObj.elementShapeFunctionGradients;
+            domainObj.convectionMatrix = zeros(4, 8, domainObj.nEl);
+            for e = 1:domainObj.nEl
+                domainObj.convectionMatrix(:, :, e) = domainObj.NArray(:, :, e)*domainObj.d_N(:, :, e);
+            end
+            disp('done')
+        end
+
         function domainObj = setHeatSource(domainObj, heatSourceField)
             %Gets the elements of the local force due to the heat source (an array with
             %input element number e and local node number i
@@ -324,20 +312,105 @@ classdef Domain
             end
         end
         
-        function N = elementShapeFunctions(domainObj, x, y, xe, Ael)
+        function N = elementShapeFunctions(domainObj, x, y, xe, Ael, component)
             %Gives values of element shape functions
             %   x, y:  domain variables
             %   xe: xe(1) = x_1^e, xe(2) = x_2^e, xe(3) = y_1^e, xe(4) = y_4^e, see Fish&Belytschko p163
-            
-            N = zeros(4, 1);
-            N(1) = (x - xe(2))*(y - xe(4));
-            N(2) = -(x - xe(1))*(y - xe(4));
-            N(3) = (x - xe(1))*(y - xe(3));
-            N(4) = -(x - xe(2))*(y - xe(3));
-            N = N/Ael;
+            if(nargin < 6)
+                N = zeros(4, 1);
+                N(1) = (x - xe(2)).*(y - xe(4));
+                N(2) = -(x - xe(1)).*(y - xe(4));
+                N(3) = (x - xe(1)).*(y - xe(3));
+                N(4) = -(x - xe(2)).*(y - xe(3));
+                N = N/Ael;
+            else
+                switch component
+                    case 1
+                        N = (x - xe(2)).*(y - xe(4));
+                    case 2
+                        N = -(x - xe(1)).*(y - xe(4));
+                    case 3
+                        N = (x - xe(1)).*(y - xe(3));
+                    case 4
+                        N = -(x - xe(2)).*(y - xe(3));
+                    otherwise
+                        error('Which local node?')
+                end
+                N = N/Ael;
+            end
         end
         
+        function domainObj = elementShapeFunctionGradients(domainObj)
+            %Gives values of element shape function gradient arrays for Gauss quadrature
+            %of convection matrix
+            %This is similar to Bvec, but with different array arrangement
+            
+            %Gauss points
+            xi1 = -1/sqrt(3);
+            xi2 = 1/sqrt(3);
+            domainObj.d_N = zeros(4, 8, domainObj.nEl);
+            for e = 1:domainObj.nEl
+                %short hand notation
+                x1 = domainObj.lc(e, 1, 1);
+                x2 = domainObj.lc(e, 2, 1);
+                y1 = domainObj.lc(e, 1, 2);
+                y4 = domainObj.lc(e, 4, 2);
+                
+                %Coordinate transformation of Gauss quadrature points xi1 and xi2
+                xI = 0.5*(x1 + x2) + 0.5*xi1*(x2 - x1);
+                xII = 0.5*(x1 + x2) + 0.5*xi2*(x2 - x1);
+                yI = 0.5*(y1 + y4) + 0.5*xi1*(y4 - y1);
+                yII = 0.5*(y1 + y4) + 0.5*xi2*(y4 - y1);
+                
+                %Assuming bilinear shape functions here!!!
+                B = [yI - y4, yI - y4, yII - y4, yII - y4;...
+                    xI - x2, xII - x2, xI - x2, xII - x2;...
+                    y4 - yI, y4 - yI, y4 - yII, y4 - yII;...
+                    x1 - xI, x1 - xII, x1 - xI, x1 - xII;...
+                    yI - y1, yI - y1, yII - y1, yII - y1;...
+                    xI - x1, xII - x1, xI - x1, xII - x1;...
+                    y1 - yI, y1 - yI, y1 - yII, y1 - yII;...
+                    x2 - xI, x2 - xII, x2 - xI, x2 - xII];
+                
+                %Note:in Gauss quadrature, the differential transforms as dx = (l_x/2) d xi. Hence
+                %we take the additional factor of sqrt(A)/2 onto B
+                domainObj.d_N(:, :, e) = (1/(2*sqrt(domainObj.AEl(e))))*B';
+            end
+        end
         
+        function domainObj = elementShapeFunctionArray(domainObj)
+            %Gives values of element shape function arrays for Gauss quadrature
+            %of convection matrix
+            
+            %Gauss points
+            xi1 = -1/sqrt(3);
+            xi2 = 1/sqrt(3);
+            domainObj.NArray = zeros(4, 4, domainObj.nEl);
+            for e = 1:domainObj.nEl
+                %short hand notation
+                x1 = domainObj.lc(e, 1, 1);
+                x2 = domainObj.lc(e, 2, 1);
+                y1 = domainObj.lc(e, 1, 2);
+                y4 = domainObj.lc(e, 4, 2);
+                
+                %Coordinate transformation of Gauss quadrature points xi1 and xi2
+                xI = 0.5*(x1 + x2) + 0.5*xi1*(x2 - x1);
+                xII = 0.5*(x1 + x2) + 0.5*xi2*(x2 - x1);
+                yI = 0.5*(y1 + y4) + 0.5*xi1*(y4 - y1);
+                yII = 0.5*(y1 + y4) + 0.5*xi2*(y4 - y1);
+                
+                %Assuming bilinear shape functions here!!! See Fish&Belytschko p. 163
+                N = [(xI - x2)*(yI - y4), (xII - x2)*(yI - y4), (xI - x2)*(yII - y4), (xII - x2)*(yII - y4);...
+                    -(xI - x1)*(yI - y4), -(xII - x1)*(yI - y4), -(xI - x1)*(yII - y4), -(xII - x1)*(yII - y4);...
+                    (xI - x1)*(yI - y1), (xII - x1)*(yI - y1), (xI - x1)*(yII - y1), (xII - x1)*(yII - y1);...
+                    -(xI - x2)*(yI - y1), -(xII - x2)*(yI - y1), -(xI - x2)*(yII - y1), -(xII - x2)*(yII - y1)];
+                
+                %Note:in Gauss quadrature, the differential transforms as dx = (l_x/2) d xi. Hence
+                %we take the additional factor of sqrt(A)/2 onto B
+                domainObj.NArray(:, :, e) = (1/(2*sqrt(domainObj.AEl(e))))*N';
+            end
+        end
+
         function domainObj = setFluxForce(domainObj, qb)
             %Contribution to local force due to heat flux
             
@@ -380,11 +453,7 @@ classdef Domain
                 
             end
         end
-        
-        
-        
-        
-        
+
         function domainObj = setBoundaries(domainObj, natNodes, Tb, qb)    
             %natNodes holds natural nodes counted counterclockwise around domain, starting in lower
             %left corner. Tb and qb are function handles to temperature and heat flux boundary
@@ -466,12 +535,11 @@ classdef Domain
             domainObj = setFluxForce(domainObj, qb);
             domainObj = setNodalCoordinates(domainObj);
             domainObj = setBvec(domainObj);
+            if domainObj.useConvection
+                domainObj = domainObj.setConvectionMatrix;
+            end
         end
-        
-        
-        
-        
-        
+
         function domainObj = shrink(domainObj)
             %To save memory. We use that on finescale domain to save memory
             domainObj.lc = [];

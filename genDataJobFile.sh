@@ -54,8 +54,8 @@ sed -i \"5s/.*/ro.upperConductivity = $UPCOND/\" ./generateFinescaleData.m
 
 chmod +x job_file.sh
 #directly submit job file
-qsub job_file.sh
-#./job_file.sh
+#qsub job_file.sh
+./job_file.sh
 
 
 

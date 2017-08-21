@@ -1,10 +1,13 @@
-function [Out] = heat2d(domain, D)
+function [Out] = heat2d(domain, D, convectionField)
 %2D heat conduction main function
 %Gives back temperature on point x
 
 %get_loc_stiff as nested function for performance
 Dmat = spalloc(8, 8, 16);
-    function [k] = get_loc_stiff2(Bvec, D)
+if(nargin > 2)
+    convectionFieldMat = spalloc(8, 4, 8);
+end
+    function [k] = get_loc_stiff2(Bvec, D, convectionMatrix, cField)
         %Gives the local stiffness matrix
         
         Dmat(1:2, 1:2) = D;
@@ -13,13 +16,26 @@ Dmat = spalloc(8, 8, 16);
         Dmat(7:8, 7:8) = D;
         
         k = Bvec'*Dmat*Bvec;
+        if(nargin > 2)
+            convectionFieldMat(1:2, 1) = cField;
+            convectionFieldMat(3:4, 2) = cField;
+            convectionFieldMat(5:6, 3) = cField;
+            convectionFieldMat(7:8, 4) = cField;
+            c = convectionMatrix*convectionFieldMat;
+            k = k + c;
+        end
     end
 
 
 %Compute local stiffness matrices, once and for all
 Out.localStiffness = zeros(4, 4, domain.nEl);
 for e = 1:domain.nEl
-    Out.localStiffness(:, :, e) = get_loc_stiff2(domain.Bvec(:, :, e), D(:, :, e));
+    if(nargin > 2)
+        Out.localStiffness(:, :, e) = get_loc_stiff2(domain.Bvec(:, :, e), D(:, :, e),...
+            domain.convectionMatrix(:, :, e), convectionField(:, e));
+    else
+        Out.localStiffness(:, :, e) = get_loc_stiff2(domain.Bvec(:, :, e), D(:, :, e));
+    end
 end
 
 %Global stiffness matrix
