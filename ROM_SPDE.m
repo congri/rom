@@ -8,7 +8,7 @@ classdef ROM_SPDE
         nElFY = 256;
         %Finescale conductivities, binary material
         lowerConductivity = 1;
-        upperConductivity = 10;
+        upperConductivity = 1000;
         %Conductivity field distribution type
         conductivityDistribution = 'correlated_binary';
         %Boundary condition functions; evaluate those on boundaries to get boundary conditions
@@ -34,7 +34,7 @@ classdef ROM_SPDE
         %% Model training parameters
         nStart = 1;             %first training data sample in file
         nTrain = 32;            %number of samples used for training
-        mode = 'none';          %useNeighbor, useLocalNeighbor, useDiagNeighbor, useLocalDiagNeighbor, useLocal, global
+        mode = 'useLocal';          %useNeighbor, useLocalNeighbor, useDiagNeighbor, useLocalDiagNeighbor, useLocal, global
                                 %global: take whole microstructure as feature function input, not
                                 %only local window (only recommended for pooling)
         inferenceMethod = 'variationalInference';        %E-step inference method. variationalInference or monteCarlo
@@ -42,7 +42,10 @@ classdef ROM_SPDE
         %% Sequential addition of linear filters
         linFilt
         
-        useAutoEnc = true;     %Use autoencoder information? Do not forget to pre-train autoencoder!
+        useAutoEnc = false;     %Use autoencoder information? Do not forget to pre-train autoencoder!
+        globalPcaComponents = 10;   %Principal components of the whole microstructure used as features 
+        localPcaComponents = 0;     %Principal components of single macro-cell used as features
+        pcaSamples = 1024;
         secondOrderTerms;
         mix_S = 0;              %To slow down convergence of S
         mix_theta = 0;
@@ -52,8 +55,8 @@ classdef ROM_SPDE
         %% Prior specifications
         sigmaPriorType = 'none';    %none, delta, expSigSq
         sigmaPriorHyperparam = 1;
-        thetaPriorType = 'RVM';    %none, gaussian, RVM, hierarchical_laplace, hierarchical_gamma
-        thetaPriorHyperparam = .1;
+        thetaPriorType = 'hierarchical_laplace';    %none, gaussian, RVM, hierarchical_laplace, hierarchical_gamma
+        thetaPriorHyperparam = [1];
         
         %% Model parameters
         theta_c;
@@ -78,7 +81,8 @@ classdef ROM_SPDE
         useKernels = true;              %Use linear combination of kernels in feature function space
         kernelBandwidth = 2;
         bandwidthSelection = 'silverman'  %'fixed' for fixed kernel bandwidth, 'silverman' for
-                                            %tau = 1.06*sigma_i*n^(-1/5)
+                                          %silverman's rule of thumb 'scott' for scott's rule of thumb,
+                                          %see wikipedia on multivariate kernel density estimation
         kernelType = 'squaredExponential';
         
         %% Prediction parameters
@@ -111,15 +115,15 @@ classdef ROM_SPDE
         epoch_old = 0;  %To check if epoch has changed
         maxEpochs;      %Maximum number of epochs
         
-        useConvection = true;      %Include a convection term to the pde?
-        convectionField;            %Convection field as a function handle
+        useConvection = false;      %Include a convection term to the pde?
     end
     
     
     properties(SetAccess = private)
         %% finescale data specifications
         conductivityLengthScaleDist = 'lognormal';      %delta for fixed length scale, lognormal for rand
-        conductivityDistributionParams = {-1 [-3 .5] 1};     %for correlated_binary:
+        conductivityDistributionParams = {-1 [-3.5 .2] 1};     %for correlated_binary:
+        advectionDistributionParams = [0, .1];   %mu and sigma for advection field coefficients
         %{volumeFraction, correlationLength, sigma_f2}
         %for log normal length scale, the
         %length scale parameters are log normal mu and
@@ -352,9 +356,6 @@ classdef ROM_SPDE
             useConv = obj.useConvection;
             parPoolInit(obj.nSets(nSet));
             if useConv
-                %Random convection field
-                convectionCoeffs = normrnd(0, 1, 1, 5)
-                obj = obj.setConvectionField(convectionCoeffs);
                 %Compute coordinates of element centers
                 x = .5*(obj.fineScaleDomain.cum_lElX(1:(end - 1)) + obj.fineScaleDomain.cum_lElX(2:end));
                 y = .5*(obj.fineScaleDomain.cum_lElY(1:(end - 1)) + obj.fineScaleDomain.cum_lElY(2:end));
@@ -363,21 +364,25 @@ classdef ROM_SPDE
                 clear y;
                 x = [X(:) Y(:)]';
                 clear X Y;
-                convFieldArray = zeros(2, obj.fineScaleDomain.nEl);
-                for e = 1:obj.fineScaleDomain.nEl
-                    convFieldArray(:, e) = obj.convectionField(x(:, e));
-                end
             else
-                %To avoid communication overhead
-                convFieldArray = [];
+                x = []; %unneeded?
             end
+            nElf = obj.fineScaleDomain.nEl;
+            adp = obj.advectionDistributionParams;
+            addpath('./rom');
             ticBytes(gcp)
             parfor i = 1:obj.nSets(nSet)
                 %Conductivity matrix D, only consider isotropic materials here
                 for j = 1:domain.nEl
                     D{i}(:, :, j) =  cond{i}(j)*eye(2);
                 end
-                if(useConv)
+                if useConv
+                    %Random convection field
+                    convectionCoeffs = normrnd(adp(1), adp(2), 1, 5)
+                    convFieldArray = zeros(2, nElf);
+                    for e = 1:nElf
+                        convFieldArray(:, e) = convectionField(x(:, e), convectionCoeffs);
+                    end
                     FEMout = heat2d(domain, D{i}, convFieldArray);
                 else
                     FEMout = heat2d(domain, D{i});
@@ -1134,7 +1139,7 @@ classdef ROM_SPDE
         function obj = computeKernelMatrix(obj, mode)
             %Must be called BEFORE setting up any local lode (useLocal, useNeighbor,...)
             %It is instructive to rescale/standardize the design matrix before using kernels
-            disp('Using kernel regression mode. It is highly recommended to use the RVM prior!')
+            disp('Using kernel regression mode. It is recommended to use a sparsity prior!')
             
             %check if coarse mesh is square
             if(all(obj.coarseGridVectorX == obj.coarseGridVectorX(1)) &&...
@@ -1198,7 +1203,7 @@ classdef ROM_SPDE
             %Actual computation of design matrix
             %set recompute to true if design matrices have to be recomputed during optimization (parametric features)
             tic
-            
+                        
             if(obj.loadDesignMatrix && ~recompute)
                 load(strcat('./persistentData/', mode, 'DesignMatrix.mat'));
                 obj.designMatrix = designMatrix;
@@ -1287,7 +1292,7 @@ classdef ROM_SPDE
                         for j = 1:nGlobalFeatureFunctions
                             %Take whole microstructure as input for feature function
                             %Might be wrong for non-square fine scale domains
-                            conductivityMat = reshape(conductivity(:, s), obj.fineScaleDomain.nElX,...
+                            conductivityMat = reshape(conductivity{s}, obj.fineScaleDomain.nElX,...
                                 obj.fineScaleDomain.nElY);
                             PhiCell{s}(i, nFeatureFunctions + j) = phiGlobal{i, j}(conductivityMat);
                         end
@@ -1362,7 +1367,7 @@ classdef ROM_SPDE
                 end
                 
                 if(obj.useKernels)
-                    if strcmp(obj.bandwidthSelection, 'silverman')
+                    if(strcmp(obj.bandwidthSelection, 'scott') || strcmp(obj.bandwidthSelection, 'silverman'))
                         %Compute feature function variances
                         if strcmp(mode, 'train')
                             if isempty(obj.featureFunctionMean)
@@ -1373,15 +1378,17 @@ classdef ROM_SPDE
                             end
                             featureFunctionStd = sqrt(obj.featureFunctionSqMean - obj.featureFunctionMean.^2);
                             nFeatures = numel(obj.featureFunctionMean);
-                            %Silverman's rule of thumb
+                            %Scott's rule of thumb
                             if strcmp(obj.mode, 'none')
                                 obj.kernelBandwidth = (obj.nTrain*obj.coarseScaleDomain.nEl)^(-1/(nFeatures + 4))*...
                                     featureFunctionStd;
                             elseif strcmp(obj.mode, 'useLocal')
                                 obj.kernelBandwidth = obj.nTrain^(-1/(nFeatures + 4))*featureFunctionStd;
                             else
-                                error('No rule of thumb implemented for this mode:')
-                                obj.mode
+                                error('No rule of thumb implemented for this mode')
+                            end
+                            if strcmp(obj.bandwidthSelection, 'silverman')
+                                obj.kernelBandwidth = obj.kernelBandwidth*(4/(nFeatures + 2))^(1/(nFeatures + 4));
                             end
                             kernelBandwidth = obj.kernelBandwidth;
                             save('./persistentData/kernelBandwidth.mat', 'kernelBandwidth');
@@ -1390,7 +1397,7 @@ classdef ROM_SPDE
                             obj.kernelBandwidth = kernelBandwidth;
                         else
                             error('Choose test or train mode!')
-                        end
+                        end                        
                     elseif strcmp(obj.bandwidthSelection, 'fixed')
                         %change nothing
                     else
@@ -1437,8 +1444,10 @@ classdef ROM_SPDE
             %Consider every term only once
             assert(sum(sum(tril(obj.secondOrderTerms, -1))) == 0, 'Matrix A must be upper triangular')
             
-            nFeatureFunctions = size(obj.featureFunctions, 2) + size(obj.globalFeatureFunctions, 2)...
-                + obj.latentDim;
+            nFeatureFunctions = size(obj.featureFunctions, 2) + size(obj.globalFeatureFunctions, 2);
+            if obj.useAutoEnc
+                nFeatureFunctions = nFeatureFunctions + obj.latentDim;
+            end
             nSecondOrderTerms = sum(sum(obj.secondOrderTerms));
             if nSecondOrderTerms
                 disp('Using second order terms of feature functions...')
@@ -2143,15 +2152,12 @@ classdef ROM_SPDE
 
         function p = plot_p_c_regression(obj)
             %Plots regressions of single features to the data <X>_q
-            totalFeatures = size(obj.featureFunctions, 2) + size(obj.globalFeatureFunctions, 2) + ...
-                obj.latentDim
-%             %Setting up handles to feature function vectors
-%             function phi_vec = phiVec(xk, k)
-%                 phi_vec = zeros(totalFeatures, 1);
-%                 for feat_loc = 1:size(obj.featureFunctions, 2)
-%                     phi_vec(feat_loc) = obj.featureFunctions{k, feat_loc}(xk);
-%                 end
-%             end
+            totalFeatures = size(obj.featureFunctions, 2) + size(obj.globalFeatureFunctions, 2);
+            if obj.useAutoEnc
+                totalFeatures = totalFeatures + obj.latentDim;
+            end
+            totalFeatures
+
             for feature = 1:min([4, totalFeatures])
                 f = figure;
                 if obj.useKernels
@@ -2655,9 +2661,9 @@ classdef ROM_SPDE
 %                 obj.featureFunctions{k, nFeatures + 1} = @(lambda) 1;
 %                 nFeatures = nFeatures + 1;
 %                 
-                obj.featureFunctions{k, nFeatures + 1} = @(lambda)...
-                    SCA(lambda, conductivities, obj.conductivityTransformation);
-                nFeatures = nFeatures + 1;
+%                 obj.featureFunctions{k, nFeatures + 1} = @(lambda)...
+%                     SCA(lambda, conductivities, obj.conductivityTransformation);
+%                 nFeatures = nFeatures + 1;
 % %                 obj.featureFunctions{k, nFeatures + 1} = @(lambda)...
 % %                     maxwellGarnett(lambda, conductivities, obj.conductivityTransformation, 'lo');
 % %                 nFeatures = nFeatures + 1;
@@ -2728,18 +2734,28 @@ classdef ROM_SPDE
 %                 nFeatures = nFeatures + 1;
             end
             
+            %Unsupervised pretraining: compute PCA components
+            if(obj.pcaSamples > 0)
+                if(obj.globalPcaComponents > 0)
+                    disp('Performing PCA on global microstructure...')
+                    condUnsup = obj.trainingDataMatfile.cond(:, 1:obj.pcaSamples)';
+                    globalComponents = pca(condUnsup, 'NumComponents', obj.globalPcaComponents);
+                    disp('done')
+                end
+            end
+            %PCA projection
+            for n = 1:obj.globalPcaComponents
+                for k = 1:obj.coarseScaleDomain.nEl
+                    obj.globalFeatureFunctions{k, n} = @(lambda) globalComponents(:, n)'*lambda(:);
+                end
+            end
+            
             obj.secondOrderTerms = zeros(nFeatures, 'logical');
 %             obj.secondOrderTerms(2, 2) = true;
 %             obj.secondOrderTerms(2, 3) = true;
 %             obj.secondOrderTerms(3, 3) = true;
             assert(sum(sum(tril(obj.secondOrderTerms, -1))) == 0, 'Second order matrix must be upper triangular')
             
-        end
-        
-        function obj = setConvectionField(obj, coeff)
-            %Set up handle to incompressible convection field here
-            obj.convectionField = @(x) [coeff(1) + coeff(2)*x(1) + coeff(3)*x(2);...
-                coeff(4) - coeff(2)*x(2) + coeff(5)*x(1)];
         end
 
         function obj = setCoarseGrid(obj, coarseGridX, coarseGridY)

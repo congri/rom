@@ -5,14 +5,14 @@ clear;
 addpath('./autoencoder')
 
 %data specs
-deterministic = false;
+deterministic = true;
 if deterministic
     ba = DeterministicBinaryAutoencoder;
 else
     ba = BinaryAutoencoder;
     ba.maxIterations = 50;
 end
-ba.latentDim = 2;
+ba.latentDim = 10;
 
 nElFX = 256;
 nElFY = 256;
@@ -20,9 +20,9 @@ conductivityDistribution = 'correlated_binary';
 volFrac = -1;
 sigma_f2 = 1;
 lengthscaleDist = 'lognormal';
-lengthscaleParams = [-3 0.5];
+lengthscaleParams = [-3.5 0.2];
 loCond = 1;
-upCond = 10;
+upCond = 1000;
 boundaryConditions = '[0 1000 0 0]';
 nSamples = 1024;
 nStart = 1;

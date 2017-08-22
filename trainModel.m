@@ -40,6 +40,8 @@ if(size(romObj.designMatrix{1}, 2) ~= size(romObj.theta_c.theta))
     warning('Wrong dimension of theta_c. Setting it to 0 with correct dimension.')
     romObj.theta_c.theta = zeros(size(romObj.designMatrix{1}, 2), 1);
 end
+%random initialization
+romObj.theta_c.theta = normrnd(0, 100, size(romObj.theta_c.theta));
 
 if strcmp(romObj.inferenceMethod, 'monteCarlo')
     MonteCarlo = true;

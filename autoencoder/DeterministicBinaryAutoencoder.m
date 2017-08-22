@@ -140,8 +140,9 @@ classdef DeterministicBinaryAutoencoder
         
         
         function err = reconstructionErr(this, decodedData, trueData)
+            binDecodedData = decodedData > .5;
             %Gives fraction of falsely reconstructed pixels
-            err = sum(sum(abs(trueData - decodedData)))/numel(trueData);
+            err = sum(sum(abs(trueData - binDecodedData)))/numel(trueData);
         end
     end
     
