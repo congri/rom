@@ -40,8 +40,13 @@ else
     end
     nSecondOrderTerms = sum(sum(romObj.secondOrderTerms));
     romObj.theta_c.theta = 0*ones(size(romObj.featureFunctions, 2) +...
-        size(romObj.globalFeatureFunctions, 2) + latentDim + nSecondOrderTerms, 1);
-    romObj.theta_c.Sigma = 1e0*speye(romObj.coarseScaleDomain.nEl);
+        size(romObj.globalFeatureFunctions, 2) + latentDim + nSecondOrderTerms + ...
+        size(romObj.convectionFeatureFunctions, 2) + size(romObj.globalConvectionFeatureFunctions, 2), 1);
+    if romObj.useConvection
+        romObj.theta_c.Sigma = 1e0*speye(3*romObj.coarseScaleDomain.nEl);
+    else
+        romObj.theta_c.Sigma = 1e0*speye(romObj.coarseScaleDomain.nEl);
+    end
     s = diag(romObj.theta_c.Sigma);
     romObj.theta_c.SigmaInv = sparse(diag(1./s));
 end
@@ -108,12 +113,20 @@ else
 end
 if strcmp(variationalDist, 'diagonalGauss')
     varDistParams{1}.sigma = ones(size(varDistParams{1}.mu));
+    if romObj.useConvection
+        varDistParams{1}.sigma = ones(1, 3*romObj.coarseScaleDomain.nEl);
+    end
 elseif strcmp(variationalDist, 'fullRankGauss')
     varDistParams{1}.Sigma = 1e0*eye(length(varDistParams{1}.mu));
     varDistParams{1}.LT = chol(varDistParams{1}.Sigma);
     varDistParams{1}.L = varDistParams{1}.LT';
     varDistParams{1}.LInv = inv(varDistParams{1}.L);
 end
+
+if romObj.useConvection
+    varDistParams{1}.mu = [varDistParams{1}.mu, zeros(1, 2*romObj.coarseScaleDomain.nEl)];
+end
+
 varDistParams = repmat(varDistParams, romObj.nTrain, 1);
 
 varDistParamsVec{1} = [varDistParams{1}.mu, -2*log(varDistParams{1}.sigma)];

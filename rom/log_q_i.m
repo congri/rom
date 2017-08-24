@@ -6,9 +6,8 @@ if size(Xi, 2) > 1
     Xi = Xi';
 end
 
-conductivity = conductivityBackTransform(Xi, condTransOpts);
 [lg_p_c, d_lg_p_c] = log_p_c(Xi, Phi, theta_c);
-[lg_p_cf, d_lg_p_cf, Tc] = log_p_cf(Tf_i_minus_mu, domainc, conductivity, theta_cf, condTransOpts);
+[lg_p_cf, d_lg_p_cf, Tc] = log_p_cf(Tf_i_minus_mu, domainc, Xi, theta_cf, condTransOpts);
 
 log_q = lg_p_cf + lg_p_c;
 
@@ -18,6 +17,7 @@ d_log_q = d_lg_p_c + d_lg_p_cf;
 FDcheck = false;
 if FDcheck
     disp('Gradient check log q_i')
+    conductivity = conductivityBackTransform(Xi, condTransOpts);
     d = 1e-5;
     gradFD = zeros(domainc.nEl, 1);
     for i = 1:domainc.nEl

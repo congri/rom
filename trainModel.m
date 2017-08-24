@@ -24,9 +24,8 @@ delete('./data/*')  %delete old data
 
 %initialize reduced order model object
 romObj = ROM_SPDE
-
 %% Load training data
-romObj = romObj.loadTrainingData;
+% romObj = romObj.loadTrainingData;
 %Get model and training parameters
 params;
 
@@ -201,7 +200,11 @@ while true
         %This can probably be done more memory efficient
         disp('Finding optimal variational distributions...')
         
-        dim = romObj.coarseScaleDomain.nEl;
+        if romObj.useConvection
+            dim = 3*romObj.coarseScaleDomain.nEl;
+        else
+            dim = romObj.coarseScaleDomain.nEl;
+        end
         tic
         ticBytes(gcp)
         parfor i = pstart:pend
