@@ -71,8 +71,10 @@ classdef Domain
             domainObj.nEl = domainObj.nElX*domainObj.nElY;
             assert(numel(lElX) == domainObj.nElX, 'incorrect number of elements specified in element length vector')
             assert(numel(lElY) == domainObj.nElY, 'incorrect number of elements specified in element length vector')
-            assert(sum(lElX) == domainObj.lx, 'element lengths do not sum up to lx')
-            assert(sum(lElY) == domainObj.ly, 'element lengths do not sum up to ly')
+            diffX = abs(sum(lElX) - domainObj.lx);
+            diffY = abs(sum(lElY) - domainObj.ly);
+            assert(diffX < eps, 'element lengths do not sum up to lx')
+            assert(diffY < eps, 'element lengths do not sum up to ly')
             domainObj.lElX = zeros(1, domainObj.nEl);
             domainObj.lElY = zeros(1, domainObj.nEl);
             domainObj.AEl = zeros(1, domainObj.nEl);

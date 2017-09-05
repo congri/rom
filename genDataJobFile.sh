@@ -1,12 +1,15 @@
 NF=256
 LENGTHSCALEDIST=lognormal	#lognormal or delta
-CORRLENGTH1=-3.5
-CORRLENGTH2=0.2
-NSET1=1024
-NSET2=256
+CORRLENGTH1=-3.3
+CORRLENGTH2=0.3
+NSET1=4096
+NSET2=4096
+NSET3=4096
+NSET4=4096
+NSET5=4096
 VOLFRAC=-1	#Theoretical volume fraction; negative value leads to uniform random volume fraction
 LOCOND=1
-UPCOND=1000
+UPCOND=5
 BC1=0
 BC2=1000
 BC3=0
@@ -41,14 +44,14 @@ printf "#PBS -N $JOBNAME
 #Switch to job directory
 cd $JOBDIR
 #Set parameters
-sed -i \"115s/.*/\        useConvection = $CONVECTION;      %%Include a convection term to the pde?/\" ./ROM_SPDE.m
-sed -i \"121s/.*/\        conductivityLengthScaleDist = \'${LENGTHSCALEDIST}\';      %%delta for fixed length scale, lognormal for rand/\" ./ROM_SPDE.m
-sed -i \"122s/.*/\        conductivityDistributionParams = {$VOLFRAC \[$CORRLENGTH1 $CORRLENGTH2\] 1\};/\" ./ROM_SPDE.m
+sed -i \"120s/.*/\        useConvection = $CONVECTION;      %%Include a convection term to the pde?/\" ./ROM_SPDE.m
+sed -i \"128s/.*/\        conductivityLengthScaleDist = \'${LENGTHSCALEDIST}\';      %%delta for fixed length scale, lognormal for rand/\" ./ROM_SPDE.m
+sed -i \"129s/.*/\        conductivityDistributionParams = {$VOLFRAC \[$CORRLENGTH1 $CORRLENGTH2\] 1\};/\" ./ROM_SPDE.m
 sed -i \"7s/.*/        nElFX = $NF;/\" ./ROM_SPDE.m
 sed -i \"8s/.*/        nElFY = $NF;/\" ./ROM_SPDE.m
-sed -i \"27s/.*/        nSets = \[$NSET1 $NSET2\];/\" ./ROM_SPDE.m
-sed -i \"4s/.*/ro.lowerConductivity = $LOCOND;/\" ./generateFinescaleData.m
-sed -i \"5s/.*/ro.upperConductivity = $UPCOND/\" ./generateFinescaleData.m
+sed -i \"27s/.*/        nSets = \[$NSET1 $NSET2 $NSET3 $NSET4 $NSET5\];/\" ./ROM_SPDE.m
+sed -i \"10s/.*/        lowerConductivity = $LOCOND;/\" ./ROM_SPDE.m
+sed -i \"11s/.*/        upperConductivity = $UPCOND;/\" ./ROM_SPDE.m
 
 
 #Run Matlab
@@ -56,8 +59,8 @@ sed -i \"5s/.*/ro.upperConductivity = $UPCOND/\" ./generateFinescaleData.m
 
 chmod +x job_file.sh
 #directly submit job file
-#qsub job_file.sh
-./job_file.sh
+qsub job_file.sh
+#./job_file.sh
 
 
 

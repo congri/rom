@@ -10,7 +10,6 @@ end
 [lg_p_cf, d_lg_p_cf, Tc] = log_p_cf(Tf_i_minus_mu, domainc, Xi, theta_cf, condTransOpts);
 
 log_q = lg_p_cf + lg_p_c;
-
 d_log_q = d_lg_p_c + d_lg_p_cf;
 
 %Finite difference gradient check

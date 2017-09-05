@@ -1,21 +1,33 @@
 NF=256
-CORRLENGTH=0.08
-NTRAIN=4
+LENGTHSCALEDIST=lognormal	#'lognormal' or'delta'
+CORRLENGTH1=-3.7		#lognormal mu
+CORRLENGTH2=0.3			#lognormal sigma
+NTRAIN=128
 NSTART=1	#First training data sample in data file
 VOLFRAC=-1	#Theoretical volume fraction; -1 for uniform random volume fraction
 LOCOND=1
 HICOND=10
-HYPERPARAM=0.4	#Lasso sparsity hyperparameter
-NCX=\[.125\ .125\ .125\ .125\ .125\ .125\ .125\ .125\]
-NCY=\[.125\ .125\ .125\ .125\ .125\ .125\ .125\ .125\]
+PRIORTYPE=adaptiveGaussian
+HYPERPARAM1=0.7	#prior hyperparameter
+HYPERPARAM2=[]
+NCX=\[.25\ .25\ .25\ .25\]
+NCY=\[.25\ .25\ .25\ .25\]
 BC="[0 1000 0 0]"
 BC2=\[0\ 1000\ 0\ 0\]
+NCORES=16
+if [ $NTRAIN -lt $NCORES ]; then
+$NCORES=$NTRAIN
+fi
+echo N_cores=
+echo $NCORES
 
-NAMEBASE="RVM"
+
+
+NAMEBASE="${PRIORTYPE}"
 DATESTR=`date +%m-%d-%H-%M-%S`	#datestring for jobfolder name
 PROJECTDIR="/home/constantin/matlab/projects/rom"
 JOBNAME="${NAMEBASE}_nTrain=${NTRAIN}_Nc=${NCX}_${NCY}"
-JOBDIR="/home/constantin/matlab/data/fineData/systemSize=${NF}x${NF}/correlated_binary/IsoSEcov/l=${CORRLENGTH}_sigmafSq=1/volumeFraction=${VOLFRAC}/locond=${LOCOND}_upcond=${HICOND}/BCcoeffs=${BC2}/${NAMEBASE}_nTrain=${NTRAIN}_Nc=${NCX}_${NCY}_${DATESTR}"
+JOBDIR="/home/constantin/matlab/data/fineData/systemSize=${NF}x${NF}/correlated_binary/IsoSEcov/l=${LENGTHSCALEDIST}_mu=${CORRLENGTH1}sigma=${CORRLENGTH2}_sigmafSq=1/volumeFraction=${VOLFRAC}/locond=${LOCOND}_upcond=${HICOND}/BCcoeffs=${BC2}/${NAMEBASE}_nTrain=${NTRAIN}_Nc=${NCX}_${NCY}_${DATESTR}"
 
 #Create job directory and copy source code
 mkdir "${JOBDIR}"
@@ -31,7 +43,7 @@ rm job_file.sh
 
 #write job file
 printf "#PBS -N $JOBNAME
-#PBS -l nodes=1:ppn=4,walltime=240:00:00
+#PBS -l nodes=1:ppn=$NCORES,walltime=240:00:00
 #PBS -e /home/constantin/OEfiles
 #PBS -o /home/constantin/OEfiles
 #PBS -m abe
@@ -40,17 +52,18 @@ printf "#PBS -N $JOBNAME
 #Switch to job directory
 cd \"$JOBDIR\"
 #Set parameters
-sed -i \"33s/.*/        nStart = $NSTART;             %%first training data sample in file/\" ./ROM_SPDE.m
-sed -i \"34s/.*/        nTrain = $NTRAIN;            %%number of samples used for training/\" ./ROM_SPDE.m
-sed -i \"70s/.*/theta_prior_hyperparamArray = [$HYPERPARAM];/\" ./params/params.m
 sed -i \"7s/.*/        nElFX = $NF;/\" ./ROM_SPDE.m
 sed -i \"8s/.*/        nElFY = $NF;/\" ./ROM_SPDE.m
-sed -i \"77s/.*/        boundaryConditions = '$BC';/\" ./ROM_SPDE.m
 sed -i \"10s/.*/        lowerConductivity = $LOCOND;/\" ./ROM_SPDE.m
 sed -i \"11s/.*/        upperConductivity = $HICOND;/\" ./ROM_SPDE.m
-sed -i \"74s/.*/        conductivityDistributionParams = {$VOLFRAC [$CORRLENGTH $CORRLENGTH] 1};      %%for correlated_binary:/\" ./ROM_SPDE.m
-sed -i \"81s/.*/        coarseGridVectorX = $NCX;/\" ./ROM_SPDE.m
-sed -i \"82s/.*/        coarseGridVectorY = $NCY;/\" ./ROM_SPDE.m
+sed -i \"35s/.*/        nStart = $NSTART;             %%first training data sample in file/\" ./ROM_SPDE.m
+sed -i \"36s/.*/        nTrain = $NTRAIN;            %%number of samples used for training/\" ./ROM_SPDE.m
+sed -i \"58s/.*/        thetaPriorType = '$PRIORTYPE';/\" ./ROM_SPDE.m
+sed -i \"59s/.*/        thetaPriorHyperparam = [$HYPERPARAM1 $HYPERPARAM2];/\" ./ROM_SPDE.m
+sed -i \"129s/.*/        conductivityDistributionParams = {$VOLFRAC [$CORRLENGTH1 $CORRLENGTH2] 1};/\" ./ROM_SPDE.m
+sed -i \"136s/.*/        boundaryConditions = '$BC';/\" ./ROM_SPDE.m
+sed -i \"140s/.*/        coarseGridVectorX = $NCX;/\" ./ROM_SPDE.m
+sed -i \"141s/.*/        coarseGridVectorY = $NCY;/\" ./ROM_SPDE.m
 
 
 #Run Matlab

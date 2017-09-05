@@ -23,7 +23,7 @@ rng('shuffle')  %system time seed
 delete('./data/*')  %delete old data
 
 %initialize reduced order model object
-romObj = ROM_SPDE
+romObj = ROM_SPDE('train')
 %% Load training data
 % romObj = romObj.loadTrainingData;
 %Get model and training parameters

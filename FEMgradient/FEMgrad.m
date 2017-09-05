@@ -7,18 +7,40 @@ function [d_r] = FEMgrad(FEMout, domain, conductivity)
         gradKK = sparse(domain.Equations(:,1), domain.Equations(:,2), grad_loc_k(domain.kIndex));
     end
 
+if domain.useConvection
+    convGradMatX = sparse(1:2:7, 1:4, ones(1, 4), 8, 4);
+    convGradMatY = sparse(2:2:8, 1:4, ones(1, 4), 8, 4);
+end
 
 
 % (d/d Lambda_e) k^(e) = (1/Lambda_e) k^(e)     as k^(e) linear in Lambda_e
-d_r = zeros(domain.nEl, domain.nEq);
+if domain.useConvection
+    d_r = zeros(domain.nEl, 3*domain.nEq);
+
+else
+    d_r = zeros(domain.nEl, domain.nEq);
+end
 for e = 1:domain.nEl
-    gradLocStiff = zeros(4, 4, domain.nEl);
-    gradLocStiff(:, :, e) = FEMout.localStiffness(:, :, e)/conductivity(e);     %gradient of local stiffnesses
-    gradK = get_glob_stiff_gradient(gradLocStiff);
-    gradF = get_glob_force_gradient(domain, gradLocStiff(:, :, e), e);
+    gradLocStiffCond = zeros(4, 4, domain.nEl);
+    gradLocStiffConvX = gradLocStiffCond;
+    gradLocStiffConvY = gradLocStiffCond;
+    gradLocStiffCond(:, :, e) = FEMout.diffusionStiffness(:, :, e)/conductivity(e);     %gradient of local stiffnesses
+    
+    gradK = get_glob_stiff_gradient(gradLocStiffCond);
+    gradF = get_glob_force_gradient(domain, gradLocStiffCond(:, :, e), e);
+    if(domain.useConvection)
+        gradLocStiffConvX(:, :, e) = domain.convectionMatrix(:, :, e)*convGradMatX;
+        gradLocStiffConvY(:, :, e) = domain.convectionMatrix(:, :, e)*convGradMatY;
+        gradKconvX = get_glob_stiff_gradient(gradLocStiffConvX);
+        gradFconvX = get_glob_force_gradient(domain, gradLocStiffConvX(:, :, e), e);
+        gradKconvY = get_glob_stiff_gradient(gradLocStiffConvY);
+        gradFconvY = get_glob_force_gradient(domain, gradLocStiffConvY(:, :, e), e);
+        
+        gradK = [gradK; gradKconvX; gradKconvY];
+        gradF = [gradF; gradFconvX; gradFconvY];
+    end
     
     d_r(e, :) = (gradK*FEMout.naturalTemperatures - gradF)';
-    
     
     
     
@@ -48,6 +70,9 @@ for e = 1:domain.nEl
         relgradF = gradFFD./gradF
         pause
     end
+    
+    gradK = [];
+    gradF = [];
 end
 
 

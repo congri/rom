@@ -7,7 +7,7 @@ Dmat = spalloc(8, 8, 16);
 if(nargin > 2)
     convectionFieldMat = spalloc(8, 4, 8);
 end
-    function [k] = get_loc_stiff2(Bvec, D, convectionMatrix, cField)
+    function [diffusionStiffness, convectionStiffness] = get_loc_stiff2(Bvec, D, convectionMatrix, cField)
         %Gives the local stiffness matrix
         
         Dmat(1:2, 1:2) = D;
@@ -15,33 +15,39 @@ end
         Dmat(5:6, 5:6) = D;
         Dmat(7:8, 7:8) = D;
         
-        k = Bvec'*Dmat*Bvec;
+        diffusionStiffness = Bvec'*Dmat*Bvec;
         if(nargin > 2)
             convectionFieldMat(1:2, 1) = cField;
             convectionFieldMat(3:4, 2) = cField;
             convectionFieldMat(5:6, 3) = cField;
             convectionFieldMat(7:8, 4) = cField;
-            c = convectionMatrix*convectionFieldMat;
-            k = k + c;
+            convectionStiffness = convectionMatrix*convectionFieldMat;
         end
     end
 
 
 %Compute local stiffness matrices, once and for all
-Out.localStiffness = zeros(4, 4, domain.nEl);
+Out.diffusionStiffness = zeros(4, 4, domain.nEl);
+if(nargin > 2)
+    Out.convectionStiffness = Out.diffusionStiffness;
+end
 for e = 1:domain.nEl
     if(nargin > 2)
-        Out.localStiffness(:, :, e) = get_loc_stiff2(domain.Bvec(:, :, e), D(:, :, e),...
-            domain.convectionMatrix(:, :, e), convectionField(:, e));
+        [Out.diffusionStiffness(:, :, e), Out.convectionStiffness(:, :, e)] =...
+            get_loc_stiff2(domain.Bvec(:, :, e), D(:, :, e), domain.convectionMatrix(:, :, e), convectionField(:, e));
     else
-        Out.localStiffness(:, :, e) = get_loc_stiff2(domain.Bvec(:, :, e), D(:, :, e));
+        Out.diffusionStiffness(:, :, e) = get_loc_stiff2(domain.Bvec(:, :, e), D(:, :, e));
     end
 end
 
 %Global stiffness matrix
-Out.globalStiffness = get_glob_stiff2(domain, Out.localStiffness);
+localStiffness = Out.diffusionStiffness;
+if(nargin > 2)
+    localStiffness = localStiffness + Out.convectionStiffness;
+end
+Out.globalStiffness = get_glob_stiff2(domain, localStiffness);
 %Global force vector
-Out.globalForce = get_glob_force(domain, Out.localStiffness);
+Out.globalForce = get_glob_force(domain, localStiffness);
 
 %Finally solving the equation system
 Out.naturalTemperatures = Out.globalStiffness\Out.globalForce;
