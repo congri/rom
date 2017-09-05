@@ -5,8 +5,8 @@ function [varDistParams, x] = efficientStochOpt(x, log_emp_dist, variationalDist
 debug = false;   %debug mode
 
 updateRule = 'adam';
-beta1 = .7;                     %the higher, the more important is momentum
-beta2 = .8;                    %curvature parameter
+beta1 = .9;                     %the higher, the more important is momentum
+beta2 = .999;                    %curvature parameter
 epsilon = 1e-8;                  %curvature stabilization parameter
 
 stepOffset = 10000;                %Robbins-Monro step offset
@@ -92,13 +92,12 @@ while ~converged
             subplot(1,2,1)
             hold on;
             title('mu')
-            plot(iter, varDistParams.mu, 'x')
+            plot(iter, varDistParams.mu, 'bx')
             subplot(1,2,2)
             hold on;
             title('sigma')
-            plot(iter, varDistParams.sigma, 'x')
+            plot(iter, varDistParams.sigma, 'rx')
             drawnow
-            pause
         end
     end
     

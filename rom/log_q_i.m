@@ -16,16 +16,21 @@ d_log_q = d_lg_p_c + d_lg_p_cf;
 FDcheck = false;
 if FDcheck
     disp('Gradient check log q_i')
-    conductivity = conductivityBackTransform(Xi, condTransOpts);
+    conductivity = conductivityBackTransform(Xi(1:domainc.nEl), condTransOpts);
     d = 1e-5;
-    gradFD = zeros(domainc.nEl, 1);
-    for i = 1:domainc.nEl
-        dXi = zeros(domainc.nEl, 1);
+    if domainc.useConvection
+        latentDim = 3*domainc.nEl;
+    else
+        latentDim = domainc.nEl;
+    end
+    gradFD = zeros(latentDim, 1);
+    for i = 1:latentDim
+        dXi = zeros(latentDim, 1);
         dXi(i) = d;
-        conductivityFD = conductivity + conductivity.*dXi;
+        conductivityFD = conductivity + conductivity.*dXi(1:domainc.nEl);
         
         [lg_p_c, ~] = log_p_c(Xi + dXi, Phi, theta_c);
-        [lg_p_cf, ~] = log_p_cf(Tf_i_minus_mu, domainc, conductivityFD, theta_cf, condTransOpts);
+        [lg_p_cf, ~] = log_p_cf(Tf_i_minus_mu, domainc, Xi + dXi, theta_cf, condTransOpts);
         
         log_qFD = lg_p_cf + lg_p_c;
         gradFD(i) = (log_qFD - log_q)/d;

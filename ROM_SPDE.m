@@ -8,7 +8,7 @@ classdef ROM_SPDE
         nElFY = 256;
         %Finescale conductivities, binary material
         lowerConductivity = 1;
-        upperConductivity = 2;
+        upperConductivity = 10;
         %Conductivity field distribution type
         conductivityDistribution = 'correlated_binary';
         %Boundary condition functions; evaluate those on boundaries to get boundary conditions
@@ -33,8 +33,8 @@ classdef ROM_SPDE
                 
         %% Model training parameters
         nStart = 1;             %first training data sample in file
-        nTrain = 128;            %number of samples used for training
-        mode = 'useLocal';          %useNeighbor, useLocalNeighbor, useDiagNeighbor, useLocalDiagNeighbor, useLocal, global
+        nTrain = 16;            %number of samples used for training
+        mode = 'none';          %useNeighbor, useLocalNeighbor, useDiagNeighbor, useLocalDiagNeighbor, useLocal, global
                                 %global: take whole microstructure as feature function input, not
                                 %only local window (only recommended for pooling)
         inferenceMethod = 'variationalInference';        %E-step inference method. variationalInference or monteCarlo
@@ -43,8 +43,8 @@ classdef ROM_SPDE
         linFilt
         
         useAutoEnc = false;     %Use autoencoder information? Do not forget to pre-train autoencoder!
-        globalPcaComponents = 4;   %Principal components of the whole microstructure used as features 
-        localPcaComponents = 8;     %Principal components of single macro-cell used as features
+        globalPcaComponents = 0;   %Principal components of the whole microstructure used as features 
+        localPcaComponents = 0;     %Principal components of single macro-cell used as features
         pcaSamples = 4096;
         secondOrderTerms;
         mix_S = 0;              %To slow down convergence of S
@@ -55,7 +55,7 @@ classdef ROM_SPDE
         %% Prior specifications
         sigmaPriorType = 'none';    %none, delta, expSigSq
         sigmaPriorHyperparam = 1;
-        thetaPriorType = 'RVM';
+        thetaPriorType = 'none';
         thetaPriorHyperparam = [0.4 []];
         
         %% Model parameters
@@ -165,8 +165,13 @@ classdef ROM_SPDE
             obj = obj.genCoarseDomain;
             
             %prealloc
-            obj.XMean = zeros(obj.coarseScaleDomain.nEl, obj.nTrain);
-            obj.XSqMean = ones(obj.coarseScaleDomain.nEl, obj.nTrain);
+            if obj.useConvection
+                obj.XMean = zeros(3*obj.coarseScaleDomain.nEl, obj.nTrain);
+                obj.XSqMean = ones(3*obj.coarseScaleDomain.nEl, obj.nTrain);
+            else
+                obj.XMean = zeros(obj.coarseScaleDomain.nEl, obj.nTrain);
+                obj.XSqMean = ones(obj.coarseScaleDomain.nEl, obj.nTrain);
+            end
             
             %Set up default value for test samples
             obj.testSamples = 1:obj.nSets(2);
@@ -726,7 +731,11 @@ classdef ROM_SPDE
             SigmaInv = obj.theta_c.SigmaInv;
             SigmaInvXMean = SigmaInv*obj.XMean;
             sumPhiTSigmaInvPhi = 0;
-            PhiThetaMat = zeros(obj.coarseScaleDomain.nEl, obj.nTrain);
+            if obj.useConvection
+                PhiThetaMat = zeros(3*obj.coarseScaleDomain.nEl, obj.nTrain);
+            else
+                PhiThetaMat = zeros(obj.coarseScaleDomain.nEl, obj.nTrain);
+            end
             
             for n = 1:obj.nTrain
                 sumPhiTSigmaInvXmean = sumPhiTSigmaInvXmean + obj.designMatrix{n}'*SigmaInvXMean(:, n);
@@ -815,7 +824,11 @@ classdef ROM_SPDE
                     theta = theta_temp;
                 end
                 
-                PhiThetaMat = zeros(obj.coarseScaleDomain.nEl, obj.nTrain);
+                if obj.useConvection
+                    PhiThetaMat = zeros(3*obj.coarseScaleDomain.nEl, obj.nTrain);
+                else
+                    PhiThetaMat = zeros(obj.coarseScaleDomain.nEl, obj.nTrain);
+                end
                 for n = 1:obj.nTrain
                     PhiThetaMat(:, n) = obj.designMatrix{n}*theta;
                 end
@@ -825,9 +838,13 @@ classdef ROM_SPDE
                     sigma_prior_type = obj.sigmaPriorType;
                 end
                 if strcmp(sigma_prior_type, 'none')
-                    Sigma = sparse(1:obj.coarseScaleDomain.nEl, 1:obj.coarseScaleDomain.nEl,...
-                        mean(obj.XSqMean - 2*(PhiThetaMat.*obj.XMean) +...
-                        PhiThetaMat.^2, 2));
+                    if obj.useConvection
+                        Sigma = sparse(1:3*obj.coarseScaleDomain.nEl, 1:3*obj.coarseScaleDomain.nEl,...
+                        mean(obj.XSqMean - 2*(PhiThetaMat.*obj.XMean) + PhiThetaMat.^2, 2));
+                    else
+                        Sigma = sparse(1:obj.coarseScaleDomain.nEl, 1:obj.coarseScaleDomain.nEl,...
+                            mean(obj.XSqMean - 2*(PhiThetaMat.*obj.XMean) + PhiThetaMat.^2, 2));
+                    end
                     Sigma(Sigma < 0) = eps; %for numerical stability
                     
                     %sum_i Phi_i^T Sigma^-1 <X^i>_qi
@@ -1329,6 +1346,8 @@ classdef ROM_SPDE
                 nGlobalFeatureFunctions = size(obj.globalFeatureFunctions, 2);
                 nConvectionFeatureFunctions = size(obj.convectionFeatureFunctions, 2);
                 nGlobalConvectionFeatureFunctions = size(obj.globalConvectionFeatureFunctions, 2);
+                nTotalFeatures = nFeatureFunctions + nGlobalFeatureFunctions + ...
+                    nConvectionFeatureFunctions + nGlobalConvectionFeatureFunctions + obj.latentDim;
                 phi = obj.featureFunctions;
                 phiGlobal = obj.globalFeatureFunctions;
                 phiConvection = obj.convectionFeatureFunctions;
@@ -1337,8 +1356,7 @@ classdef ROM_SPDE
                 %addpath('./computation')
                 %parPoolInit(nData);
                 if obj.useConvection
-                    PhiCell{1} = zeros(3*obj.coarseScaleDomain.nEl, 2*(nFeatureFunctions + nGlobalFeatureFunctions + ...
-                        nConvectionFeatureFunctions + nGlobalConvectionFeatureFunctions));
+                    PhiCell{1} = zeros(3*obj.coarseScaleDomain.nEl, 3*nTotalFeatures);
                     [lambdak, xk, ak] = obj.get_coarseElementConductivities(mode);
                 else
                     PhiCell{1} = zeros(obj.coarseScaleDomain.nEl, nFeatureFunctions + nGlobalFeatureFunctions);
@@ -1425,17 +1443,10 @@ classdef ROM_SPDE
                         %Fill in lower right elements of design matrix. These are predictors for
                         %convection field A
                         PhiCell{s}((obj.coarseScaleDomain.nEl + 1):(2*obj.coarseScaleDomain.nEl), ...
-                            (nFeatureFunctions + nGlobalFeatureFunctions + obj.latentDim +...
-                            nConvectionFeatureFunctions + nGlobalConvectionFeatureFunctions + 1):end) =...
-                            PhiCell{s}(1:obj.coarseScaleDomain.nEl, 1:(nFeatureFunctions +...
-                            nGlobalFeatureFunctions + obj.latentDim + nConvectionFeatureFunctions +...
-                            nGlobalConvectionFeatureFunctions));
-                        PhiCell{s}((2*obj.coarseScaleDomain.nEl + 1):end, ...
-                            (nFeatureFunctions + nGlobalFeatureFunctions + obj.latentDim +...
-                            nConvectionFeatureFunctions + nGlobalConvectionFeatureFunctions + 1):end) =...
-                            PhiCell{s}(1:obj.coarseScaleDomain.nEl, 1:(nFeatureFunctions +...
-                            nGlobalFeatureFunctions + obj.latentDim + nConvectionFeatureFunctions +...
-                            nGlobalConvectionFeatureFunctions));
+                            (nTotalFeatures + 1):2*(nTotalFeatures)) =...
+                            PhiCell{s}(1:obj.coarseScaleDomain.nEl, 1:nTotalFeatures);
+                        PhiCell{s}((2*obj.coarseScaleDomain.nEl + 1):end, (2*nTotalFeatures + 1):end) =...
+                            PhiCell{s}(1:obj.coarseScaleDomain.nEl, 1:nTotalFeatures);
                     end
                 end
                 
@@ -2535,8 +2546,8 @@ classdef ROM_SPDE
             semilogy(sqrt(obj.sigmaArray), 'linewidth', 1, 'Parent', sb)
             axis tight;
             sb = subplot(3,2,4, 'Parent', figHandle);
-            imagesc(reshape(diag(sqrt(obj.theta_c.Sigma)), obj.coarseScaleDomain.nElX,...
-                obj.coarseScaleDomain.nElY), 'Parent', sb)
+            imagesc(reshape(diag(sqrt(obj.theta_c.Sigma(1:obj.coarseScaleDomain.nEl, 1:obj.coarseScaleDomain.nEl))),...
+                obj.coarseScaleDomain.nElX, obj.coarseScaleDomain.nElY), 'Parent', sb)
             title('\sigma_k')
             colorbar
             grid off;
@@ -2839,10 +2850,10 @@ classdef ROM_SPDE
 % %                     differentialEffectiveMedium(lambda, conductivities, obj.conductivityTransformation, 'lo');
 % %                 nFeatures = nFeatures + 1;
 %                 
-                obj.featureFunctions{k, nFeatures + 1} = @(lambda)...
-                    linealPath(lambda, 7, 'x', 2, conductivities) +...
-                    linealPath(lambda, 7, 'y', 2, conductivities);
-                nFeatures = nFeatures + 1;
+%                 obj.featureFunctions{k, nFeatures + 1} = @(lambda)...
+%                     linealPath(lambda, 7, 'x', 2, conductivities) +...
+%                     linealPath(lambda, 7, 'y', 2, conductivities);
+%                 nFeatures = nFeatures + 1;
 %                 obj.featureFunctions{k, nFeatures + 1} = @(lambda)...
 %                     linealPath(lambda, 3, 'y', 2, conductivities);
 %                 nFeatures = nFeatures + 1;
@@ -2862,9 +2873,9 @@ classdef ROM_SPDE
 % %                 obj.featureFunctions{k, nFeatures + 1} = @(lambda)...
 % %                     numberOfObjects(lambda, conductivities, 'hi');
 % %                 nFeatures = nFeatures + 1;
-                obj.featureFunctions{k, nFeatures + 1} = @(lambda)...
-                    nPixelCross(lambda, 'y', 2, conductivities, 'max');
-				nFeatures = nFeatures + 1;
+%                 obj.featureFunctions{k, nFeatures + 1} = @(lambda)...
+%                     nPixelCross(lambda, 'y', 2, conductivities, 'max');
+% 				nFeatures = nFeatures + 1;
 % %                 obj.featureFunctions{k, nFeatures + 1} = @(lambda)...
 % %                     nPixelCross(lambda, 'x', 1, conductivities, 'mean');
 % % 				nFeatures = nFeatures + 1;

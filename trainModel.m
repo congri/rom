@@ -40,7 +40,8 @@ if(size(romObj.designMatrix{1}, 2) ~= size(romObj.theta_c.theta))
     romObj.theta_c.theta = zeros(size(romObj.designMatrix{1}, 2), 1);
 end
 %random initialization
-romObj.theta_c.theta = normrnd(0, 100, size(romObj.theta_c.theta));
+% romObj.theta_c.theta = normrnd(0, 100, size(romObj.theta_c.theta));
+romObj.theta_c.theta(1) = 1;
 
 if strcmp(romObj.inferenceMethod, 'monteCarlo')
     MonteCarlo = true;
@@ -248,8 +249,19 @@ while true
     end
     
     if(~romObj.conductivityTransformation.anisotropy)
-        Lambda_eff1_mode = conductivityBackTransform(romObj.designMatrix{1}*romObj.theta_c.theta,...
-            romObj.conductivityTransformation)
+        nFeatures = size(romObj.designMatrix{1}, 2);
+        if romObj.useConvection
+            nFeatures = nFeatures/3;
+        end
+        Lambda_eff1_mode = conductivityBackTransform(romObj.designMatrix{1}(1:romObj.coarseScaleDomain.nEl, 1:nFeatures)...
+            *romObj.theta_c.theta(1:nFeatures), romObj.conductivityTransformation)
+        if romObj.useConvection
+            effConvX = romObj.designMatrix{1}((romObj.coarseScaleDomain.nEl + 1):2*romObj.coarseScaleDomain.nEl, ...
+                (nFeatures + 1):2*nFeatures)*romObj.theta_c.theta((nFeatures + 1):(2*nFeatures));
+            effConvY = romObj.designMatrix{1}((2*romObj.coarseScaleDomain.nEl + 1):end, ...
+                (2*nFeatures + 1):end)*romObj.theta_c.theta((2*nFeatures + 1):end);
+            effectiveConvection = [effConvX, effConvY]
+        end
     end
     
     %collect data and write it to disk periodically to save memory
