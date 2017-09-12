@@ -40,8 +40,8 @@ if(size(romObj.designMatrix{1}, 2) ~= size(romObj.theta_c.theta))
     romObj.theta_c.theta = zeros(size(romObj.designMatrix{1}, 2), 1);
 end
 %random initialization
-% romObj.theta_c.theta = normrnd(0, 100, size(romObj.theta_c.theta));
-romObj.theta_c.theta(1) = 1;
+romObj.theta_c.theta = normrnd(0, 1, size(romObj.theta_c.theta));
+% romObj.theta_c.theta(1) = 0;
 
 if strcmp(romObj.inferenceMethod, 'monteCarlo')
     MonteCarlo = true;

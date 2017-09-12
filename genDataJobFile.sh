@@ -1,7 +1,7 @@
 NF=256
-LENGTHSCALEDIST=lognormal	#lognormal or delta
-CORRLENGTH1=-3.3
-CORRLENGTH2=0.3
+LENGTHSCALEDIST=delta	#lognormal or delta
+CORRLENGTH1=0.005
+CORRLENGTH2=0.005
 NSET1=4096
 NSET2=4096
 NSET3=4096
@@ -9,7 +9,7 @@ NSET4=4096
 NSET5=4096
 VOLFRAC=-1	#Theoretical volume fraction; negative value leads to uniform random volume fraction
 LOCOND=1
-UPCOND=5
+UPCOND=1000
 BC1=0
 BC2=1000
 BC3=0
@@ -44,9 +44,9 @@ printf "#PBS -N $JOBNAME
 #Switch to job directory
 cd $JOBDIR
 #Set parameters
-sed -i \"120s/.*/\        useConvection = $CONVECTION;      %%Include a convection term to the pde?/\" ./ROM_SPDE.m
-sed -i \"128s/.*/\        conductivityLengthScaleDist = \'${LENGTHSCALEDIST}\';      %%delta for fixed length scale, lognormal for rand/\" ./ROM_SPDE.m
-sed -i \"129s/.*/\        conductivityDistributionParams = {$VOLFRAC \[$CORRLENGTH1 $CORRLENGTH2\] 1\};/\" ./ROM_SPDE.m
+sed -i \"121s/.*/\        useConvection = $CONVECTION;      %%Include a convection term to the pde?/\" ./ROM_SPDE.m
+sed -i \"129s/.*/\        conductivityLengthScaleDist = \'${LENGTHSCALEDIST}\';      %%delta for fixed length scale, lognormal for rand/\" ./ROM_SPDE.m
+sed -i \"130s/.*/\        conductivityDistributionParams = {$VOLFRAC \[$CORRLENGTH1 $CORRLENGTH2\] 1\};/\" ./ROM_SPDE.m
 sed -i \"7s/.*/        nElFX = $NF;/\" ./ROM_SPDE.m
 sed -i \"8s/.*/        nElFY = $NF;/\" ./ROM_SPDE.m
 sed -i \"27s/.*/        nSets = \[$NSET1 $NSET2 $NSET3 $NSET4 $NSET5\];/\" ./ROM_SPDE.m

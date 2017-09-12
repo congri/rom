@@ -6,7 +6,7 @@ loadOldConf = false;
 
 %linear filter options
 romObj.linFilt.type = 'local';  %local or global
-romObj.linFilt.gap = 100;
+romObj.linFilt.gap = 60;
 romObj.linFilt.initialEpochs = 0;
 romObj.linFilt.updates = 0;     %Already added linear filters
 romObj.linFilt.totalUpdates = 0;
@@ -29,7 +29,7 @@ if loadOldConf
     romObj.theta_c.Sigma = sparse(diag(s));
     romObj.theta_c.SigmaInv = sparse(diag(1./s));
 else
-    romObj.theta_cf.S = 1e2*ones(romObj.fineScaleDomain.nNodes, 1);
+    romObj.theta_cf.S = 1e3*ones(romObj.fineScaleDomain.nNodes, 1);
     romObj.theta_cf.mu = zeros(romObj.fineScaleDomain.nNodes, 1);
     if romObj.useAutoEnc
         load('./autoencoder/trainedAutoencoder.mat');
@@ -45,7 +45,7 @@ else
     if romObj.useConvection
         romObj.theta_c.Sigma = 1e0*speye(3*romObj.coarseScaleDomain.nEl);
     else
-        romObj.theta_c.Sigma = 1e0*speye(romObj.coarseScaleDomain.nEl);
+        romObj.theta_c.Sigma = 1e-10*speye(romObj.coarseScaleDomain.nEl);
     end
     s = diag(romObj.theta_c.Sigma);
     romObj.theta_c.SigmaInv = sparse(diag(1./s));
@@ -112,7 +112,7 @@ else
         ones(1, romObj.coarseScaleDomain.nEl), romObj.conductivityTransformation);   %row vector
 end
 if strcmp(variationalDist, 'diagonalGauss')
-    varDistParams{1}.sigma = ones(size(varDistParams{1}.mu));
+    varDistParams{1}.sigma = 1e2*ones(size(varDistParams{1}.mu));
     if romObj.useConvection
         varDistParams{1}.sigma = ones(1, 3*romObj.coarseScaleDomain.nEl);
         %Sharp convection field at 0 at beginning
@@ -138,11 +138,11 @@ so{1} = StochasticOptimization('adam');
 % so{1}.x = [varDistParams.mu, varDistParams.L(:)'];
 % so{1}.stepWidth = [1e-2*ones(1, romObj.coarseScaleDomain.nEl) 1e-1*ones(1, romObj.coarseScaleDomain.nEl^2)];
 so{1}.x = [varDistParams{1}.mu, -2*log(varDistParams{1}.sigma)];
-sw = [5e-2*ones(1, romObj.coarseScaleDomain.nEl) 3*1e-1*ones(1, romObj.coarseScaleDomain.nEl)];
+sw = [1e-2*ones(1, romObj.coarseScaleDomain.nEl) 1e-0*ones(1, romObj.coarseScaleDomain.nEl)];
 if romObj.useConvection
     sw = repmat(sw, 1, 3);
     nhp = length(sw);
-    sw((nhp/3 + 1):end) = 1e-6*sw((nhp/3 + 1):end);
+    sw((nhp/3 + 1):end) = 1e-12*sw((nhp/3 + 1):end);
 end
 so{1}.stepWidth = sw;
 so = repmat(so, romObj.nTrain, 1);
