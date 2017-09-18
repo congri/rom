@@ -16,6 +16,8 @@ elseif strcmp(opts.type, 'log_lower_bound')
 elseif strcmp(opts.type, 'log_cholesky')
     %log Cholesky decomposition, enables anisotropy in coarse conductivity elements
     error('log Cholesky transform not implemented')
+elseif strcmp(opts.type, 'square')
+    x = sqrt(conductivity);
 else
     error('unknown conductivity transformation')
 end

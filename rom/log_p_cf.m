@@ -54,6 +54,9 @@ if nargout > 1
         %transformation is X = log(Lambda - lambda_lo)
         dLambda_dX = conductivity - condTransOpts.limits(1);
         d_rx(1:domainc.nEl, :) = diag(dLambda_dX)*d_r(1:domainc.nEl, :);
+    elseif strcmp(condTransOpts.type, 'square')
+        %We need gradient of r w.r.t. sqrt conductivities X. d/dX = 2X d/dlambda
+        d_rx(1:domainc.nEl, :) = diag(2*Xi(1:domainc.nEl))*d_r(1:domainc.nEl, :);
     else
         error('Unknown conductivity transformation')
     end

@@ -41,6 +41,18 @@ elseif strcmp(opts.type, 'log_lower_bound')
         conductivity(conductivity > opts.limits(2)) = opts.limits(2);
         warning('Effective conductivity is above upper bound')
     end
+elseif strcmp(opts.type, 'square')
+    conductivity = x.^2;
+    if any(any(conductivity < opts.limits(1)))
+        %lower bound on conductivity for stability
+        conductivity(conductivity < opts.limits(1)) = opts.limits(1);
+%         warning('Effective conductivity is below lower bound')
+    end
+    if any(any(conductivity > opts.limits(2)))
+        %upper bound on conductivity for stability
+        conductivity(conductivity > opts.limits(2)) = opts.limits(2);
+%         warning('Effective conductivity is above upper bound')
+    end
 else
     error('unknown conductivity transformation')
 end

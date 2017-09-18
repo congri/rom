@@ -12,7 +12,8 @@ alpha = conductivities(1)*(2*loCondVolFrac - 1) + conductivities(2)*(2*hiCondVol
 
 lambdaEff = .5*(alpha + sqrt(alpha^2 + 4*conductivities(1)*conductivities(2)));
 
-if (strcmp(conductivityTransformation.type, 'log') || strcmp(conductivityTransformation.type, 'logit'))
+if (strcmp(conductivityTransformation.type, 'log') || strcmp(conductivityTransformation.type, 'logit') ||...
+    strcmp(conductivityTransformation.type, 'square'))
     out = conductivityTransform(lambdaEff, conductivityTransformation);
 elseif strcmp(conductivityTransformation.type, 'plain')
     out = lambdaEff;

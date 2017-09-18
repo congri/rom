@@ -8,7 +8,7 @@ if dim1
 else
     X = Xi;
 end
-[lg_pcf, d_lg_pcf] = log_p_cf(Tf, domainc, conductivityBackTransform(X, condTransOpts), theta_cf, condTransOpts);
+[lg_pcf, d_lg_pcf] = log_p_cf(Tf, domainc, Xi, theta_cf, condTransOpts);
 obj = -2*lg_pcf;
 gradObj = -2*d_lg_pcf;
 

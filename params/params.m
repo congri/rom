@@ -45,7 +45,7 @@ else
     if romObj.useConvection
         romObj.theta_c.Sigma = 1e0*speye(3*romObj.coarseScaleDomain.nEl);
     else
-        romObj.theta_c.Sigma = 1e-10*speye(romObj.coarseScaleDomain.nEl);
+        romObj.theta_c.Sigma = 1e0*speye(romObj.coarseScaleDomain.nEl);
     end
     s = diag(romObj.theta_c.Sigma);
     romObj.theta_c.SigmaInv = sparse(diag(1./s));
@@ -138,11 +138,12 @@ so{1} = StochasticOptimization('adam');
 % so{1}.x = [varDistParams.mu, varDistParams.L(:)'];
 % so{1}.stepWidth = [1e-2*ones(1, romObj.coarseScaleDomain.nEl) 1e-1*ones(1, romObj.coarseScaleDomain.nEl^2)];
 so{1}.x = [varDistParams{1}.mu, -2*log(varDistParams{1}.sigma)];
-sw = [1e-2*ones(1, romObj.coarseScaleDomain.nEl) 1e-0*ones(1, romObj.coarseScaleDomain.nEl)];
+sw = [1e-2*ones(1, romObj.coarseScaleDomain.nEl) 1e0*ones(1, romObj.coarseScaleDomain.nEl)];
 if romObj.useConvection
-    sw = repmat(sw, 1, 3);
-    nhp = length(sw);
-    sw((nhp/3 + 1):end) = 1e-12*sw((nhp/3 + 1):end);
+    sw = [1e-2*ones(1, romObj.coarseScaleDomain.nEl) ...    %conductivity mean
+        1e-4*ones(1, 2*romObj.coarseScaleDomain.nEl) ...    %advection mean
+        1e-0*ones(1, romObj.coarseScaleDomain.nEl) ...      %conductivity sigma
+        1e-2*ones(1, 2*romObj.coarseScaleDomain.nEl)];      %advection sigma
 end
 so{1}.stepWidth = sw;
 so = repmat(so, romObj.nTrain, 1);

@@ -1,25 +1,26 @@
 NF=256
 LENGTHSCALEDIST=delta	#lognormal or delta
-CORRLENGTH1=0.005
-CORRLENGTH2=0.005
+COVARIANCE=ornsteinUhlenbeck
+CORRLENGTH1=0.03
+CORRLENGTH2=0.03
 NSET1=4096
 NSET2=4096
-NSET3=4096
-NSET4=4096
-NSET5=4096
+NSET3=[]
+NSET4=[]
+NSET5=[]
 VOLFRAC=-1	#Theoretical volume fraction; negative value leads to uniform random volume fraction
 LOCOND=1
-UPCOND=1000
+UPCOND=2
 BC1=0
-BC2=1000
-BC3=0
-BC4=0
+BC2=800
+BC3=1200
+BC4=-2000
 CONVECTION=false
 #best change boundary conditions in matlab
 
 #Set up file paths
 PROJECTDIR="/home/constantin/matlab/projects/rom"
-JOBNAME="genDataNf${NF}contrast${LOCOND}-${UPCOND}corrlength=${LENGTHSCALEDIST}${CORRLENGTH1}_${CORRLENGTH2}volfrac${VOLFRAC}"
+JOBNAME="genDataNf${NF}contrast${LOCOND}-${UPCOND}corrlength=${LENGTHSCALEDIST}${CORRLENGTH1}_${CORRLENGTH2}volfrac${VOLFRAC}_convection=${CONVECTION}"
 JOBDIR="/home/constantin/matlab/data/$JOBNAME"
 
 #Create job directory and copy source code
@@ -35,7 +36,7 @@ rm job_file.sh
 
 #write job file
 printf "#PBS -N $JOBNAME
-#PBS -l nodes=1:ppn=16,walltime=120:00:00
+#PBS -l nodes=1:ppn=8,walltime=120:00:00
 #PBS -o $CWD
 #PBS -e $CWD
 #PBS -m abe
@@ -44,14 +45,17 @@ printf "#PBS -N $JOBNAME
 #Switch to job directory
 cd $JOBDIR
 #Set parameters
-sed -i \"121s/.*/\        useConvection = $CONVECTION;      %%Include a convection term to the pde?/\" ./ROM_SPDE.m
-sed -i \"129s/.*/\        conductivityLengthScaleDist = \'${LENGTHSCALEDIST}\';      %%delta for fixed length scale, lognormal for rand/\" ./ROM_SPDE.m
-sed -i \"130s/.*/\        conductivityDistributionParams = {$VOLFRAC \[$CORRLENGTH1 $CORRLENGTH2\] 1\};/\" ./ROM_SPDE.m
+sed -i \"123s/.*/\        useConvection = $CONVECTION;      %%Include a convection term to the pde?/\" ./ROM_SPDE.m
+sed -i \"131s/.*/\        conductivityLengthScaleDist = \'${LENGTHSCALEDIST}\';      %%delta for fixed length scale, lognormal for rand/\" ./ROM_SPDE.m
+sed -i \"132s/.*/\        conductivityDistributionParams = {$VOLFRAC \[$CORRLENGTH1 $CORRLENGTH2\] 1\};/\" ./ROM_SPDE.m
 sed -i \"7s/.*/        nElFX = $NF;/\" ./ROM_SPDE.m
 sed -i \"8s/.*/        nElFY = $NF;/\" ./ROM_SPDE.m
 sed -i \"27s/.*/        nSets = \[$NSET1 $NSET2 $NSET3 $NSET4 $NSET5\];/\" ./ROM_SPDE.m
 sed -i \"10s/.*/        lowerConductivity = $LOCOND;/\" ./ROM_SPDE.m
 sed -i \"11s/.*/        upperConductivity = $UPCOND;/\" ./ROM_SPDE.m
+sed -i \"13s/.*/        conductivityDistribution = \'$COVARIANCE\';/\" ./ROM_SPDE.m
+sed -i \"139s/.*/        boundaryConditions = \'\[$BC1 $BC2 $BC3 $BC4\]\';/\" ./ROM_SPDE.m
+
 
 
 #Run Matlab

@@ -9,43 +9,33 @@ addpath('./FEMgradient')
 addpath('./featureFunctions')
 
 
-%Conductivity transformation options
-condTransOpts.anisotropy = false;
-%Upper and lower limit on effective conductivity
-condTransOpts.upperCondLim = 1e10;
-condTransOpts.lowerCondLim = 1e-10;
-condTransOpts.transform = 'log';
-
-%Load finescale data, including domainf
-loadTrainingData;
-%Initialize coarse domain
-genCoarseDomain;
-
+romObj = ROM_SPDE('train');
 
 %don't change these!
-theta_cf.S = 1;
-theta_cf.Sinv = 1;
-theta_cf.Sinv_vec = ones(domainf.nNodes, 1);
-theta_cf.W = shapeInterp(domainc, domainf);
-theta_cf.WTSinv = theta_cf.W'*theta_cf.Sinv;
+romObj.theta_cf.S = 1;
+romObj.theta_cf.Sinv = 1;
+romObj.theta_cf.Sinv_vec = ones(romObj.fineScaleDomain.nNodes, 1);
+romObj.theta_cf.W = shapeInterp(romObj.coarseScaleDomain, romObj.fineScaleDomain);
+romObj.theta_cf.WTSinv = romObj.theta_cf.W'*romObj.theta_cf.Sinv;
+romObj.theta_cf.sumLogS = 0;
 
-options = optimoptions(@fminunc,'Display','iter', 'SpecifyObjectiveGradient', true);
-Xinit = 0*ones(domainc.nEl, 1);
-Xopt = zeros(domainc.nEl, nTrain);
+options = optimoptions(@fminunc,'Display','off', 'SpecifyObjectiveGradient', true);
+Xinit = 0*ones(romObj.coarseScaleDomain.nEl, 1);
+Xopt = zeros(romObj.coarseScaleDomain.nEl, nTrain);
 LambdaOpt = Xopt;
 s2 = zeros(1, nTrain);
 j = 1;
 for i = nStart:(nStart + nTrain -1)
-    Tf = Tffile.Tf(:, i);
-    objFun = @(X) objective(X, Tf, domainc, condTransOpts, theta_cf);
+    Tf = romObj.testDataMatfile.Tf(:, i);
+    objFun = @(X) objective(X, Tf, romObj.coarseScaleDomain, romObj.conductivityTransformation, romObj.theta_cf);
     [XoptTemp, fvalTemp] = fminunc(objFun, Xinit, options);
-    LambdaOptTemp = conductivityBackTransform(XoptTemp, condTransOpts);
+    LambdaOptTemp = conductivityBackTransform(XoptTemp, romObj.conductivityTransformation);
     Xopt(:, j) = XoptTemp;
     LambdaOpt(:, j) = LambdaOptTemp;
     
     %s2 is the squared distance of truth to optimal coarse averaged over all nodes
-    s2(j) = fvalTemp/domainf.nNodes
-    j = j + 1;
+    s2(j) = fvalTemp/romObj.fineScaleDomain.nNodes;
+    j = j + 1
 end
 
 
