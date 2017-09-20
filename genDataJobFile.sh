@@ -1,8 +1,8 @@
 NF=256
 LENGTHSCALEDIST=delta	#lognormal or delta
-COVARIANCE=ornsteinUhlenbeck
-CORRLENGTH1=0.03
-CORRLENGTH2=0.03
+COVARIANCE=sincCov
+CORRLENGTH1=0.01
+CORRLENGTH2=0.01
 NSET1=4096
 NSET2=4096
 NSET3=[]
@@ -36,7 +36,7 @@ rm job_file.sh
 
 #write job file
 printf "#PBS -N $JOBNAME
-#PBS -l nodes=1:ppn=8,walltime=120:00:00
+#PBS -l nodes=1:ppn=4,walltime=120:00:00
 #PBS -o $CWD
 #PBS -e $CWD
 #PBS -m abe
@@ -45,16 +45,16 @@ printf "#PBS -N $JOBNAME
 #Switch to job directory
 cd $JOBDIR
 #Set parameters
-sed -i \"123s/.*/\        useConvection = $CONVECTION;      %%Include a convection term to the pde?/\" ./ROM_SPDE.m
-sed -i \"131s/.*/\        conductivityLengthScaleDist = \'${LENGTHSCALEDIST}\';      %%delta for fixed length scale, lognormal for rand/\" ./ROM_SPDE.m
-sed -i \"132s/.*/\        conductivityDistributionParams = {$VOLFRAC \[$CORRLENGTH1 $CORRLENGTH2\] 1\};/\" ./ROM_SPDE.m
 sed -i \"7s/.*/        nElFX = $NF;/\" ./ROM_SPDE.m
 sed -i \"8s/.*/        nElFY = $NF;/\" ./ROM_SPDE.m
-sed -i \"27s/.*/        nSets = \[$NSET1 $NSET2 $NSET3 $NSET4 $NSET5\];/\" ./ROM_SPDE.m
 sed -i \"10s/.*/        lowerConductivity = $LOCOND;/\" ./ROM_SPDE.m
 sed -i \"11s/.*/        upperConductivity = $UPCOND;/\" ./ROM_SPDE.m
 sed -i \"13s/.*/        conductivityDistribution = \'$COVARIANCE\';/\" ./ROM_SPDE.m
-sed -i \"139s/.*/        boundaryConditions = \'\[$BC1 $BC2 $BC3 $BC4\]\';/\" ./ROM_SPDE.m
+sed -i \"28s/.*/        nSets = \[$NSET1 $NSET2 $NSET3 $NSET4 $NSET5\];/\" ./ROM_SPDE.m
+sed -i \"124s/.*/\        useConvection = $CONVECTION;      %%Include a convection term to the pde?/\" ./ROM_SPDE.m
+sed -i \"132s/.*/\        conductivityLengthScaleDist = \'${LENGTHSCALEDIST}\';      %%delta for fixed length scale, lognormal for rand/\" ./ROM_SPDE.m
+sed -i \"133s/.*/\        conductivityDistributionParams = {$VOLFRAC \[$CORRLENGTH1 $CORRLENGTH2\] 1\};/\" ./ROM_SPDE.m
+sed -i \"140s/.*/        boundaryConditions = \'\[$BC1 $BC2 $BC3 $BC4\]\';/\" ./ROM_SPDE.m
 
 
 

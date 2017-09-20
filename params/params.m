@@ -1,5 +1,4 @@
 %main parameter file for 2d coarse-graining
-%CHANGE JOBFILE IF YOU CHANGE LINE NUMBERS!
 
 %load old configuration? (Optimal parameters, optimal variational distributions
 loadOldConf = false;
@@ -7,7 +6,7 @@ loadOldConf = false;
 %linear filter options
 romObj.linFilt.type = 'local';  %local or global
 romObj.linFilt.gap = 60;
-romObj.linFilt.initialEpochs = 0;
+romObj.linFilt.initialEpochs = 20;
 romObj.linFilt.updates = 0;     %Already added linear filters
 romObj.linFilt.totalUpdates = 0;
 romObj.maxEpochs = (romObj.linFilt.totalUpdates + 1)*romObj.linFilt.gap - 2 + romObj.linFilt.initialEpochs;

@@ -5,8 +5,32 @@ if strcmp(type, 'squaredExponential')
     %Stacked samples from W, see reference_notes
     W = mvnrnd(zeros(1, 2), diag(lengthScale.^(-2)), nBasisFunctions);
 elseif strcmp(type, 'ornsteinUhlenbeck')
-    W = trnd(1, nBasisFunctions, 1)/lengthScale(1);
-    W = [W, trnd(1, nBasisFunctions, 1)/lengthScale(2)];
+    %modulus
+    W = trnd(2, nBasisFunctions, 1)/lengthScale(1);
+    %angle
+    phi = 2*pi*rand(nBasisFunctions, 1);
+    W = [W.*cos(phi), W.*sin(phi)];
+elseif strcmp(type, 'matern')
+    %modulus - 'params' is smoothness parameter nu of Matern kernel
+    %Abuse second length scale param as smoothness param
+    W = trnd(lengthScale(2) + .5, nBasisFunctions, 1)/lengthScale(1);
+    %angle
+    phi = 2*pi*rand(nBasisFunctions, 1);
+    W = [W.*cos(phi), W.*sin(phi)];
+elseif strcmp(type, 'sincCov')
+    W = (rand(nBasisFunctions, 1) - .5)/lengthScale(1);
+    W = [W, (rand(nBasisFunctions, 1) - .5)/lengthScale(2)];
+elseif strcmp(type, 'sincSqCov')
+    W = triangRand(nBasisFunctions)/lengthScale(1);
+    W = [W, triangRand(nBasisFunctions)/lengthScale(2)];
+elseif strcmp(type, 'cos')
+    Wtemp1 = randi(2, nBasisFunctions, 1);
+    Wtemp2 = randi(2, nBasisFunctions, 1);
+    W1(Wtemp1 == 1) = -(1/lengthScale(1));
+    W1(Wtemp1 == 2) = (1/lengthScale(1));
+    W2(Wtemp2 == 1) = -(1/lengthScale(2));
+    W2(Wtemp2 == 2) = (1/lengthScale(2));
+    W = [W1; W2]';
 else
     error('Unknown covariance type')
 end

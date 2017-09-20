@@ -47,6 +47,10 @@ if saveW
     clear rowW colW valW WArray;
 end
 
+%lambda
+filename = './data/thetaPriorHyperparam';
+thetaPriorHyperparam = romObj.thetaPriorHyperparam;
+save(filename, 'thetaPriorHyperparam', '-ascii', '-append');
 
 %theta
 filename = './data/theta';
