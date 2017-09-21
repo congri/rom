@@ -1,9 +1,9 @@
-function [p_cf_exp] = p_cf_expfun(X, condTransOpts, domainc, Tf_i_minus_mu, theta_cf)
+function [p_cf_exp] = sqMisfit(X, condTransOpts, domainc, Tf_i_minus_mu, theta_cf)
 %function computing the squared difference between prediction and truth
-%   X:  log conductivity (row vector)
+%   X:  transformed conductivity (row vector)
 
-%log conductivity to conductivity
-conductivity = conductivityBackTransform(X, condTransOpts);
+%transformed conductivity to conductivity
+conductivity = conductivityBackTransform(X, condTransOpts)
 
 %Set up conductivity tensors for each element
 for j = 1:domainc.nEl

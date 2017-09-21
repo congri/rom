@@ -8,12 +8,15 @@ classdef ROM_SPDE
         nElFY = 256;
         %Finescale conductivities, binary material
         lowerConductivity = 1;
-        upperConductivity = 100;
+        upperConductivity = 2;
         %Conductivity field distribution type
-        conductivityDistribution = 'ornsteinUhlenbeck';
+        conductivityDistribution = 'squaredExponential';
         %Boundary condition functions; evaluate those on boundaries to get boundary conditions
         boundaryTemperature;
         boundaryHeatFlux;
+        bcArrayTrain;   %boundary condition cell array for training data
+        bcArrayTest;    %boundary condition cell array for test data
+        
         naturalNodes;
         %Directory where finescale data is stored; specify basename here
         fineScaleDataPath = '~/matlab/data/fineData/';
@@ -130,7 +133,7 @@ classdef ROM_SPDE
     properties(SetAccess = private)
         %% finescale data specifications
         conductivityLengthScaleDist = 'delta';      %delta for fixed length scale, lognormal for rand
-        conductivityDistributionParams = {-1 [.02 .02] 1};
+        conductivityDistributionParams = {-1 [.01 .01] 1};
         advectionDistributionParams = [10, 15];   %mu and sigma for advection field coefficients
         %{volumeFraction, correlationLength, sigma_f2}
         %for log normal length scale, the
@@ -1024,6 +1027,10 @@ classdef ROM_SPDE
             
             %precision on the theta_c's
             lambda_theta_c = zeros(length(obj.theta_c.theta), length(obj.theta_c.theta));
+            if isempty(obj.designMatrix)
+                load('./persistentData/trainDesignMatrix.mat');
+                obj.designMatrix = designMatrix;
+            end
             for n = 1:obj.nTrain
                 lambda_theta_c = lambda_theta_c + ...
                     obj.designMatrix{n}'*(obj.theta_c.Sigma\obj.designMatrix{n});
@@ -1056,7 +1063,7 @@ classdef ROM_SPDE
             if(nargin > 2)
                 obj = obj.setBoundaryConditions(boundaryConditions);
                 %Set handles to boundary condition functions
-                obj = obj.genBoundaryConditionFunctions;
+%                 obj = obj.genBoundaryConditionFunctions; %obsolete?
                 
                 %Set up coarseScaleDomain; must be done after boundary conditions are set up
                 obj = obj.genCoarseDomain;
@@ -1092,6 +1099,7 @@ classdef ROM_SPDE
             nElc = obj.coarseScaleDomain.nEl;
             nSamples = obj.nSamples_p_c;
             useConv = obj.useConvection;
+            bcVar = any(obj.boundaryConditionVariance);
             
             if useConv
                 Xsamples = zeros(3*nElc, nSamples, nTest);
@@ -1147,18 +1155,47 @@ classdef ROM_SPDE
             
             %% Run coarse model and sample from p_cf
             disp('Solving coarse model and sample from p_cf...')
-            %             addpath('./heatFEM')
             TfMeanArray{1} = zeros(obj.fineScaleDomain.nNodes, 1);
             TfMeanArray = repmat(TfMeanArray, nTest, 1);
             TfVarArray = TfMeanArray;
             Tf_sq_mean = TfMeanArray;
             
-            coarseDomain = obj.coarseScaleDomain;
+            if(bcVar)
+                %Set coarse domain for data with different boundary conditions
+                nX = obj.coarseScaleDomain.nElX;
+                nY = obj.coarseScaleDomain.nElY;
+                if strcmp(mode, 'self')
+                    bc = obj.trainingDataMatfile.bc;
+                else
+                    bc = obj.testDataMatfile.bc;
+                end
+                for j = 1:nTest
+                    if strcmp(mode, 'self')
+                        i = obj.trainingSamples(j);
+                    else
+                        i = obj.testSamples(j);
+                    end
+                    bcT = @(x) bc{i}(1) + bc{i}(2)*x(1) + bc{i}(3)*x(2) + bc{i}(4)*x(1)*x(2);
+                    bcQ{1} = @(x) -(bc{i}(3) + bc{i}(4)*x);      %lower bound
+                    bcQ{2} = @(y) (bc{i}(2) + bc{i}(4)*y);       %right bound
+                    bcQ{3} = @(x) (bc{i}(3) + bc{i}(4)*x);       %upper bound
+                    bcQ{4} = @(y) -(bc{i}(2) + bc{i}(4)*y);      %left bound
+                    cd(i) = obj.coarseScaleDomain;
+                    cd(i) = cd(i).setBoundaries([2:(2*nX + 2*nY)], bcT, bcQ);
+                end
+            else
+                cd = obj.coarseScaleDomain;
+            end
             t_cf = obj.theta_cf;
             lapAp = obj.useLaplaceApproximation;
             %             t_c = obj.theta_c;
             addpath('./heatFEM');
             parfor j = 1:nTest
+                if bcVar
+                    coarseDomain = cd(j);
+                else
+                    coarseDomain = cd;
+                end
                 for i = 1:nSamples
                     D = zeros(2, 2, coarseDomain.nEl);
                     for e = 1:coarseDomain.nEl
@@ -1229,14 +1266,14 @@ classdef ROM_SPDE
                     s(j, 2) = surf(reshape(TfMeanArray{i} - Tf_i_min, (obj.nElFX + 1), (obj.nElFY + 1)));
                     s(j, 2).LineStyle = 'none';
                     s(j, 2).FaceColor = 'b';
-%                     s(j, 3) = surf(reshape(TfMeanArray{i} - Tf_i_min, (obj.nElFX + 1), (obj.nElFY + 1)) +...
-%                         sqrt(reshape(TfVarArray{i}, (obj.nElFX + 1), (obj.nElFY + 1))));
-%                     s(j, 3).LineStyle = 'none';
-%                     s(j, 3).FaceColor = [.85 .85 .85];
-%                     s(j, 4) = surf(reshape(TfMeanArray{i} - Tf_i_min, (obj.nElFX + 1), (obj.nElFY + 1)) -...
-%                         sqrt(reshape(TfVarArray{i}, (obj.nElFX + 1), (obj.nElFY + 1))));
-%                     s(j, 4).LineStyle = 'none';
-%                     s(j, 4).FaceColor = [.85 .85 .85];
+                    s(j, 3) = surf(reshape(TfMeanArray{i} - Tf_i_min, (obj.nElFX + 1), (obj.nElFY + 1)) +...
+                        sqrt(reshape(TfVarArray{i}, (obj.nElFX + 1), (obj.nElFY + 1))));
+                    s(j, 3).LineStyle = 'none';
+                    s(j, 3).FaceColor = [.85 .85 .85];
+                    s(j, 4) = surf(reshape(TfMeanArray{i} - Tf_i_min, (obj.nElFX + 1), (obj.nElFY + 1)) -...
+                        sqrt(reshape(TfVarArray{i}, (obj.nElFX + 1), (obj.nElFY + 1))));
+                    s(j, 4).LineStyle = 'none';
+                    s(j, 4).FaceColor = [.85 .85 .85];
                     ax = gca;
                     ax.FontSize = 30;
                     im(j) = imagesc(reshape(cond(:, i), obj.fineScaleDomain.nElX, obj.fineScaleDomain.nElY));

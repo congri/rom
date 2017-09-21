@@ -68,10 +68,29 @@ while true
         tcf.sumLogS = sum(log(tcf.S));
         tcf.S = [];
         tc = romObj.theta_c;
-        cd = romObj.coarseScaleDomain;
         ct = romObj.conductivityTransformation;
-        log_qi{i} = @(Xi) log_q_i(Xi, Tf_i_minus_mu, tcf, tc,...
-            PhiMat, cd, ct);
+        
+        if(any(romObj.boundaryConditionVariance))
+            %Set coarse domain for data with different boundary conditions
+            nX = romObj.coarseScaleDomain.nElX;
+            nY = romObj.coarseScaleDomain.nElY;
+            bc = romObj.trainingDataMatfile.bc;
+            j = romObj.trainingSamples(i);
+            bcT = @(x) bc{j}(1) + bc{j}(2)*x(1) + bc{j}(3)*x(2) + bc{j}(4)*x(1)*x(2);
+            bcQ{1} = @(x) -(bc{j}(3) + bc{j}(4)*x);      %lower bound
+            bcQ{2} = @(y) (bc{j}(2) + bc{j}(4)*y);       %right bound
+            bcQ{3} = @(x) (bc{j}(3) + bc{j}(4)*x);       %upper bound
+            bcQ{4} = @(y) -(bc{j}(2) + bc{j}(4)*y);      %left bound
+            cd(i) = romObj.coarseScaleDomain;
+            cd(i) = cd(i).setBoundaries([2:(2*nX + 2*nY)], bcT, bcQ);
+            log_qi{i} = @(Xi) log_q_i(Xi, Tf_i_minus_mu, tcf, tc, PhiMat, cd(i), ct);
+        else
+            %Every coarse model has the same boundary conditions
+            cd = romObj.coarseScaleDomain;
+            log_qi{i} = @(Xi) log_q_i(Xi, Tf_i_minus_mu, tcf, tc, PhiMat, cd, ct);
+        end
+        
+        
         premax = false;
         if(strcmp(romObj.inferenceMethod, 'variationalInference') && premax)
             %This might be not worth the overhead, i.e. it is expensive
@@ -221,8 +240,8 @@ while true
             romObj.XSqMean(:, i) = varDistParams{i}.XSqMean;
             
             Tf_i_minus_mu = romObj.fineScaleDataOutput(:, i) - romObj.theta_cf.mu;
-            p_cf_expHandle{i} = @(logCond) p_cf_expfun(logCond, romObj.conductivityTransformation,...
-                romObj.coarseScaleDomain, Tf_i_minus_mu, romObj.theta_cf);
+            p_cf_expHandle{i} = @(X) sqMisfit(X, romObj.conductivityTransformation,...
+                cd(i), Tf_i_minus_mu, romObj.theta_cf);
             %Expectations under variational distributions
             romObj.varExpect_p_cf_exp(:, i) = mcInference(p_cf_expHandle{i}, variationalDist, varDistParams{i});
         end

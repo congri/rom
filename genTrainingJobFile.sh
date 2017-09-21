@@ -1,6 +1,6 @@
 NF=256
 LENGTHSCALEDIST=delta	#'lognormal' or'delta'
-COVARIANCE=squaredExponential
+COVARIANCE=ornsteinUhlenbeck
 CORRLENGTH1=0.01		#lognormal mu
 CORRLENGTH2=0.01		#lognormal sigma
 NTRAIN=128
@@ -61,14 +61,15 @@ sed -i \"7s/.*/        nElFX = $NF;/\" ./ROM_SPDE.m
 sed -i \"8s/.*/        nElFY = $NF;/\" ./ROM_SPDE.m
 sed -i \"10s/.*/        lowerConductivity = $LOCOND;/\" ./ROM_SPDE.m
 sed -i \"11s/.*/        upperConductivity = $HICOND;/\" ./ROM_SPDE.m
-sed -i \"36s/.*/        nStart = $NSTART;             %%first training data sample in file/\" ./ROM_SPDE.m
-sed -i \"37s/.*/        nTrain = $NTRAIN;            %%number of samples used for training/\" ./ROM_SPDE.m
-sed -i \"59s/.*/        thetaPriorType = '$PRIORTYPE';/\" ./ROM_SPDE.m
-sed -i \"60s/.*/        thetaPriorHyperparam = [$HYPERPARAM1 $HYPERPARAM2];/\" ./ROM_SPDE.m
-sed -i \"133s/.*/        conductivityDistributionParams = {$VOLFRAC [$CORRLENGTH1 $CORRLENGTH2] 1};/\" ./ROM_SPDE.m
-sed -i \"140s/.*/        boundaryConditions = '$BC';/\" ./ROM_SPDE.m
-sed -i \"145s/.*/        coarseGridVectorX = $NCX;/\" ./ROM_SPDE.m
-sed -i \"146s/.*/        coarseGridVectorY = $NCY;/\" ./ROM_SPDE.m
+sed -i \"13s/.*/        conductivityDistribution = '${COVARIANCE}';/\" ./ROM_SPDE.m
+sed -i \"39s/.*/        nStart = $NSTART;             %%first training data sample in file/\" ./ROM_SPDE.m
+sed -i \"40s/.*/        nTrain = $NTRAIN;            %%number of samples used for training/\" ./ROM_SPDE.m
+sed -i \"62s/.*/        thetaPriorType = '$PRIORTYPE';/\" ./ROM_SPDE.m
+sed -i \"63s/.*/        thetaPriorHyperparam = [$HYPERPARAM1 $HYPERPARAM2];/\" ./ROM_SPDE.m
+sed -i \"136s/.*/        conductivityDistributionParams = {$VOLFRAC [$CORRLENGTH1 $CORRLENGTH2] 1};/\" ./ROM_SPDE.m
+sed -i \"143s/.*/        boundaryConditions = '$BC';/\" ./ROM_SPDE.m
+sed -i \"148s/.*/        coarseGridVectorX = $NCX;/\" ./ROM_SPDE.m
+sed -i \"149s/.*/        coarseGridVectorY = $NCY;/\" ./ROM_SPDE.m
 
 
 #Run Matlab

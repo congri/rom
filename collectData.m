@@ -49,7 +49,7 @@ end
 
 %lambda
 filename = './data/thetaPriorHyperparam';
-thetaPriorHyperparam = romObj.thetaPriorHyperparam;
+thetaPriorHyperparam = romObj.thetaPriorHyperparam';
 save(filename, 'thetaPriorHyperparam', '-ascii', '-append');
 
 %theta

@@ -1,8 +1,8 @@
 NF=256
 LENGTHSCALEDIST=delta	#lognormal or delta
-COVARIANCE=sincCov
-CORRLENGTH1=0.01
-CORRLENGTH2=0.01
+COVARIANCE=squaredExponential
+CORRLENGTH1=0.02
+CORRLENGTH2=0.02
 NSET1=4096
 NSET2=4096
 NSET3=[]
@@ -10,7 +10,7 @@ NSET4=[]
 NSET5=[]
 VOLFRAC=-1	#Theoretical volume fraction; negative value leads to uniform random volume fraction
 LOCOND=1
-UPCOND=2
+UPCOND=100
 BC1=0
 BC2=800
 BC3=1200
@@ -50,11 +50,11 @@ sed -i \"8s/.*/        nElFY = $NF;/\" ./ROM_SPDE.m
 sed -i \"10s/.*/        lowerConductivity = $LOCOND;/\" ./ROM_SPDE.m
 sed -i \"11s/.*/        upperConductivity = $UPCOND;/\" ./ROM_SPDE.m
 sed -i \"13s/.*/        conductivityDistribution = \'$COVARIANCE\';/\" ./ROM_SPDE.m
-sed -i \"28s/.*/        nSets = \[$NSET1 $NSET2 $NSET3 $NSET4 $NSET5\];/\" ./ROM_SPDE.m
-sed -i \"124s/.*/\        useConvection = $CONVECTION;      %%Include a convection term to the pde?/\" ./ROM_SPDE.m
-sed -i \"132s/.*/\        conductivityLengthScaleDist = \'${LENGTHSCALEDIST}\';      %%delta for fixed length scale, lognormal for rand/\" ./ROM_SPDE.m
-sed -i \"133s/.*/\        conductivityDistributionParams = {$VOLFRAC \[$CORRLENGTH1 $CORRLENGTH2\] 1\};/\" ./ROM_SPDE.m
-sed -i \"140s/.*/        boundaryConditions = \'\[$BC1 $BC2 $BC3 $BC4\]\';/\" ./ROM_SPDE.m
+sed -i \"31s/.*/        nSets = \[$NSET1 $NSET2 $NSET3 $NSET4 $NSET5\];/\" ./ROM_SPDE.m
+sed -i \"127s/.*/\        useConvection = $CONVECTION;      %%Include a convection term to the pde?/\" ./ROM_SPDE.m
+sed -i \"135s/.*/\        conductivityLengthScaleDist = \'${LENGTHSCALEDIST}\';      %%delta for fixed length scale, lognormal for rand/\" ./ROM_SPDE.m
+sed -i \"136s/.*/\        conductivityDistributionParams = {$VOLFRAC \[$CORRLENGTH1 $CORRLENGTH2\] 1\};/\" ./ROM_SPDE.m
+sed -i \"143s/.*/        boundaryConditions = \'\[$BC1 $BC2 $BC3 $BC4\]\';/\" ./ROM_SPDE.m
 
 
 
