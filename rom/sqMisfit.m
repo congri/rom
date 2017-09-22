@@ -3,7 +3,7 @@ function [p_cf_exp] = sqMisfit(X, condTransOpts, domainc, Tf_i_minus_mu, theta_c
 %   X:  transformed conductivity (row vector)
 
 %transformed conductivity to conductivity
-conductivity = conductivityBackTransform(X, condTransOpts)
+conductivity = conductivityBackTransform(X, condTransOpts);
 
 %Set up conductivity tensors for each element
 for j = 1:domainc.nEl

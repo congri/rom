@@ -38,7 +38,7 @@ classdef ROM_SPDE
         %% Model training parameters
         nStart = 1;             %first training data sample in file
         nTrain = 16;            %number of samples used for training
-        mode = 'none';          %useNeighbor, useLocalNeighbor, useDiagNeighbor, useLocalDiagNeighbor, useLocal, global
+        mode = 'useLocal';          %useNeighbor, useLocalNeighbor, useDiagNeighbor, useLocalDiagNeighbor, useLocal, global
                                 %global: take whole microstructure as feature function input, not
                                 %only local window (only recommended for pooling)
         inferenceMethod = 'variationalInference';        %E-step inference method. variationalInference or monteCarlo
@@ -47,8 +47,8 @@ classdef ROM_SPDE
         linFilt
         
         useAutoEnc = false;     %Use autoencoder information? Do not forget to pre-train autoencoder!
-        globalPcaComponents = 6;   %Principal components of the whole microstructure used as features 
-        localPcaComponents = 12;     %Principal components of single macro-cell used as features
+        globalPcaComponents = 0;   %Principal components of the whole microstructure used as features 
+        localPcaComponents = 0;     %Principal components of single macro-cell used as features
         pcaSamples = 4096;
         secondOrderTerms;
         mix_S = 0;              %To slow down convergence of S
@@ -74,7 +74,7 @@ classdef ROM_SPDE
         conductivityTransformation;
         latentDim = 0;              %If autoencoder is used
         sumPhiTPhi;             %Design matrix precomputation
-        padding = 0;           %How many pixels around macro-cell should be considered in local features?
+        padding = 2;           %How many pixels around macro-cell should be considered in local features?
         
         %% Feature function rescaling parameters
         featureScaling = 'normalize'; %'standardize' for zero mean and unit variance of features, 'rescale' to have
@@ -801,7 +801,7 @@ classdef ROM_SPDE
 %                     if(numel(obj.thetaPriorHyperparam) == dim_theta)
                         obj.thetaPriorHyperparam = .5*obj.thetaPriorHyperparam;
                     else
-                        obj.thetaPriorHyperparam = 1e-2*ones(dim_theta, 1);
+                        obj.thetaPriorHyperparam = 1e4*ones(dim_theta, 1);
                     end
                 end
                 while(~converged)
@@ -816,8 +816,8 @@ classdef ROM_SPDE
                         theta_prior_hyperparam_old = obj.thetaPriorHyperparam;
                         obj.thetaPriorHyperparam = 1./(muTilde.^2 + diag(SigmaTilde));
                     end
-                    if(norm(obj.thetaPriorHyperparam - theta_prior_hyperparam_old)/norm(obj.thetaPriorHyperparam)...
-                            < 1e-5 || iter > 2000)
+                    if(norm(1./obj.thetaPriorHyperparam - 1./theta_prior_hyperparam_old)/...
+                            norm(1./obj.thetaPriorHyperparam) < 1e-5 || iter > 200)
                         converged = true;
                     elseif(any(~isfinite(obj.thetaPriorHyperparam)) || any(obj.thetaPriorHyperparam <= 0))
                         converged = true;
@@ -853,6 +853,7 @@ classdef ROM_SPDE
                 if (strcmp(obj.thetaPriorType, 'gaussian') || strcmp(obj.thetaPriorType, 'RVM') ||...
                         strcmp(obj.thetaPriorType, 'none') || strcmp(obj.thetaPriorType, 'adaptiveGaussian'))
                     theta_temp = sumPhiTSigmaInvPhi\sumPhiTSigmaInvXmean;
+                    converged = true;   %is this true? we do not need to iteratively maximize theta
                 else
                     theta_temp = U*((U*sumPhiTSigmaInvPhi*U + I)\U)*sumPhiTSigmaInvXmean;
                 end
@@ -3516,6 +3517,7 @@ classdef ROM_SPDE
                         end
                         drawnow
                     end
+                    size(localComponents)
                     for n = 1:obj.localPcaComponents
                         for k = 1:obj.coarseScaleDomain.nEl
                             phi{k, nFeatures + n} = @(lambda) localComponents(:, n)'*lambda(:);

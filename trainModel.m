@@ -240,8 +240,13 @@ while true
             romObj.XSqMean(:, i) = varDistParams{i}.XSqMean;
             
             Tf_i_minus_mu = romObj.fineScaleDataOutput(:, i) - romObj.theta_cf.mu;
-            p_cf_expHandle{i} = @(X) sqMisfit(X, romObj.conductivityTransformation,...
-                cd(i), Tf_i_minus_mu, romObj.theta_cf);
+            if(any(romObj.boundaryConditionVariance))
+                p_cf_expHandle{i} = @(X) sqMisfit(X, romObj.conductivityTransformation,...
+                    cd(i), Tf_i_minus_mu, romObj.theta_cf);
+            else
+                p_cf_expHandle{i} = @(X) sqMisfit(X, romObj.conductivityTransformation,...
+                    cd, Tf_i_minus_mu, romObj.theta_cf);
+            end
             %Expectations under variational distributions
             romObj.varExpect_p_cf_exp(:, i) = mcInference(p_cf_expHandle{i}, variationalDist, varDistParams{i});
         end
