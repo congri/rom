@@ -7,7 +7,7 @@ NTRAIN=128
 NSTART=1	#First training data sample in data file
 VOLFRAC=-1	#Theoretical volume fraction; -1 for uniform random volume fraction
 LOCOND=1
-HICOND=100
+HICOND=10
 PRIORTYPE=RVM
 HYPERPARAM1=[]	#prior hyperparameter
 HYPERPARAM2=[]
@@ -15,14 +15,14 @@ NCX=\[.25\ .25\ .25\ .25\]
 NCY=\[.25\ .25\ .25\ .25\]
 BC="[0 800 1200 -2000]"
 BC2=\[0\ 800\ 1200\ -2000\]
-NCORES=8
+NCORES=16
 if [ $NTRAIN -lt $NCORES ]; then
 $NCORES=$NTRAIN
 fi
 echo N_cores=
 echo $NCORES
 
-NAMEBASE="padding2"
+NAMEBASE="local_RVM"
 DATESTR=`date +%m-%d-%H-%M-%S`	#datestring for jobfolder name
 PROJECTDIR="/home/constantin/matlab/projects/rom"
 JOBNAME="${NAMEBASE}_nTrain=${NTRAIN}_Nc=${NCX}_${NCY}"

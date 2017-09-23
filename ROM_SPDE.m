@@ -47,8 +47,8 @@ classdef ROM_SPDE
         linFilt
         
         useAutoEnc = false;     %Use autoencoder information? Do not forget to pre-train autoencoder!
-        globalPcaComponents = 0;   %Principal components of the whole microstructure used as features 
-        localPcaComponents = 0;     %Principal components of single macro-cell used as features
+        globalPcaComponents = 6;   %Principal components of the whole microstructure used as features 
+        localPcaComponents = 12;     %Principal components of single macro-cell used as features
         pcaSamples = 4096;
         secondOrderTerms;
         mix_S = 0;              %To slow down convergence of S
@@ -59,7 +59,7 @@ classdef ROM_SPDE
         %% Prior specifications
         sigmaPriorType = 'expSigSq';    %none, delta, expSigSq
         sigmaPriorHyperparam = 50;
-        thetaPriorType = 'RVM';
+        thetaPriorType = 'sharedRVM';
         thetaPriorHyperparam = [0 1e-8];
         
         %% Model parameters
@@ -74,7 +74,7 @@ classdef ROM_SPDE
         conductivityTransformation;
         latentDim = 0;              %If autoencoder is used
         sumPhiTPhi;             %Design matrix precomputation
-        padding = 2;           %How many pixels around macro-cell should be considered in local features?
+        padding = 0;           %How many pixels around macro-cell should be considered in local features?
         
         %% Feature function rescaling parameters
         featureScaling = 'normalize'; %'standardize' for zero mean and unit variance of features, 'rescale' to have
@@ -151,6 +151,7 @@ classdef ROM_SPDE
         %Design matrices. Cell index gives data point, row index coarse cell, and column index
         %feature function
         designMatrix
+        originalDesignMatrix    %design matrix without any locality mode
         testDesignMatrix    %design matrices on independent test set
         kernelMatrix
     end
@@ -774,9 +775,11 @@ classdef ROM_SPDE
             
             %sum_i Phi_i^T Sigma^-1 <X^i>_qi
             sumPhiTSigmaInvXmean = 0;
+            sumPhiTSigmaInvXmeanOriginal = 0;
             SigmaInv = obj.theta_c.SigmaInv;
             SigmaInvXMean = SigmaInv*obj.XMean;
             sumPhiTSigmaInvPhi = 0;
+            sumPhiTSigmaInvPhiOriginal = 0;
             if obj.useConvection
                 PhiThetaMat = zeros(3*obj.coarseScaleDomain.nEl, obj.nTrain);
             else
@@ -786,11 +789,18 @@ classdef ROM_SPDE
             for n = 1:obj.nTrain
                 sumPhiTSigmaInvXmean = sumPhiTSigmaInvXmean + obj.designMatrix{n}'*SigmaInvXMean(:, n);
                 sumPhiTSigmaInvPhi = sumPhiTSigmaInvPhi + obj.designMatrix{n}'*SigmaInv*obj.designMatrix{n};
+                if strcmp(obj.thetaPriorType, 'sharedRVM')
+                    sumPhiTSigmaInvXmeanOriginal = sumPhiTSigmaInvXmeanOriginal + ...
+                        obj.originalDesignMatrix{n}'*SigmaInvXMean(:, n);
+                    sumPhiTSigmaInvPhiOriginal = sumPhiTSigmaInvPhiOriginal + ...
+                        obj.originalDesignMatrix{n}'*SigmaInv*obj.originalDesignMatrix{n};
+                end
                 PhiThetaMat(:, n) = obj.designMatrix{n}*obj.theta_c.theta;
             end
             
             stabilityParam = 1e-10;    %for stability in matrix inversion
-            if(strcmp(obj.thetaPriorType, 'adaptiveGaussian') || strcmp(obj.thetaPriorType, 'RVM'))
+            if(strcmp(obj.thetaPriorType, 'adaptiveGaussian') || strcmp(obj.thetaPriorType, 'RVM') || ...
+                    strcmp(obj.thetaPriorType, 'sharedRVM'))
                 %Find prior hyperparameter by max marginal likelihood
                 converged = false;
                 iter = 0;
@@ -801,7 +811,14 @@ classdef ROM_SPDE
 %                     if(numel(obj.thetaPriorHyperparam) == dim_theta)
                         obj.thetaPriorHyperparam = .5*obj.thetaPriorHyperparam;
                     else
-                        obj.thetaPriorHyperparam = 1e4*ones(dim_theta, 1);
+                        obj.thetaPriorHyperparam = 1e2*ones(dim_theta, 1);
+                    end
+                elseif strcmp(obj.thetaPriorType, 'sharedRVM')
+                    if false
+                        obj.thetaPriorHyperparam = .5*obj.thetaPriorHyperparam;
+                    else
+                        nFeatures = size(obj.originalDesignMatrix{1}, 2);
+                        obj.thetaPriorHyperparam = 1e2*ones(dim_theta, 1);
                     end
                 end
                 while(~converged)
@@ -815,9 +832,16 @@ classdef ROM_SPDE
                         muTilde = SigmaTilde*sumPhiTSigmaInvXmean;
                         theta_prior_hyperparam_old = obj.thetaPriorHyperparam;
                         obj.thetaPriorHyperparam = 1./(muTilde.^2 + diag(SigmaTilde));
+                    elseif strcmp(obj.thetaPriorType, 'sharedRVM')
+                        SigmaTilde = inv(sumPhiTSigmaInvPhiOriginal + ...
+                            diag(obj.thetaPriorHyperparam(1:nFeatures) + stabilityParam));
+                        muTilde = SigmaTilde*sumPhiTSigmaInvXmeanOriginal;
+                        theta_prior_hyperparam_old = obj.thetaPriorHyperparam;
+                        obj.thetaPriorHyperparam = 1./(muTilde.^2 + diag(SigmaTilde));
+                        obj.thetaPriorHyperparam = repmat(obj.thetaPriorHyperparam, obj.coarseScaleDomain.nEl, 1);
                     end
                     if(norm(1./obj.thetaPriorHyperparam - 1./theta_prior_hyperparam_old)/...
-                            norm(1./obj.thetaPriorHyperparam) < 1e-5 || iter > 200)
+                            norm(1./obj.thetaPriorHyperparam) < 1e-5 || iter > 2000)
                         converged = true;
                     elseif(any(~isfinite(obj.thetaPriorHyperparam)) || any(obj.thetaPriorHyperparam <= 0))
                         converged = true;
@@ -843,7 +867,7 @@ classdef ROM_SPDE
                         (obj.thetaPriorHyperparam(1) + .5)));
                 elseif(strcmp(obj.thetaPriorType, 'gaussian') || strcmp(obj.thetaPriorType, 'adaptiveGaussian'))
                     sumPhiTSigmaInvPhi = sumPhiTSigmaInvPhi + (obj.thetaPriorHyperparam(1) + stabilityParam)*I;
-                elseif strcmp(obj.thetaPriorType, 'RVM')
+                elseif(strcmp(obj.thetaPriorType, 'RVM') || strcmp(obj.thetaPriorType, 'sharedRVM'))
                     sumPhiTSigmaInvPhi = sumPhiTSigmaInvPhi + diag(obj.thetaPriorHyperparam + stabilityParam);
                 elseif strcmp(obj.thetaPriorType, 'none')
                 else
@@ -851,7 +875,8 @@ classdef ROM_SPDE
                 end
                 
                 if (strcmp(obj.thetaPriorType, 'gaussian') || strcmp(obj.thetaPriorType, 'RVM') ||...
-                        strcmp(obj.thetaPriorType, 'none') || strcmp(obj.thetaPriorType, 'adaptiveGaussian'))
+                        strcmp(obj.thetaPriorType, 'none') || strcmp(obj.thetaPriorType, 'adaptiveGaussian') || ...
+                        strcmp(obj.thetaPriorType, 'sharedRVM'))
                     theta_temp = sumPhiTSigmaInvPhi\sumPhiTSigmaInvXmean;
                     converged = true;   %is this true? we do not need to iteratively maximize theta
                 else
@@ -1791,6 +1816,7 @@ classdef ROM_SPDE
                 %loading
                 if strcmp(mode, 'train')
                     designMatrix = obj.designMatrix;
+                    obj.originalDesignMatrix = obj.designMatrix;
                     save(strcat('./persistentData/', mode, 'DesignMatrix.mat'), 'designMatrix')
                 end
             end
@@ -1820,6 +1846,8 @@ classdef ROM_SPDE
             elseif strcmp(obj.mode, 'useLocal')
                 %Use separate parameters for every macro-cell
                 obj = obj.localTheta_c(PhiCell, mode);
+            else
+                obj.originalDesignMatrix = [];
             end
             obj = obj.computeSumPhiTPhi;
             Phi_computation_time = toc
