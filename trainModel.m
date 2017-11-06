@@ -24,6 +24,7 @@ delete('./data/*')  %delete old data
 
 %initialize reduced order model object
 romObj = ROM_SPDE('train')
+tempArray = zeros(romObj.fineScaleDomain.nNodes, romObj.nTrain); %prealloc for p_cf inference
 %% Load training data
 % romObj = romObj.loadTrainingData;
 %Get model and training parameters
@@ -40,7 +41,7 @@ if(size(romObj.designMatrix{1}, 2) ~= size(romObj.theta_c.theta))
     romObj.theta_c.theta = zeros(size(romObj.designMatrix{1}, 2), 1);
 end
 %random initialization
-romObj.theta_c.theta = normrnd(0, 1, size(romObj.theta_c.theta));
+%romObj.theta_c.theta = normrnd(0, 1, size(romObj.theta_c.theta));
 % romObj.theta_c.theta(1) = 0;
 
 if strcmp(romObj.inferenceMethod, 'monteCarlo')
@@ -83,7 +84,8 @@ while true
             bcQ{4} = @(y) -(bc{j}(2) + bc{j}(4)*y);      %left bound
             cd(i) = romObj.coarseScaleDomain;
             cd(i) = cd(i).setBoundaries([2:(2*nX + 2*nY)], bcT, bcQ);
-            log_qi{i} = @(Xi) log_q_i(Xi, Tf_i_minus_mu, tcf, tc, PhiMat, cd(i), ct);
+            cd_i = cd(i);
+            log_qi{i} = @(Xi) log_q_i(Xi, Tf_i_minus_mu, tcf, tc, PhiMat, cd_i, ct);
         else
             %Every coarse model has the same boundary conditions
             cd = romObj.coarseScaleDomain;
@@ -191,7 +193,7 @@ while true
             %sample i
             Tc_samples(:, :, i) = reshape(cell2mat(out(i).data), romObj.coarseScaleDomain.nNodes, MCMC(i).nSamples);
             %only valid for diagonal S here!
-            romObj.varExpect_p_cf_exp(:, i) = mean((repmat(Tf_i_minus_mu, 1, MCMC(i).nSamples)...
+            tempArray(:, i) = mean((repmat(Tf_i_minus_mu, 1, MCMC(i).nSamples)...
                 - romObj.theta_cf.W*Tc_samples(:, :, i)).^2, 2);
             
         end
@@ -206,7 +208,7 @@ while true
                 pstart = 1;
                 romObj.epoch = romObj.epoch + 1;
             end
-            pend = pstart + ppool.NumWorkers - 1;
+            pend = pstart + 8*ppool.NumWorkers - 1;
             if pend > romObj.nTrain
                 pend = romObj.nTrain;
             elseif pend < pstart
@@ -248,8 +250,9 @@ while true
                     cd, Tf_i_minus_mu, romObj.theta_cf);
             end
             %Expectations under variational distributions
-            romObj.varExpect_p_cf_exp(:, i) = mcInference(p_cf_expHandle{i}, variationalDist, varDistParams{i});
+            tempArray(:, i) = mcInference(p_cf_expHandle{i}, variationalDist, varDistParams{i});
         end
+        romObj.varExpect_p_cf_exp_mean = mean(tempArray, 2);
         inference_time = toc
         tic
         %         save('./data/variationalDistributions.mat', 'vi');
@@ -258,13 +261,15 @@ while true
     end
 
     %M-step: determine optimal parameters given the sample set
+    tic
     romObj = romObj.M_step;
+    M_step_time = toc
     romObj.dispCurrentParams;
     iterations = romObj.EM_iterations
     epochs = romObj.epoch
     romObj = romObj.linearFilterUpdate;
     
-    plotTheta = true;
+    plotTheta = feature('ShowFigureWindows');
     if plotTheta
         if ~exist('figureTheta')
             figureTheta = figure;
@@ -294,10 +299,20 @@ while true
         break;
     end
 end
+clear tempArray;
 runtime = toc
 
 
+romObj = romObj.predict;
 
+predMetrics.meanSqDist = romObj.meanSquaredDistance;
+predMetrics.meanLogLikelihood = romObj.meanLogLikelihood;
+predMetrics.meanPerp = romObj.meanPerplexity;
+predMetrics.maha = romObj.meanMahalanobisError;
+predMetrics.meanSqDistField = romObj.meanSquaredDistanceField;
+
+%save predictions
+save('./predictions.mat', 'predMetrics');
 
 
 

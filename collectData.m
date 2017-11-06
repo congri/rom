@@ -59,7 +59,11 @@ save(filename, 'theta', '-ascii', '-append');
 
 %sigma
 filename = './data/sigma';
-sigma = full(diag(romObj.theta_c.Sigma))';
+if romObj.theta_c.full_Sigma
+    sigma = romObj.theta_c.Sigma(:)';
+else
+    sigma = full(diag(romObj.theta_c.Sigma))';
+end
 save(filename, 'sigma', '-ascii', '-append');
 
 %S

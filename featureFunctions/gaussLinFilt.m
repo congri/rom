@@ -1,21 +1,24 @@
-function [X] = gaussLinFilt(lambda, muGaussFilt, sigmaGaussFilt)
+function [X] = gaussLinFilt(lambda, muGaussFilt, sigmaGaussFiltFactor)
 %Gaussian shaped linear filter centered at the element center
 
-if nargin < 2
+if(nargin < 2 || any(isnan(muGaussFilt)))
     muGaussFilt = [(size(lambda, 1) + 1)/2 (size(lambda, 2) + 1)/2];
 end
 if nargin < 3
-    sigmaGaussFilt = 10*[size(lambda, 1) size(lambda, 2)];
+    sigmaGaussFiltFactor = 10;
 end
+sigmaGaussFilt = sigmaGaussFiltFactor*[size(lambda, 1) size(lambda, 2)];
+
 [x, y] = meshgrid(1:size(lambda, 1), 1:size(lambda, 2));
 xy = [x(:) y(:)];
 w = mvnpdf(xy, muGaussFilt, sigmaGaussFilt);
-w = w/norm(w, 1);
+w = w/sum(w);
 w = reshape(w, size(lambda, 1), size(lambda, 2));
 
 debug = false;
 if debug
     figure
+    subplot(1,2,1)
     imagesc(w)
     drawnow
     pause

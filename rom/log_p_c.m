@@ -9,7 +9,8 @@ mu  = Phi*theta_c.theta;    %mean
 %ignore constant prefactor
 % log_p = - size(Xq, 1)*log(sigma) - (1/(2*sigma^2))*(Xq - mu)'*(Xq - mu);
 %Diagonal covariance matrix Sigma
-log_p = - .5*sum(log(diag(theta_c.Sigma))) - .5*(Xq - mu)'*theta_c.SigmaInv*(Xq - mu);
+% log_p = - .5*sum(log(diag(theta_c.Sigma))) - .5*(Xq - mu)'*theta_c.SigmaInv*(Xq - mu);
+log_p = - .5*logdet(theta_c.Sigma) - .5*(Xq - mu)'*theta_c.SigmaInv*(Xq - mu);
 
 if nargout > 1
     d_log_p = theta_c.SigmaInv*(mu - Xq);

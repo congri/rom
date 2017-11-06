@@ -15,7 +15,7 @@ nSamples = 10;                  %gradient samples per iteration
 converged = false;
 steps = 0;
 maxIterations = 10000;
-maxCompTime = 30;
+maxCompTime = 15;
 tic;
 
 if strcmp(variationalDist, 'diagonalGauss')

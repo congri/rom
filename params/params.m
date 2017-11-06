@@ -5,8 +5,8 @@ loadOldConf = false;
 
 %linear filter options
 romObj.linFilt.type = 'local';  %local or global
-romObj.linFilt.gap = 30;
-romObj.linFilt.initialEpochs = 10;
+romObj.linFilt.gap = 0;
+romObj.linFilt.initialEpochs = 100;
 romObj.linFilt.updates = 0;     %Already added linear filters
 romObj.linFilt.totalUpdates = 0;
 romObj.maxEpochs = (romObj.linFilt.totalUpdates + 1)*romObj.linFilt.gap - 2 + romObj.linFilt.initialEpochs;
@@ -46,8 +46,10 @@ else
     else
         romObj.theta_c.Sigma = 1e0*speye(romObj.coarseScaleDomain.nEl);
     end
-    s = diag(romObj.theta_c.Sigma);
-    romObj.theta_c.SigmaInv = sparse(diag(1./s));
+%     s = diag(romObj.theta_c.Sigma);
+%     romObj.theta_c.SigmaInv = sparse(diag(1./s));
+    romObj.theta_c.SigmaInv = inv(romObj.theta_c.Sigma);
+    romObj.theta_c.full_Sigma = false;
 end
 romObj.theta_cf.Sinv = sparse(1:romObj.fineScaleDomain.nNodes, 1:romObj.fineScaleDomain.nNodes, 1./romObj.theta_cf.S);
 romObj.theta_cf.Sinv_vec = 1./romObj.theta_cf.S;

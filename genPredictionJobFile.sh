@@ -1,32 +1,29 @@
-N_SAMPLES_P_C=10000
 TESTSAMPLE_LO=1
-TESTSAMPLE_UP=256
-TESTFILEPATH="~\/matlab\/data\/fineData\/systemSize=256x256\/correlated_binary\/IsoSEcov\/l=20_sigmafSq=1\/volumeFraction=0.2\/locond=1_upcond=10\/BCcoeffs=[-50 164 112 -30]\/set2-samples=256.mat"
+TESTSAMPLE_UP=1024
 CWD=$(printf "%q\n" "$(pwd)")
 
 JOBNAME="prediction"
+DATESTR=`date +%m-%d-%H-%M-%S`	#datestring for output name
+SPOOL_FILE=/home/constantin/spooledOutput/${DATESTR}_${JOBNAME}
 
 #delete old job file
 rm job_file.sh
 #write job file
 printf "#PBS -N $JOBNAME
-#PBS -l nodes=1:ppn=16,walltime=240:00:00
-#PBS -o ~/OEfiles
-#PBS -e ~/OEfiles
+#PBS -l nodes=1:ppn=8,walltime=240:00:00
+#PBS -o /home/constantin/OEfiles
+#PBS -e /home/constantin/OEfiles
 #PBS -m abe
 #PBS -M mailscluster@gmail.com
 
 #Switch to job directory
 cd $CWD
 #Set parameters
-sed -i \"2s/.*/nSamples_p_c = $N_SAMPLES_P_C;/\" ./predictionScript.m
-sed -i \"3s/.*/testSample_lo = $TESTSAMPLE_LO;/\" ./predictionScript.m
-sed -i \"4s/.*/testSample_up = $TESTSAMPLE_UP;/\" ./predictionScript.m
-sed -i \"6s/.*/'${TESTFILEPATH}';/\" ./predictionScript.m
+sed -i \"3s/.*/romObjPred.testSamples = $TESTSAMPLE_LO:$TESTSAMPLE_UP;/\" ./predictionScript.m
 
 
 #Run Matlab
-/home/matlab/R2017a/bin/matlab -nodesktop -nodisplay -nosplash -r \"predictionScript ; quit;\"" >> job_file.sh
+/home/matlab/R2017a/bin/matlab -nodesktop -nodisplay -nosplash -r \"predictionScript ; quit;\" | tee ${SPOOL_FILE}" >> job_file.sh
 
 chmod +x job_file.sh
 #directly submit job file
