@@ -1,11 +1,11 @@
 #PBS -N mllRef
-#PBS -l nodes=node14:ppn=1,walltime=240:00:00
+#PBS -l nodes=node15:ppn=1,walltime=240:00:00
 #PBS -o /home/constantin/OEfiles
 #PBS -e /home/constantin/OEfiles
 #PBS -m abe
 #PBS -M mailscluster@gmail.com
 
-N=64
+N=4
 
 NAMEBASE="mllReference_N=${N}"
 DATESTR=`date +%m-%d-%H-%M-%N`	#datestring for jobfolder name

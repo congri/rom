@@ -250,7 +250,21 @@ while true
                     cd, Tf_i_minus_mu, romObj.theta_cf);
             end
             %Expectations under variational distributions
-            tempArray(:, i) = mcInference(p_cf_expHandle{i}, variationalDist, varDistParams{i});
+            if romObj.free_W
+                [p_cf_exp, Tc_i, TcTcT_i] = mcInference(p_cf_expHandle{i}, variationalDist, varDistParams{i});
+                Tc(:, i) = Tc_i;
+                TcTcT(:, :, i) = TcTcT_i;
+            else
+                p_cf_exp = mcInference(p_cf_expHandle{i}, variationalDist, varDistParams{i});
+            end
+            tempArray(:, i) = p_cf_exp;
+        end
+        if romObj.free_W
+            romObj.mean_TfTcT = 0;
+            for i = 1:romObj.nTrain
+                romObj.mean_TfTcT = (1/i)*((i - 1)*romObj.mean_TfTcT + romObj.fineScaleDataOutput(:, i)*Tc(:, i)');
+            end
+            romObj.mean_TcTcT = mean(TcTcT, 3);
         end
         romObj.varExpect_p_cf_exp_mean = mean(tempArray, 2);
         inference_time = toc

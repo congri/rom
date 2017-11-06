@@ -8,7 +8,7 @@ classdef ROM_SPDE
         nElFY = 256;
         %Finescale conductivities, binary material
         lowerConductivity = 1;
-        upperConductivity = 2;
+        upperConductivity = 100;
         %Conductivity field distribution type
         conductivityDistribution = 'squaredExponential';
         %Boundary condition functions; evaluate those on boundaries to get boundary conditions
@@ -37,7 +37,7 @@ classdef ROM_SPDE
         neighborDictionary; %Gives neighbors of macrocells
         %% Model training parameters
         nStart = 1;             %first training data sample in file
-        nTrain = 16;            %number of samples used for training
+        nTrain = 32;            %number of samples used for training
         mode = 'none';          %useNeighbor, useLocalNeighbor, useDiagNeighbor, useLocalDiagNeighbor, useLocal, global
                                 %global: take whole microstructure as feature function input, not
                                 %only local window (only recommended for pooling)
@@ -65,6 +65,7 @@ classdef ROM_SPDE
         %% Model parameters
         theta_c;
         theta_cf;
+        free_W = false;
         featureFunctions;       %Cell array containing local feature function handles
         globalFeatureFunctions; %cell array with handles to global feature functions
         convectionFeatureFunctions;       %Cell array containing local convection feature function handles
@@ -119,6 +120,8 @@ classdef ROM_SPDE
         varExpect_p_cf_exp_mean;
         XMean;                  %Expected value of X under q
         XSqMean;                %<X^2>_q
+        mean_TfTcT;
+        mean_TcTcT;
         thetaArray;
         thetaHyperparamArray;
         sigmaArray;
@@ -803,15 +806,27 @@ classdef ROM_SPDE
             disp('M-step: find optimal params...')
             %Optimal S (decelerated convergence)
             lowerBoundS = eps;
-%             S = 1e8*ones(257, 257);
             obj.theta_cf.S = (1 - obj.mix_S)*obj.varExpect_p_cf_exp_mean...
                 + obj.mix_S*obj.theta_cf.S + lowerBoundS*ones(obj.fineScaleDomain.nNodes, 1);
 
-%             S2 = reshape(obj.theta_cf.S, 257, 257);
-%             S(1:64:257, 1:64:257) = S2(1:64:257, 1:64:257);
-%             s = S(1:64:257, 1:64:257)
-%             ms = mean(s)
-%             obj.theta_cf.S = S(:);
+            if obj.free_W
+                obj.mean_TcTcT(obj.coarseScaleDomain.essentialNodes, :) = [];
+                obj.mean_TcTcT(:, obj.coarseScaleDomain.essentialNodes) = [];
+                if isempty(obj.fineScaleDomain.essentialNodes)
+                    warning('No essential nodes stored in fineScaleDomain. Setting first node to be essential.')
+                    obj.fineScaleDomain.essentialNodes = 1;
+                end
+                obj.mean_TfTcT(obj.fineScaleDomain.essentialNodes, :) = [];
+                obj.mean_TfTcT(:, obj.coarseScaleDomain.essentialNodes) = [];
+                W_temp = obj.mean_TfTcT/obj.mean_TcTcT;
+                
+                natNodesFine = 1:obj.fineScaleDomain.nNodes;
+                natNodesFine(obj.fineScaleDomain.essentialNodes) = [];
+                natNodesCoarse = 1:obj.coarseScaleDomain.nNodes;
+                natNodesCoarse(obj.coarseScaleDomain.essentialNodes) = [];
+                obj.theta_cf.W(natNodesFine, natNodesCoarse) = W_temp;
+            end
+            
             obj.theta_cf.Sinv = sparse(1:obj.fineScaleDomain.nNodes,...
                 1:obj.fineScaleDomain.nNodes, 1./obj.theta_cf.S);
             obj.theta_cf.Sinv_vec = 1./obj.theta_cf.S;
@@ -822,11 +837,7 @@ classdef ROM_SPDE
             theta_old = obj.theta_c.theta;
             
             obj = obj.updateTheta_c;
-%             obj.theta_c.thetaPriorType = obj.thetaPriorType;
-%             obj.theta_c.priorHyperparam = obj.thetaPriorHyperparam;
-%             
-%             obj.theta_c = optTheta_c(obj.theta_c, obj.nTrain, obj.coarseScaleDomain.nEl, obj.XSqMean,...
-%                 obj.designMatrix, obj.XMean, obj.sigmaPriorType, obj.sigmaPriorHyperparam)
+
             obj.theta_c.Sigma = (1 - obj.mix_sigma)*obj.theta_c.Sigma + obj.mix_sigma*Sigma_old;
             obj.theta_c.theta = (1 - obj.mix_theta)*obj.theta_c.theta + obj.mix_theta*theta_old;
             
@@ -1388,7 +1399,7 @@ classdef ROM_SPDE
                 obj.predVarArray = TfVarArray;
             end
             
-            plotPrediction = false;
+            plotPrediction = true;
             if plotPrediction
                 f = figure('units','normalized','outerposition',[0 0 1 1]);
                 pstart = 1;
