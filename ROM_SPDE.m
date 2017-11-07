@@ -8,7 +8,7 @@ classdef ROM_SPDE
         nElFY = 256;
         %Finescale conductivities, binary material
         lowerConductivity = 1;
-        upperConductivity = 2;
+        upperConductivity = 100;
         %Conductivity field distribution type
         conductivityDistribution = 'squaredExponential';
         %Boundary condition functions; evaluate those on boundaries to get boundary conditions
@@ -65,7 +65,7 @@ classdef ROM_SPDE
         %% Model parameters
         theta_c;
         theta_cf;
-        free_W = true;
+        free_W = false;
         featureFunctions;       %Cell array containing local feature function handles
         globalFeatureFunctions; %cell array with handles to global feature functions
         convectionFeatureFunctions;       %Cell array containing local convection feature function handles
@@ -1198,9 +1198,8 @@ classdef ROM_SPDE
             end
             
             if(nargin > 2)
+                %Predict on different boundary conditions
                 obj = obj.setBoundaryConditions(boundaryConditions);
-                %Set handles to boundary condition functions
-%                 obj = obj.genBoundaryConditionFunctions; %obsolete?
                 
                 %Set up coarseScaleDomain; must be done after boundary conditions are set up
                 obj = obj.genCoarseDomain;
