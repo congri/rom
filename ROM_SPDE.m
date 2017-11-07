@@ -8,7 +8,7 @@ classdef ROM_SPDE
         nElFY = 256;
         %Finescale conductivities, binary material
         lowerConductivity = 1;
-        upperConductivity = 100;
+        upperConductivity = 2;
         %Conductivity field distribution type
         conductivityDistribution = 'squaredExponential';
         %Boundary condition functions; evaluate those on boundaries to get boundary conditions
@@ -58,14 +58,14 @@ classdef ROM_SPDE
         
         %% Prior specifications
         sigmaPriorType = 'none';    %none, delta, expSigSq
-        sigmaPriorHyperparam = 50;
+        sigmaPriorHyperparam = 1;
         thetaPriorType = 'RVM';
         thetaPriorHyperparam = [0 1e-30];
         
         %% Model parameters
         theta_c;
         theta_cf;
-        free_W = false;
+        free_W = true;
         featureFunctions;       %Cell array containing local feature function handles
         globalFeatureFunctions; %cell array with handles to global feature functions
         convectionFeatureFunctions;       %Cell array containing local convection feature function handles
@@ -1221,11 +1221,12 @@ classdef ROM_SPDE
                 bcVar = ismember('bc', {tempVars.name});
             end
             obj = obj.loadTrainedParams;
-
             if strcmp(mode, 'self')
                 obj = obj.computeDesignMatrix('train');
+                designMatrixPred = obj.designMatrix;
             else
                 obj = obj.computeDesignMatrix('test');
+                designMatrixPred = obj.testDesignMatrix;
             end
             
             %% Sample from p_c
@@ -1274,10 +1275,10 @@ classdef ROM_SPDE
                     for j = 1:nSamples
                         Sigma2 = exp(normrnd(log(diag(obj.theta_c.Sigma))', stdLogSigma));
                         Sigma2 = diag(obj.theta_c.Sigma);
-                        Xsamples(:, j, i) = mvnrnd((obj.testDesignMatrix{i}*theta(:, j))', Sigma2)';
+                        Xsamples(:, j, i) = mvnrnd((designMatrixPred{i}*theta(:, j))', Sigma2)';
                     end
                 else
-                    Xsamples(:, :, i) = mvnrnd((obj.testDesignMatrix{i}*obj.theta_c.theta)',...
+                    Xsamples(:, :, i) = mvnrnd((designMatrixPred{i}*obj.theta_c.theta)',...
                         obj.theta_c.Sigma, nSamples)';
                 end
                 %Conductivities
