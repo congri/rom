@@ -13,6 +13,8 @@ if strcmp(variationalDist, 'diagonalGauss')
             [p_cf_exp, Tc, TcTcT] = functionHandle(samples(i, :));
             E2 = (1/i)*((i - 1)*E2 + Tc);
             E3 = (1/i)*((i - 1)*E3 + TcTcT);
+        else
+            [p_cf_exp, Tc, TcTcT] = functionHandle(samples(i, :));
         end
         E = (1/i)*((i - 1)*E + p_cf_exp);
     end
