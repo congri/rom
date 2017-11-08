@@ -65,7 +65,7 @@ classdef ROM_SPDE
         %% Model parameters
         theta_c;
         theta_cf;
-        free_W = false;
+        free_W = true;
         featureFunctions;       %Cell array containing local feature function handles
         globalFeatureFunctions; %cell array with handles to global feature functions
         convectionFeatureFunctions;       %Cell array containing local convection feature function handles
