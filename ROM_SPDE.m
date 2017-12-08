@@ -8,7 +8,7 @@ classdef ROM_SPDE
         nElFY = 256;
         %Finescale conductivities, binary material
         lowerConductivity = 1;
-        upperConductivity = 100;
+        upperConductivity = 2;
         %Conductivity field distribution type
         conductivityDistribution = 'squaredExponential';
         %Boundary condition functions; evaluate those on boundaries to get boundary conditions
@@ -19,7 +19,7 @@ classdef ROM_SPDE
         
         naturalNodes;
         %Directory where finescale data is stored; specify basename here
-        fineScaleDataPath = '~/matlab/data/fineData/';
+        fineScaleDataPath = '~/cluster/matlab/data/fineData/';
         %matfile handle
         trainingDataMatfile;
         testDataMatfile;
@@ -37,7 +37,7 @@ classdef ROM_SPDE
         neighborDictionary; %Gives neighbors of macrocells
         %% Model training parameters
         nStart = 1;             %first training data sample in file
-        nTrain = 32;            %number of samples used for training
+        nTrain = 16;            %number of samples used for training
         mode = 'none';          %useNeighbor, useLocalNeighbor, useDiagNeighbor, useLocalDiagNeighbor, useLocal, global
                                 %global: take whole microstructure as feature function input, not
                                 %only local window (only recommended for pooling)
@@ -95,7 +95,7 @@ classdef ROM_SPDE
         
         %% Prediction parameters
         nSamples_p_c = 1000;
-        useLaplaceApproximation = false;   %Use Laplace approx around MAP for prediction?
+        useLaplaceApproximation = true;   %Use Laplace approx around MAP for prediction?
         testSamples = [1:1024];       %pick out specific test samples here
         trainingSamples;   %pick out specific training samples here
         
@@ -1453,6 +1453,157 @@ classdef ROM_SPDE
             end
         end
 
+        function [predMean, predSqMean] = randThetaPredict(obj, mode, nSamplesTheta, boundaryConditions)
+            %Function to predict finescale output from generative model
+            
+            if(nargin < 2)
+                mode = 'test';
+            end
+            
+            if(nargin > 3)
+                %Predict on different boundary conditions
+                obj = obj.setBoundaryConditions(boundaryConditions);
+                
+                %Set up coarseScaleDomain; must be done after boundary conditions are set up
+                obj = obj.genCoarseDomain;
+            end
+                
+            %Load test file
+            if strcmp(mode, 'self')
+                %Self-prediction on training set
+                assert(~obj.useKernels, 'Self-prediction using kernel regression not yet implemented')
+                Tf = obj.trainingDataMatfile.Tf(:, obj.nStart:(obj.nStart + obj.nTrain - 1));
+                tempVars = whos(obj.trainingDataMatfile);
+                bcVar = ismember('bc', {tempVars.name});
+            else
+                Tf = obj.testDataMatfile.Tf(:, obj.testSamples);
+                tempVars = whos(obj.testDataMatfile);
+                bcVar = ismember('bc', {tempVars.name});
+            end
+            obj = obj.loadTrainedParams;
+            if strcmp(mode, 'self')
+                obj = obj.computeDesignMatrix('train');
+                designMatrixPred = obj.designMatrix;
+            else
+                obj = obj.computeDesignMatrix('test');
+                designMatrixPred = obj.testDesignMatrix;
+            end
+            
+            %% Sample from p_c
+            disp('Sampling from p_c...')
+            if strcmp(mode, 'self')
+                nTest = obj.nTrain;
+            else
+                nTest = numel(obj.testSamples);
+            end
+            
+            %short hand notation/ avoiding broadcast overhead
+            nElc = obj.coarseScaleDomain.nEl;
+            nSamplesLambda_c = obj.nSamples_p_c;
+            
+            XsamplesTemp = zeros(nElc, nSamplesLambda_c);
+            
+            LambdaSamples{1} = zeros(nElc, nSamplesLambda_c);
+            LambdaSamples = repmat(LambdaSamples, nTest, nSamplesTheta);
+            obj.meanEffCond = zeros(nElc, nTest);
+            
+            if obj.useLaplaceApproximation
+                precisionTheta = obj.laplaceApproximation;
+                SigmaTheta = inv(precisionTheta) + eps*eye(numel(obj.theta_c.theta));
+            else
+                SigmaTheta = zeros(numel(obj.theta_c.theta));
+                nSamplesTheta = 1;
+            end
+            
+            for n = 1:nTest
+                %Samples from p_c
+                %First sample theta from Laplace approx, then sample X
+                theta = mvnrnd(obj.theta_c.theta', SigmaTheta, nSamplesTheta)';
+                for t = 1:nSamplesTheta
+                    for k = 1:nSamplesLambda_c
+                        Sigma2 = obj.theta_c.Sigma;
+                        XsamplesTemp(:, k) = mvnrnd((designMatrixPred{n}*theta(:, t))', Sigma2)';
+                    end
+                %Conductivities
+                LambdaSamples{n, t} = conductivityBackTransform(XsamplesTemp,...
+                    obj.conductivityTransformation);
+                end
+            end
+            clear Xsamples; %save memory
+            disp('done')
+            
+            %% Run coarse model and sample from p_cf
+            disp('Solving coarse model and sample from p_cf...')
+            TfMean{1} = zeros(obj.fineScaleDomain.nNodes, nTest);
+            TfMean = repmat(TfMean, nSamplesTheta, 1);
+            TfVar = TfMean;
+            Tf_sq_mean = TfMean;
+            
+            if(bcVar)
+                %Set coarse domain for data with different boundary conditions
+                nX = obj.coarseScaleDomain.nElX;
+                nY = obj.coarseScaleDomain.nElY;
+                if strcmp(mode, 'self')
+                    bc = obj.trainingDataMatfile.bc;
+                else
+                    bc = obj.testDataMatfile.bc;
+                end
+                for n = 1:nTest
+                    if strcmp(mode, 'self')
+                        i = obj.trainingSamples(n);
+                    else
+                        i = obj.testSamples(n);
+                    end
+                    bcT = @(x) bc{i}(1) + bc{i}(2)*x(1) + bc{i}(3)*x(2) + bc{i}(4)*x(1)*x(2);
+                    bcQ{1} = @(x) -(bc{i}(3) + bc{i}(4)*x);      %lower bound
+                    bcQ{2} = @(y) (bc{i}(2) + bc{i}(4)*y);       %right bound
+                    bcQ{3} = @(x) (bc{i}(3) + bc{i}(4)*x);       %upper bound
+                    bcQ{4} = @(y) -(bc{i}(2) + bc{i}(4)*y);      %left bound
+                    cd(n) = obj.coarseScaleDomain;
+                    cd(n) = cd(n).setBoundaries([2:(2*nX + 2*nY)], bcT, bcQ);
+                end
+            else
+                cd = obj.coarseScaleDomain;
+            end
+            t_cf = obj.theta_cf;
+            natNodes = true(obj.fineScaleDomain.nNodes, 1);
+            natNodes(obj.fineScaleDomain.essentialNodes) = false;
+            addpath('./heatFEM');
+            parfor t = 1:nSamplesTheta
+                for n = 1:nTest
+                    if bcVar
+                        coarseDomain = cd(n);
+                    else
+                        coarseDomain = cd;
+                    end
+                    for i = 1:nSamplesLambda_c
+                        D = zeros(2, 2, coarseDomain.nEl);
+                        for e = 1:coarseDomain.nEl
+                            D(:, :, e) = LambdaSamples{n, t}(e, i)*eye(2);
+                        end
+                        
+                        FEMout = heat2d(coarseDomain, D);
+                        Tctemp = FEMout.Tff';
+                        
+                        %sample from p_cf
+                        mu_cf = t_cf.mu + t_cf.W*Tctemp(:);
+                        %only for diagonal S!!
+                        %Sequentially compute mean and <Tf^2> to save memory
+                        TfMean{t}(:, n) = ((i - 1)/i)*TfMean{t}(:, n) + (1/i)*mu_cf;  %U_f-integration can be done analyt.
+                        Tf_sq_mean{t}(:, n) = ((i - 1)/i)*Tf_sq_mean{t}(:, n) + (1/i)*mu_cf.^2;
+                    end
+                    
+                    Tf_sq_mean{t}(:, n) = Tf_sq_mean{t}(:, n) + t_cf.S;
+                end
+                predMean{t} = mean(TfMean{t}, 2);
+                predSqMean{t} = mean(Tf_sq_mean{t}, 2);
+                TfMean{t} = []; %save memory
+                Tf_sq_mean{t} = [];
+            end
+            
+
+        end
+        
         
         
         %% Design matrix functions

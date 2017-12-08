@@ -1,10 +1,5 @@
 function [ppool] = parPoolInit(N_Threads)
 %% Initializes parallel pool
-
-if(nargin == 0 || N_Threads > 16)
-    N_Threads = 16;
-end
-
 current_pool = gcp('nocreate');
 if(~numel(current_pool))
     %Create with N_Threads workers
@@ -17,6 +12,10 @@ if(~numel(current_pool))
     foldername = strcat('/home/constantin/.par_job_files/', timestr);
     mkdir(foldername);
     pc.JobStorageLocation = foldername;
+    
+    if(nargin == 0 || N_Threads > pc.NumWorkers)
+        N_Threads = pc.NumWorkers;
+    end
     ppool = parpool(pc, N_Threads);
 else
     ppool = gcp;
