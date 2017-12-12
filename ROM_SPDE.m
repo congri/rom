@@ -11,7 +11,8 @@ classdef ROM_SPDE
         upperConductivity = 2;
         %Conductivity field distribution type
         conductivityDistribution = 'squaredExponential';
-        %Boundary condition functions; evaluate those on boundaries to get boundary conditions
+        %Boundary condition functions; evaluate those on boundaries to get
+        %boundary conditions
         boundaryTemperature;
         boundaryHeatFlux;
         bcArrayTrain;   %boundary condition cell array for training data
@@ -19,7 +20,7 @@ classdef ROM_SPDE
         
         naturalNodes;
         %Directory where finescale data is stored; specify basename here
-        fineScaleDataPath = '~/cluster/matlab/data/fineData/';
+        fineScaleDataPath = '~/matlab/data/fineData/';
         %matfile handle
         trainingDataMatfile;
         testDataMatfile;
@@ -38,72 +39,97 @@ classdef ROM_SPDE
         %% Model training parameters
         nStart = 1;             %first training data sample in file
         nTrain = 16;            %number of samples used for training
-        mode = 'none';          %useNeighbor, useLocalNeighbor, useDiagNeighbor, useLocalDiagNeighbor, useLocal, global
-                                %global: take whole microstructure as feature function input, not
-                                %only local window (only recommended for pooling)
-        inferenceMethod = 'variationalInference';        %E-step inference method. variationalInference or monteCarlo
+        mode = 'none';          %useNeighbor, useLocalNeighbor,
+                                %useDiagNeighbor, useLocalDiagNeighbor,
+                                %useLocal, global
+                                %global: take whole microstructure as
+                                %feature function input, not only local
+                                %window (only recommended for pooling)
+                                
+        %E-step inference method. variationalInference or monteCarlo
+        inferenceMethod = 'variationalInference';
         
         %% Sequential addition of linear filters
         linFilt
         
-        useAutoEnc = false;     %Use autoencoder information? Do not forget to pre-train autoencoder!
-        globalPcaComponents = 3;   %Principal components of the whole microstructure used as features 
-        localPcaComponents = 7;     %Principal components of single macro-cell used as features
+        %Use autoencoder information?
+        %Do not forget to pre-train autoencoder!
+        useAutoEnc = false;
+        %Principal components of the whole microstructure used as features
+        globalPcaComponents = 0;
+        %Principal components of single macro-cell used as features
+        localPcaComponents = 0;
         pcaSamples = 4096;
         secondOrderTerms;
         mix_S = 0;              %To slow down convergence of S
         mix_theta = 0;
         mix_sigma = 0;
         fixSigmaInit = 0;       %Fix sigma in initial iterations
+        %for adaptive Gaussian linear filters
+        distanceMatrix
+        gaussFiltPrecision = 1/512;
         
         %% Prior specifications
         sigmaPriorType = 'none';    %none, delta, expSigSq
         sigmaPriorHyperparam = 1;
-        thetaPriorType = 'RVM';
-        thetaPriorHyperparam = [0 1e-30];
+        thetaPriorType = 'none';
+        thetaPriorHyperparam = [5];
         
         %% Model parameters
         theta_c;
         theta_cf;
         free_W = false;
-        featureFunctions;       %Cell array containing local feature function handles
-        globalFeatureFunctions; %cell array with handles to global feature functions
-        convectionFeatureFunctions;       %Cell array containing local convection feature function handles
-        globalConvectionFeatureFunctions; %cell array with handles to global convection feature functions
+        %Cell array containing local feature function handles
+        featureFunctions;
+        %cell array with handles to global feature functions
+        globalFeatureFunctions;
+        %Cell array containing local convection feature function handles
+        convectionFeatureFunctions;
+        %cell array with handles to global convection feature functions
+        globalConvectionFeatureFunctions;
         kernelHandles
         %transformation of finescale conductivity to real axis
         conductivityTransformation;
         latentDim = 0;              %If autoencoder is used
         sumPhiTPhi;             %Design matrix precomputation
-        padding = 0;           %How many pixels around macro-cell should be considered in local features?
+        %How many pixels around macro-cell should be considered in local 
+        %features?
+        padding = 0;
         
         %% Feature function rescaling parameters
-        featureScaling = 'normalize'; %'standardize' for zero mean and unit variance of features, 'rescale' to have
-                                        %all between 0 and 1, 'normalize' to have unit variance only
-                                        %(and same mean as before)
+        %'standardize' for zero mean and unit variance of features,
+        %'rescale' to have all between 0 and 1, 'normalize' to have unit
+        %variance only (and same mean as before)
+        featureScaling = 'normalize';
         featureFunctionMean;
         featureFunctionSqMean;
         featureFunctionMin;
         featureFunctionMax;
         loadDesignMatrix = false;
-        useKernels = false;              %Use linear combination of kernels in feature function space
-        kernelBandwidth = 2;              %only used if no rule of thumb is taken
-        bandwidthSelection = 'silverman'  %'fixed' for fixed kernel bandwidth, 'silverman' for
-                                          %silverman's rule of thumb 'scott' for scott's rule of thumb,
-                                          %see wikipedia on multivariate kernel density estimation
+        %Use linear combination of kernels in feature function space
+        useKernels = false;
+        %only used if no rule of thumb is taken
+        kernelBandwidth = 2;
+        %'fixed' for fixed kernel bandwidth, 'silverman' for silverman's
+        %rule of thumb 'scott' for scott's rule of thumb, see wikipedia on
+        %multivariate kernel density estimation
+        bandwidthSelection = 'silverman';
         kernelType = 'squaredExponential';
         
         %% Prediction parameters
         nSamples_p_c = 1000;
-        useLaplaceApproximation = true;   %Use Laplace approx around MAP for prediction?
+        %Use Laplace approx around MAP for prediction?
+        useLaplaceApproximation = false;
         testSamples = [1:1024];       %pick out specific test samples here
         trainingSamples;   %pick out specific training samples here
         
         %% Prediction outputs
         predMeanArray;
         predVarArray;
-        meanPredMeanOutput;                %mean predicted mean of output field
-        meanSquaredDistance;               %mean squared distance of predicted mean to true solution
+        %mean predicted mean of output field
+        meanPredMeanOutput;
+        %mean squared distance of predicted mean to true solution
+        meanSquaredDistance;
         meanSquaredDistanceField;
         meanSquaredDistanceError;          %Monte Carlo error
         meanLogLikelihood;
@@ -131,17 +157,21 @@ classdef ROM_SPDE
         epoch_old = 0;  %To check if epoch has changed
         maxEpochs;      %Maximum number of epochs
         
-        useConvection = false;      %Include a convection term to the pde? Uses convection term in coarse model in
-                                   %training/prediction
+        %Include a convection term to the pde? Uses convection term in
+        %coarse model in training/prediction
+        useConvection = false;
+        
         useConvectionData = false;
     end
     
     
     properties(SetAccess = private)
         %% finescale data specifications
-        conductivityLengthScaleDist = 'delta';      %delta for fixed length scale, lognormal for rand
+        %delta for fixed length scale, lognormal for rand
+        conductivityLengthScaleDist = 'delta';
         conductivityDistributionParams = {-1 [.01 .01] 1};
-        advectionDistributionParams = [10, 15];   %mu and sigma for advection field coefficients
+        %mu and sigma for advection field coefficients
+        advectionDistributionParams = [10, 15];
         %{volumeFraction, correlationLength, sigma_f2}
         %for log normal length scale, the
         %length scale parameters are log normal mu and
@@ -155,8 +185,8 @@ classdef ROM_SPDE
         coarseGridVectorX = (1/4)*ones(1, 4);
         coarseGridVectorY = (1/4)*ones(1, 4);
         
-        %Design matrices. Cell index gives data point, row index coarse cell, and column index
-        %feature function
+        %Design matrices. Cell index gives data point, row index coarse
+        %cell, and column index feature function
         designMatrix
         originalDesignMatrix    %design matrix without any locality mode
         testDesignMatrix    %design matrices on independent test set
@@ -182,13 +212,14 @@ classdef ROM_SPDE
             obj = obj.genBoundaryConditionFunctions;
             obj.naturalNodes = [2:(2*obj.nElFX + 2*obj.nElFY)];
             
-            %Set up coarseScaleDomain; must be done after boundary conditions are set up
+            %Set up coarseScaleDomain; must be done after boundary
+            %conditions are set up
             obj = obj.genCoarseDomain;
             
             %prealloc
             if obj.useConvection
                 obj.XMean = zeros(3*obj.coarseScaleDomain.nEl, obj.nTrain);
-                obj.XSqMean = ones(3*obj.coarseScaleDomain.nEl, obj.nTrain);
+                obj.XSqMean = ones(3*obj.coarseScaleDomain.nEl,obj.nTrain);
             else
                 obj.XMean = zeros(obj.coarseScaleDomain.nEl, obj.nTrain);
                 obj.XSqMean = ones(obj.coarseScaleDomain.nEl, obj.nTrain);
@@ -205,12 +236,14 @@ classdef ROM_SPDE
                 obj.conductivityTransformation.limits = [1e-6 1e6];
             elseif strcmp(obj.conductivityTransformation.type, 'logit')
                 obj.conductivityTransformation.limits =...
-                    [(1 - 1e-2)*obj.lowerConductivity (1 + 1e-2)*obj.upperConductivity];
+                    [(1 - 1e-2)*obj.lowerConductivity,...
+                    (1 + 1e-2)*obj.upperConductivity];
             else
                 obj.conductivityTransformation.limits = [1e-8 1e8];
             end
             conductivityTransformation = obj.conductivityTransformation;
-            save('./data/conductivityTransformation', 'conductivityTransformation');
+            save('./data/conductivityTransformation',...
+                'conductivityTransformation');
             
             obj.linFilt.totalUpdates = 0;
             if ~strcmp(mode, 'genData')
@@ -219,16 +252,19 @@ classdef ROM_SPDE
                 %Set up feature function handles
                 %obj = obj.setFeatureFunctions;
                 %Prealloc
-                obj.varExpect_p_cf_exp_mean = zeros(obj.fineScaleDomain.nNodes, 1);
+                obj.varExpect_p_cf_exp_mean =...
+                    zeros(obj.fineScaleDomain.nNodes, 1);
             end
             
             %Check
-            if(strcmp(obj.thetaPriorType, 'sharedRVM') && ~strcmp(obj.mode, 'useLocal'))
+            if(strcmp(obj.thetaPriorType, 'sharedRVM') &&...
+                    ~strcmp(obj.mode, 'useLocal'))
                 error('sharedRVM prior only allowed for useLocal mode')
             end
         end
         
-        function obj = genFineScaleData(obj, boundaryConditions, condDistParams)
+        function obj = genFineScaleData(obj, boundaryConditions,...
+                condDistParams)
             %Function to generate and save finescale data
             
             disp('Generate fine scale data...')
@@ -238,11 +274,12 @@ classdef ROM_SPDE
             end
             
             if(nargin > 2)
-                obj = obj.setConductivityDistributionParams(condDistParams);
+                obj =obj.setConductivityDistributionParams(condDistParams);
             end
             
             %for boundary condition functions
-            if(isempty(obj.boundaryTemperature) || isempty(obj.boundaryHeatFlux))
+            if(isempty(obj.boundaryTemperature) ||...
+                    isempty(obj.boundaryHeatFlux))
                 obj = obj.genBoundaryConditionFunctions;
             end
             
@@ -252,8 +289,10 @@ classdef ROM_SPDE
             addpath('./heatFEM')    %to find Domain class
             obj.fineScaleDomain = Domain(obj.nElFX, obj.nElFY);
             obj.fineScaleDomain.useConvection = obj.useConvectionData;
-            obj.fineScaleDomain = setBoundaries(obj.fineScaleDomain, obj.naturalNodes,...
-                obj.boundaryTemperature, obj.boundaryHeatFlux);       %Only fix lower left corner as essential node
+            %Only fix lower left corner as essential node
+            obj.fineScaleDomain = setBoundaries(obj.fineScaleDomain,...
+                obj.naturalNodes, obj.boundaryTemperature,...
+                obj.boundaryHeatFlux);
             disp('done')
             domain_generating_time = toc
             
@@ -263,13 +302,15 @@ classdef ROM_SPDE
             
             %Generate finescale conductivity samples and solve FEM
             for i = 1:numel(obj.nSets)
-                filename = strcat(obj.fineScaleDataPath, 'set', num2str(i), '-samples=', num2str(obj.nSets(i)));
+                filename = strcat(obj.fineScaleDataPath, 'set',...
+                    num2str(i), '-samples=', num2str(obj.nSets(i)));
                 obj.solveFEM(i, filename);
             end
             
             %save params
             fineScaleDomain = obj.fineScaleDomain;
-            save(strcat(obj.fineScaleDataPath, 'fineScaleDomain.mat'), 'fineScaleDomain');
+            save(strcat(obj.fineScaleDataPath, 'fineScaleDomain.mat'),...
+                'fineScaleDomain');
             
             disp('done')
         end
@@ -280,11 +321,12 @@ classdef ROM_SPDE
                 error('No string specified for boundary conditions')
             end
             bc = str2num(obj.boundaryConditions);
-            obj.boundaryTemperature = @(x) bc(1) + bc(2)*x(1) + bc(3)*x(2) + bc(4)*x(1)*x(2);
-            obj.boundaryHeatFlux{1} = @(x) -(bc(3) + bc(4)*x);      %lower bound
-            obj.boundaryHeatFlux{2} = @(y) (bc(2) + bc(4)*y);       %right bound
-            obj.boundaryHeatFlux{3} = @(x) (bc(3) + bc(4)*x);       %upper bound
-            obj.boundaryHeatFlux{4} = @(y) -(bc(2) + bc(4)*y);      %left bound
+            obj.boundaryTemperature = @(x) bc(1) + bc(2)*x(1) +...
+                bc(3)*x(2) + bc(4)*x(1)*x(2);
+            obj.boundaryHeatFlux{1} = @(x) -(bc(3) + bc(4)*x);%lower bound
+            obj.boundaryHeatFlux{2} = @(y) (bc(2) + bc(4)*y); %right bound
+            obj.boundaryHeatFlux{3} = @(x) (bc(3) + bc(4)*x); %upper bound
+            obj.boundaryHeatFlux{4} = @(y) -(bc(2) + bc(4)*y);%left bound
         end
         
         function cond = generateConductivityField(obj, nSet)
@@ -299,12 +341,15 @@ classdef ROM_SPDE
                 cond{1} = zeros(obj.fineScaleDomain.nEl, 1);
                 cond = repmat(cond, 1, obj.nSets(nSet));
                 for i = 1:obj.nSets(nSet)
-                    cond{i} = (obj.upperConductivity - obj.lowerConductivity)*...
-                        rand(obj.fineScaleDomain.nEl, 1) + obj.lowerConductivity;
+                    cond{i} = (obj.upperConductivity -...
+                        obj.lowerConductivity)*...
+                        rand(obj.fineScaleDomain.nEl, 1) +...
+                        obj.lowerConductivity;
                 end
             elseif strcmp(obj.conductivityDistribution, 'gaussian')
                 %log conductivity gaussian distributed
-                x = normrnd(obj.conductivityDistributionParams{1}, obj.conductivityDistributionParams{2},...
+                x = normrnd(obj.conductivityDistributionParams{1},...
+                    obj.conductivityDistributionParams{2},...
                     obj.fineScaleDomain.nEl, obj.nSets(nSet));
                 cond{1} = zeros(obj.fineScaleDomain.nEl, 1);
                 cond = repmat(cond, 1, obj.nSets(nSet));
@@ -317,18 +362,23 @@ classdef ROM_SPDE
                 cond = repmat(cond, 1, obj.nSets(nSet));
                 for i = 1:obj.nSets(nSet)
                     r = rand(obj.fineScaleDomain.nEl, 1);
-                    cond{i} = obj.lowerConductivity*ones(obj.fineScaleDomain.nEl, 1);
-                    cond{i}(r < obj.conductivityDistributionParams{1}) = obj.upperConductivity;
+                    cond{i} = obj.lowerConductivity*...
+                        ones(obj.fineScaleDomain.nEl, 1);
+                    cond{i}(r < obj.conductivityDistributionParams{1}) =...
+                        obj.upperConductivity;
                 end
             elseif(strcmp(obj.conductivityDistribution, 'squaredExponential') || ...
                     strcmp(obj.conductivityDistribution, 'ornsteinUhlenbeck') || ...
                     strcmp(obj.conductivityDistribution, 'sincCov') || ...
                     strcmp(obj.conductivityDistribution, 'sincSqCov') || ...
                     strcmp(obj.conductivityDistribution, 'matern'))
-                %ATTENTION: so far, only isotropic distributions (length scales) possible
+                %ATTENTION: so far, only isotropic distributions
+                %(length scales) possible
                 %Compute coordinates of element centers
-                x = .5*(obj.fineScaleDomain.cum_lElX(1:(end - 1)) + obj.fineScaleDomain.cum_lElX(2:end));
-                y = .5*(obj.fineScaleDomain.cum_lElY(1:(end - 1)) + obj.fineScaleDomain.cum_lElY(2:end));
+                x = .5*(obj.fineScaleDomain.cum_lElX(1:(end - 1)) +...
+                    obj.fineScaleDomain.cum_lElX(2:end));
+                y = .5*(obj.fineScaleDomain.cum_lElY(1:(end - 1)) +...
+                    obj.fineScaleDomain.cum_lElY(2:end));
                 [X, Y] = meshgrid(x, y);
                 %directly clear potentially large arrays
                 clear y;
@@ -337,39 +387,47 @@ classdef ROM_SPDE
                 
                 addpath('./computation')        %to find parPoolInit
                 parPoolInit(obj.nSets(nSet));
-                %Store conductivity fields in cell array to avoid broadcasting the whole data
+                %Store conductivity fields in cell array to avoid
+                %broadcasting the whole data
                 cond{1} = zeros(obj.fineScaleDomain.nEl, 1);
                 cond = repmat(cond, 1, obj.nSets(nSet));
                 
-                addpath('./genConductivity')        %to find genBochnerSamples
+                %to find genBochnerSamples
+                addpath('./genConductivity')
                 nBochnerBasis = 1e3;    %Number of cosine basis functions
                 for i = 1:(obj.nSets(nSet))
                     if strcmp(obj.conductivityLengthScaleDist, 'delta')
                         %one fixed length scale for all samples
                         l = obj.conductivityDistributionParams{2};
-                    elseif strcmp(obj.conductivityLengthScaleDist, 'lognormal')
-                        %First and second parameters are mu and sigma of lognormal dist
+                    elseif strcmp(obj.conductivityLengthScaleDist,...
+                            'lognormal')
+                        %First and second parameters are mu and sigma of
+                        %lognormal dist
                         l = lognrnd(obj.conductivityDistributionParams{2}(1),...
                             obj.conductivityDistributionParams{2}(2));
                         l = [l l];
                     else
                         error('Unknown length scale distribution')
                     end
-                    p{i} = genBochnerSamples(l, obj.conductivityDistributionParams{3},...
+                    p{i} = genBochnerSamples(l,...
+                        obj.conductivityDistributionParams{3},...
                         nBochnerBasis, obj.conductivityDistribution);
                 end
                 nEl = obj.fineScaleDomain.nEl;
                 upCond = obj.upperConductivity;
                 loCond = obj.lowerConductivity;
-                %set volume fraction parameter < 0 to have uniformly random volume fraction
+                %set volume fraction parameter < 0 to have uniform random 
+                %volume fraction
                 if(obj.conductivityDistributionParams{1} >= 0)
-                    cutoff = norminv(1 - obj.conductivityDistributionParams{1},...
+                    cutoff = norminv(1 -...
+                        obj.conductivityDistributionParams{1},...
                         0, obj.conductivityDistributionParams{3});
                 else
                     cutoff = zeros(obj.nSets(nSet), 1);
                     for i = 1:(obj.nSets(nSet))
                         phiRand = rand;
-                        cutoff(i) = norminv(1 - phiRand, 0, obj.conductivityDistributionParams{3});
+                        cutoff(i) = norminv(1 - phiRand, 0,...
+                            obj.conductivityDistributionParams{3});
                     end
                 end
                 volfrac = obj.conductivityDistributionParams{1};
@@ -378,9 +436,11 @@ classdef ROM_SPDE
                     for j = 1:nEl
                         ps = p{i}(x(:, j));
                         if(volfrac >= 0)
-                            cond{i}(j) = upCond*(ps > cutoff) + loCond*(ps <= cutoff);
+                            cond{i}(j) = upCond*(ps > cutoff) +...
+                                loCond*(ps <= cutoff);
                         else
-                            cond{i}(j) = upCond*(ps > cutoff(i)) + loCond*(ps <= cutoff(i));
+                            cond{i}(j) = upCond*(ps > cutoff(i)) +...
+                                loCond*(ps <= cutoff(i));
                         end
                     end
                 end
@@ -394,7 +454,8 @@ classdef ROM_SPDE
         function obj = solveFEM(obj, nSet, savepath)
             
             cond = obj.generateConductivityField(nSet);
-            globalVariationTest = false; %Every microstructure has a common macro-cell
+            %Every microstructure has a common macro-cell if true
+            globalVariationTest = false;
             if globalVariationTest
                 obj = obj.getCoarseElement;
                 %Conductivity of 10th window is the same in all samples
@@ -428,8 +489,10 @@ classdef ROM_SPDE
             parPoolInit(obj.nSets(nSet));
             if useConv
                 %Compute coordinates of element centers
-                x = .5*(obj.fineScaleDomain.cum_lElX(1:(end - 1)) + obj.fineScaleDomain.cum_lElX(2:end));
-                y = .5*(obj.fineScaleDomain.cum_lElY(1:(end - 1)) + obj.fineScaleDomain.cum_lElY(2:end));
+                x = .5*(obj.fineScaleDomain.cum_lElX(1:(end - 1)) +...
+                    obj.fineScaleDomain.cum_lElX(2:end));
+                y = .5*(obj.fineScaleDomain.cum_lElY(1:(end - 1)) +...
+                    obj.fineScaleDomain.cum_lElY(2:end));
                 [X, Y] = meshgrid(x, y);
                 %directly clear potentially large arrays
                 clear y;
@@ -443,19 +506,21 @@ classdef ROM_SPDE
             addpath('./rom');
             ticBytes(gcp)
             parfor i = 1:obj.nSets(nSet)
-                %Conductivity matrix D, only consider isotropic materials here
+                %Conductivity matrix D, only consider isotropic materials
                 if globalVariationTest
                     cond{i}(E == 10) = cond10;
                 end
                 
                 if(any(bcVariance))
-                    bcTemperature = @(x) bc{i}(1) + bc{i}(2)*x(1) + bc{i}(3)*x(2) + bc{i}(4)*x(1)*x(2);
-                    bcHeatFlux{i}{1} = @(x) -(bc{i}(3) + bc{i}(4)*x);      %lower bound
-                    bcHeatFlux{i}{2} = @(y) (bc{i}(2) + bc{i}(4)*y);       %right bound
-                    bcHeatFlux{i}{3} = @(x) (bc{i}(3) + bc{i}(4)*x);       %upper bound
-                    bcHeatFlux{i}{4} = @(y) -(bc{i}(2) + bc{i}(4)*y);      %left bound
+                    bcTemperature = @(x) bc{i}(1) + bc{i}(2)*x(1) +...
+                        bc{i}(3)*x(2) + bc{i}(4)*x(1)*x(2);
+                    bcHeatFlux{i}{1} = @(x) -(bc{i}(3) + bc{i}(4)*x);%lower
+                    bcHeatFlux{i}{2} = @(y) (bc{i}(2) + bc{i}(4)*y); %right 
+                    bcHeatFlux{i}{3} = @(x) (bc{i}(3) + bc{i}(4)*x); %upper
+                    bcHeatFlux{i}{4} = @(y) -(bc{i}(2) + bc{i}(4)*y);%left 
                     
-                    domainTemp = domain.setBoundaries(naturalNodes, bcTemperature, bcHeatFlux{i});
+                    domainTemp = domain.setBoundaries(naturalNodes,...
+                        bcTemperature, bcHeatFlux{i});
                     bcHeatFlux = [];
                 else
                     domainTemp = domain;
@@ -469,18 +534,22 @@ classdef ROM_SPDE
                 if useConv
                     %Random convection field
 %                     convectionCoeffs = normrnd(adp(1), adp(2), 1, 5)
-                    convectionCoeffs = pi*(randi(adp(1), 1, adp(2)) - adp(1)/2)
+                    convectionCoeffs = pi*(randi(adp(1), 1, adp(2)) -...
+                        adp(1)/2)
                     convFieldArray = zeros(2, nElf);
                     for e = 1:nElf
-                        convFieldArray(:, e) = convectionField(x(:, e), convectionCoeffs);
+                        convFieldArray(:, e) = convectionField(x(:, e),...
+                            convectionCoeffs);
                     end
                     FEMout = heat2d(domainTemp, D{i}, convFieldArray);
                     convField{i} = convFieldArray;
                 else
                     FEMout = heat2d(domainTemp, D{i});
                 end
-                %Store fine temperatures as a vector Tf. Use reshape(Tf(:, i), domain.nElX + 1, domain.nElY + 1)
-                %and then transpose result to reconvert it to original temperature field
+                %Store fine temperatures as a vector Tf. Use 
+                %reshape(Tf(:, i), domain.nElX + 1, domain.nElY + 1) and 
+                %then transpose result to reconvert it to original 
+                %temperature field
                 Ttemp = FEMout.Tff';
                 Tf(:, i) = Ttemp(:);
             end
@@ -493,17 +562,20 @@ classdef ROM_SPDE
                 disp(savepath)
                 cond = cell2mat(cond);
                 if exist('convField')
+                    %partial loading only for -v7.3
                     if(any(bcVariance))
-                        %partial loading only for -v7.3
-                        save(strcat(savepath, ''), 'cond', 'Tf', 'convField', 'bc', '-v7.3')
+                        save(strcat(savepath, ''), 'cond', 'Tf',...
+                            'convField', 'bc', '-v7.3')
                     else
-                        save(strcat(savepath, ''), 'cond', 'Tf', 'convField', '-v7.3')
+                        save(strcat(savepath, ''), 'cond', 'Tf',...
+                            'convField', '-v7.3')
                     end
                 else
                     if(any(bcVariance))
-                        save(strcat(savepath, ''), 'cond', 'Tf', 'bc', '-v7.3')    %partial loading only for -v7.3
+                        save(strcat(savepath, ''), 'cond', 'Tf',...
+                            'bc', '-v7.3')
                     else
-                        save(strcat(savepath, ''), 'cond', 'Tf', '-v7.3')    %partial loading only for -v7.3
+                        save(strcat(savepath, ''), 'cond', 'Tf', '-v7.3')
                     end
                 end
                 disp('done')
@@ -514,7 +586,8 @@ classdef ROM_SPDE
             volFrac = obj.conductivityDistributionParams{1};
             sigma_f2 = obj.conductivityDistributionParams{3};
             obj.fineScaleDataPath = strcat(obj.fineScaleDataPath,...
-                'systemSize=', num2str(obj.nElFX), 'x', num2str(obj.nElFY), '/');
+                'systemSize=', num2str(obj.nElFX), 'x',...
+                num2str(obj.nElFY), '/');
             %Type of conductivity distribution
             if(strcmp(obj.conductivityDistribution, 'squaredExponential') || ...
                     strcmp(obj.conductivityDistribution, 'ornsteinUhlenbeck') || ...
@@ -522,7 +595,8 @@ classdef ROM_SPDE
                     strcmp(obj.conductivityDistribution, 'sincSqCov') || ...
                     strcmp(obj.conductivityDistribution, 'matern'))
                 if strcmp(obj.conductivityLengthScaleDist, 'delta')
-                    if(obj.conductivityDistributionParams{2}(1) == obj.conductivityDistributionParams{2}(2))
+                    if(obj.conductivityDistributionParams{2}(1) ==...
+                            obj.conductivityDistributionParams{2}(2))
                         corrLength = obj.conductivityDistributionParams{2}(1);
                     else
                         corrLength = obj.conductivityDistributionParams{2};
@@ -531,8 +605,9 @@ classdef ROM_SPDE
                         obj.conductivityDistribution, '/', 'l=',...
                         num2str(corrLength), '_sigmafSq=', num2str(sigma_f2),...
                         '/volumeFraction=', num2str(volFrac), '/', 'locond=',...
-                        num2str(obj.lowerConductivity), '_upcond=', num2str(obj.upperConductivity),...
-                        '/', 'BCcoeffs=', obj.boundaryConditions, '/');
+                        num2str(obj.lowerConductivity), '_upcond=',...
+                        num2str(obj.upperConductivity), '/BCcoeffs=',...
+                        obj.boundaryConditions, '/');
                 elseif strcmp(obj.conductivityLengthScaleDist, 'lognormal')
                     corrLength1 = obj.conductivityDistributionParams{2}(1);
                     corrLength2 = obj.conductivityDistributionParams{2}(2);
@@ -540,36 +615,46 @@ classdef ROM_SPDE
                         obj.conductivityDistribution, '/', 'l=lognormal_mu=',...
                         num2str(corrLength1), 'sigma=', num2str(corrLength2),...
                         '_sigmafSq=', num2str(sigma_f2), '/volumeFraction=',...
-                        num2str(volFrac), '/', 'locond=', num2str(obj.lowerConductivity),...
-                        '_upcond=', num2str(obj.upperConductivity),...
-                        '/', 'BCcoeffs=', obj.boundaryConditions, '/');
+                        num2str(volFrac), '/locond=',...
+                        num2str(obj.lowerConductivity), '_upcond=',...
+                        num2str(obj.upperConductivity), '/BCcoeffs=',...
+                        obj.boundaryConditions, '/');
                 else
                     error('Unknown length scale distribution')
                 end
             elseif strcmp(cond_distribution, 'binary')
                 obj.fineScaleDataPath = strcat(obj.fineScaleDataPath,...
                     obj.conductivityDistribution, '/volumeFraction=',...
-                    num2str(volFrac), '/', 'locond=', num2str(obj.lowerConductivity),...
-                    '_upcond=', num2str(obj.upperConductivity), '/', 'BCcoeffs=', obj.boundaryConditions, '/');
+                    num2str(volFrac), '/locond=',...
+                    num2str(obj.lowerConductivity), '_upcond=',...
+                    num2str(obj.upperConductivity), '/BCcoeffs=',...
+                    obj.boundaryConditions, '/');
             else
                 error('Unknown conductivity distribution')
             end
             
             if(any(obj.boundaryConditionVariance))
-                obj.fineScaleDataPath = strcat(obj.fineScaleDataPath, 'BCvar=[',...
-                    num2str(obj.boundaryConditionVariance), ']/');
+                obj.fineScaleDataPath = strcat(obj.fineScaleDataPath,...
+                    'BCvar=[', num2str(obj.boundaryConditionVariance),...
+                    ']/');
             end
             
-            %THIS NEEDS TO BE GENERALIZED! GIVE ADVECTION FIELD PARAMETERS IN FILE NAME!!!
+            %THIS NEEDS TO BE GENERALIZED!
+            %GIVE ADVECTION FIELD PARAMETERS IN FILE NAME!!!
             if obj.useConvectionData
-                obj.fineScaleDataPath = strcat(obj.fineScaleDataPath, 'convection=' , ...
+                obj.fineScaleDataPath = strcat(obj.fineScaleDataPath,...
+                    'convection=',...
                     num2str(obj.advectionDistributionParams), '/')
             end
             %Name of training data file
-            trainFileName = strcat('set1-samples=', num2str(obj.nSets(1)), '.mat');
-            obj.trainingDataMatfile = matfile(strcat(obj.fineScaleDataPath, trainFileName));
-            testFileName = strcat('set2-samples=', num2str(obj.nSets(2)), '.mat');
-            obj.testDataMatfile = matfile(strcat(obj.fineScaleDataPath, testFileName));
+            trainFileName =...
+                strcat('set1-samples=', num2str(obj.nSets(1)), '.mat');
+            obj.trainingDataMatfile =...
+                matfile(strcat(obj.fineScaleDataPath, trainFileName));
+            testFileName =...
+                strcat('set2-samples=', num2str(obj.nSets(2)), '.mat');
+            obj.testDataMatfile =...
+                matfile(strcat(obj.fineScaleDataPath, testFileName));
         end
         
         function obj = loadTrainingData(obj)
@@ -584,30 +669,39 @@ classdef ROM_SPDE
             %for finescale domain class
             addpath('./heatFEM')
             %for boundary condition functions
-            if(isempty(obj.boundaryTemperature) || isempty(obj.boundaryHeatFlux))
+            if(isempty(obj.boundaryTemperature) ||...
+                    isempty(obj.boundaryHeatFlux))
                 obj = obj.genBoundaryConditionFunctions;
             end
             
-            %there is no cum_lEl (cumulated finite element length) in old data files
-            if(~numel(obj.fineScaleDomain.cum_lElX) || ~numel(obj.fineScaleDomain.cum_lElX))
-                obj.fineScaleDomain.cum_lElX = linspace(0, 1, obj.fineScaleDomain.nElX + 1);
-                obj.fineScaleDomain.cum_lElY = linspace(0, 1, obj.fineScaleDomain.nElY + 1);
+            %there is no cum_lEl (cumulated finite element length) 
+            %in old data files
+            if(~numel(obj.fineScaleDomain.cum_lElX) ||...
+                    ~numel(obj.fineScaleDomain.cum_lElX))
+                obj.fineScaleDomain.cum_lElX = linspace(0, 1,...
+                    obj.fineScaleDomain.nElX + 1);
+                obj.fineScaleDomain.cum_lElY = linspace(0, 1,...
+                    obj.fineScaleDomain.nElY + 1);
             end
             
             %load finescale temperatures partially
-            obj.fineScaleDataOutput = obj.trainingDataMatfile.Tf(:, obj.nStart:(obj.nStart + obj.nTrain - 1));
+            obj.fineScaleDataOutput = obj.trainingDataMatfile.Tf(:,...
+                obj.nStart:(obj.nStart + obj.nTrain - 1));
         end
         
         function obj = genCoarseDomain(obj)
             %Generate coarse domain object
             nX = length(obj.coarseGridVectorX);
             nY = length(obj.coarseGridVectorY);
-            addpath('./heatFEM')        %to find Domain class
-            obj.coarseScaleDomain = Domain(nX, nY, obj.coarseGridVectorX, obj.coarseGridVectorY);
+            %to find Domain class
+            addpath('./heatFEM')
+            obj.coarseScaleDomain = Domain(nX, nY,...
+                obj.coarseGridVectorX, obj.coarseGridVectorY);
             obj.coarseScaleDomain.useConvection = obj.useConvection;
             %ATTENTION: natural nodes have to be set manually
             %and consistently in coarse and fine scale domain!!
-            obj.coarseScaleDomain = setBoundaries(obj.coarseScaleDomain, [2:(2*nX + 2*nY)],...
+            obj.coarseScaleDomain =...
+                setBoundaries(obj.coarseScaleDomain, [2:(2*nX + 2*nY)],...
                 obj.boundaryTemperature, obj.boundaryHeatFlux);
             
             %Legacy, for predictions
@@ -638,8 +732,10 @@ classdef ROM_SPDE
                 Tf_mean_temp = mean(Tftemp, 2);
                 Tf_sq_mean_temp = mean(Tftemp.^2, 2);
                 clear Tftemp;
-                Tf_true_mean = ((i - 1)/i)*Tf_true_mean + (1/i)*Tf_mean_temp;
-                Tf_true_sq_mean = ((i - 1)/i)*Tf_true_sq_mean + (1/i)*Tf_sq_mean_temp;
+                Tf_true_mean =...
+                    ((i - 1)/i)*Tf_true_mean + (1/i)*Tf_mean_temp;
+                Tf_true_sq_mean =...
+                    ((i - 1)/i)*Tf_true_sq_mean + (1/i)*Tf_sq_mean_temp;
             end
             
             Tf_true_var = Tf_true_sq_mean - Tf_true_mean.^2;
@@ -650,20 +746,25 @@ classdef ROM_SPDE
             
             %Mean log likelihood
             Tf_true_var(obj.fineScaleDomain.essentialNodes) = NaN;
-            nNatNodes = obj.fineScaleDomain.nNodes - numel(obj.fineScaleDomain.essentialNodes);
-            Lm = -.5*log(2*pi) - .5 - .5*(1/nNatNodes)*sum(log(Tf_true_var), 'omitnan');
+            nNatNodes = obj.fineScaleDomain.nNodes -...
+                numel(obj.fineScaleDomain.essentialNodes);
+            Lm = -.5*log(2*pi) - .5 -...
+                .5*(1/nNatNodes)*sum(log(Tf_true_var), 'omitnan');
             sv = true;
             if sv
-                %     savedir = '~/matlab/data/trueMC/';
+                %savedir = '~/matlab/data/trueMC/';
                 savedir = obj.fineScaleDataPath;
                 if ~exist(savedir, 'dir')
                     mkdir(savedir);
                 end
-                save(strcat(savedir, 'trueMC', '_nSamples=', num2str(nSamples), '.mat'), 'Tf_true_mean', 'Tf_true_var', 'Lm')
+                save(strcat(savedir, 'trueMC', '_nSamples=',...
+                    num2str(nSamples), '.mat'), 'Tf_true_mean',...
+                    'Tf_true_var', 'Lm')
             end
         end
         
-        function [meanLogLikelihood, err] = estimateLogL(obj, nTrainingData, Tf)
+        function [meanLogLikelihood, err] =...
+                estimateLogL(obj, nTrainingData, Tf)
             
             natNodes = true(obj.fineScaleDomain.nNodes, 1);
             natNodes(obj.fineScaleDomain.essentialNodes) = false;
@@ -676,20 +777,25 @@ classdef ROM_SPDE
             while(~converged)
                 randSamples = randperm(obj.nSets(1));
                 randSamples_params = randSamples(1:nTrainingData);
-                randSamples_samples = randSamples((nTrainingData + 1):(2*nTrainingData));
+                randSamples_samples =...
+                    randSamples((nTrainingData + 1):(2*nTrainingData));
                 Tftemp = Tf(:, randSamples_params);
                 mu_data = mean(Tftemp, 2);
                 var_data = var(Tftemp')';
                 
                 term1 = .5*log(geomean(var_data));
-                term2 = .5*mean(mean((Tf(:, randSamples_samples) - mu_data).^2, 2)./var_data);
+                term2 = .5*mean(mean((Tf(:, randSamples_samples)...
+                    - mu_data).^2, 2)./var_data);
                 
-                meanLogLikelihood = ((i - 1)/i)*meanLogLikelihood + (1/i)*(term1 + term2);
-                meanLogLikelihoodSq = ((i - 1)/i)*meanLogLikelihoodSq + (1/i)*(term1 + term2)^2;
+                meanLogLikelihood =...
+                    ((i - 1)/i)*meanLogLikelihood + (1/i)*(term1 + term2);
+                meanLogLikelihoodSq = ((i - 1)/i)*meanLogLikelihoodSq +...
+                    (1/i)*(term1 + term2)^2;
                 if(mod(i, 1000) == 0)
                     i
                     meanLogLikelihood
-                    err = sqrt((meanLogLikelihoodSq - meanLogLikelihood^2)/i);
+                    err =...
+                        sqrt((meanLogLikelihoodSq- meanLogLikelihood^2)/i);
                     relErr = abs(err/meanLogLikelihood)
                     if((relErr < 1e-2 && i > 2e3) || i > 1e5)
                         converged = true;
@@ -703,8 +809,10 @@ classdef ROM_SPDE
             
         end
         
-        function [Xopt, LambdaOpt, s2] = detOpt_p_cf(obj, nStart, nTrain)
-            %Deterministic optimization of log(p_cf) to check capabilities of model
+        function [Xopt, LambdaOpt, s2] =...
+                detOpt_p_cf(obj, nStart, nTrain)
+            %Deterministic optimization of log(p_cf) to check
+            %capabilities of model
             
             %don't change these!
             theta_cfOptim.S = 1;
@@ -714,7 +822,8 @@ classdef ROM_SPDE
             theta_cfOptim.W = obj.theta_cf.W;
             theta_cfOptim.WTSinv = obj.theta_cf.WTSinv;
             
-            options = optimoptions(@fminunc,'Display','iter', 'Algorithm', 'trust-region',...
+            options = optimoptions(@fminunc,'Display','iter',...
+                'Algorithm', 'trust-region',...
                 'SpecifyObjectiveGradient', true);
             Xinit = 0*ones(obj.coarseScaleDomain.nEl, 1);
             Xopt = zeros(obj.coarseScaleDomain.nEl, nTrain);
@@ -724,13 +833,16 @@ classdef ROM_SPDE
             addpath('./tests/detOptP_cf')
             for i = nStart:(nStart + nTrain -1)
                 Tf = obj.trainingDataMatfile.Tf(:, i);
-                objFun = @(X) objective(X, Tf, obj.coarseScaleDomain, obj.conductivityTransformation, theta_cfOptim);
+                objFun = @(X) objective(X, Tf, obj.coarseScaleDomain,...
+                    obj.conductivityTransformation, theta_cfOptim);
                 [XoptTemp, fvalTemp] = fminunc(objFun, Xinit, options);
-                LambdaOptTemp = conductivityBackTransform(XoptTemp, obj.conductivityTransformation);
+                LambdaOptTemp = conductivityBackTransform(XoptTemp,...
+                    obj.conductivityTransformation);
                 Xopt(:, j) = XoptTemp;
                 LambdaOpt(:, j) = LambdaOptTemp;
                 
-                %s2 is the squared distance of truth to optimal coarse averaged over all nodes
+                %s2 is the squared distance of truth to optimal
+                %coarse averaged over all nodes
                 s2(j) = fvalTemp/obj.fineScaleDomain.nNodes
                 j = j + 1;
             end
@@ -745,13 +857,14 @@ classdef ROM_SPDE
                 obj.coarseScaleDomain = coarseScaleDomain;
             else
                 warning(strcat('No coarse domain file found.',...
-                    'Take boundary conditions from finescale data and regenerate.',...
+                    'Take BC`s from finescale data and regenerate.',...
                     'Please make sure everything is correct!'))
                 obj = obj.genCoarseDomain;
             end
             %Load trained params from disk
             disp('Loading optimal parameters from disk...')
-            obj.thetaPriorHyperparam = dlmread('./data/thetaPriorHyperparam');
+            obj.thetaPriorHyperparam =...
+                dlmread('./data/thetaPriorHyperparam');
             obj.thetaPriorHyperparam = obj.thetaPriorHyperparam(end, :);
             obj.theta_c.theta = dlmread('./data/theta');
             obj.theta_c.theta = obj.theta_c.theta(end, :)';
@@ -770,32 +883,41 @@ classdef ROM_SPDE
             
             disp('Loading data normalization data...')
             try
-                obj.featureFunctionMean = dlmread('./data/featureFunctionMean');
-                obj.featureFunctionSqMean = dlmread('./data/featureFunctionSqMean');
+                obj.featureFunctionMean =...
+                    dlmread('./data/featureFunctionMean');
+                obj.featureFunctionSqMean =...
+                    dlmread('./data/featureFunctionSqMean');
             catch
-                warning('featureFunctionMean, featureFunctionSqMean not found, setting it to 0.')
+                warning(strcat('featureFunctionMean,',...
+                    'featureFunctionSqMean not found, setting it to 0.'))
                 obj.featureFunctionMean = 0;
                 obj.featureFunctionSqMean = 0;
             end
             
             try
-                obj.featureFunctionMin = dlmread('./data/featureFunctionMin');
-                obj.featureFunctionMax = dlmread('./data/featureFunctionMax');
+                obj.featureFunctionMin =...
+                    dlmread('./data/featureFunctionMin');
+                obj.featureFunctionMax =...
+                    dlmread('./data/featureFunctionMax');
             catch
-                warning('featureFunctionMin, featureFunctionMax not found, setting it to 0.')
+                warning(strcat('featureFunctionMin,',...
+                    'featureFunctionMax not found, setting it to 0.'))
                 obj.featureFunctionMin = 0;
                 obj.featureFunctionMax = 0;
             end
             disp('done')
             
-            if(isempty(obj.coarseScaleDomain) || isempty(obj.fineScaleDomain))
+            if(isempty(obj.coarseScaleDomain) ||...
+                    isempty(obj.fineScaleDomain))
                 disp('Loading fine and coarse domain objects...')
                 addpath('./heatFEM')        %to find Domain class
                 try
-                    load(strcat(obj.fineScaleDataPath, 'fineScaleDomain.mat'));
+                    load(strcat(obj.fineScaleDataPath,...
+                        'fineScaleDomain.mat'));
                     obj.fineScaleDomain = fineScaleDomain;
                 catch
-                    temp = load(strcat(obj.fineScaleDataPath, 'romObj.mat'));
+                    temp = load(strcat(obj.fineScaleDataPath,...
+                        'romObj.mat'));
                     obj.fineScaleDomain = temp.obj.fineScaleDomain;
                 end
                 disp('done')
@@ -807,17 +929,23 @@ classdef ROM_SPDE
             %Optimal S (decelerated convergence)
             lowerBoundS = eps;
             obj.theta_cf.S = (1 - obj.mix_S)*obj.varExpect_p_cf_exp_mean...
-                + obj.mix_S*obj.theta_cf.S + lowerBoundS*ones(obj.fineScaleDomain.nNodes, 1);
+                + obj.mix_S*obj.theta_cf.S...
+                + lowerBoundS*ones(obj.fineScaleDomain.nNodes, 1);
 
             if obj.free_W
-                obj.mean_TcTcT(obj.coarseScaleDomain.essentialNodes, :) = [];
-                obj.mean_TcTcT(:, obj.coarseScaleDomain.essentialNodes) = [];
+                obj.mean_TcTcT(obj.coarseScaleDomain.essentialNodes, :)...
+                    = [];
+                obj.mean_TcTcT(:, obj.coarseScaleDomain.essentialNodes)...
+                    = [];
                 if isempty(obj.fineScaleDomain.essentialNodes)
-                    warning('No essential nodes stored in fineScaleDomain. Setting first node to be essential.')
+                    warning(strcat('No essential nodes stored in', ... 
+                        'fineScaleDomain. Setting 1. node to be ess.'))
                     obj.fineScaleDomain.essentialNodes = 1;
                 end
-                obj.mean_TfTcT(obj.fineScaleDomain.essentialNodes, :) = [];
-                obj.mean_TfTcT(:, obj.coarseScaleDomain.essentialNodes) = [];
+                obj.mean_TfTcT(obj.fineScaleDomain.essentialNodes, :)...
+                    = [];
+                obj.mean_TfTcT(:, obj.coarseScaleDomain.essentialNodes)...
+                    = [];
                 W_temp = obj.mean_TfTcT/obj.mean_TcTcT;
                 
                 natNodesFine = 1:obj.fineScaleDomain.nNodes;
@@ -830,7 +958,8 @@ classdef ROM_SPDE
             obj.theta_cf.Sinv = sparse(1:obj.fineScaleDomain.nNodes,...
                 1:obj.fineScaleDomain.nNodes, 1./obj.theta_cf.S);
             obj.theta_cf.Sinv_vec = 1./obj.theta_cf.S;
-            obj.theta_cf.WTSinv = obj.theta_cf.W'*obj.theta_cf.Sinv;        %Precomputation for efficiency
+            %Precomputation for efficiency
+            obj.theta_cf.WTSinv = obj.theta_cf.W'*obj.theta_cf.Sinv;
             
             %optimal theta_c and sigma
             Sigma_old = obj.theta_c.Sigma;
@@ -838,8 +967,10 @@ classdef ROM_SPDE
             
             obj = obj.updateTheta_c;
 
-            obj.theta_c.Sigma = (1 - obj.mix_sigma)*obj.theta_c.Sigma + obj.mix_sigma*Sigma_old;
-            obj.theta_c.theta = (1 - obj.mix_theta)*obj.theta_c.theta + obj.mix_theta*theta_old;
+            obj.theta_c.Sigma = (1 - obj.mix_sigma)*obj.theta_c.Sigma +...
+                obj.mix_sigma*Sigma_old;
+            obj.theta_c.theta = (1 - obj.mix_theta)*obj.theta_c.theta +...
+                obj.mix_theta*theta_old;
             
             disp('M-step done')
         end
@@ -848,7 +979,8 @@ classdef ROM_SPDE
             %Find optimal theta_c and sigma
             dim_theta = numel(obj.theta_c.theta);
             
-            %% Solve self-consistently: compute optimal sigma2, then theta, then sigma2 again and so on
+            %% Solve self-consistently: compute optimal sigma2,
+            %% then theta, then sigma2 again and so on
             %Start from previous best estimate
             theta = obj.theta_c.theta;
             I = speye(dim_theta);
@@ -862,26 +994,31 @@ classdef ROM_SPDE
             sumPhiTSigmaInvPhi = 0;
             sumPhiTSigmaInvPhiOriginal = 0;
             if obj.useConvection
-                PhiThetaMat = zeros(3*obj.coarseScaleDomain.nEl, obj.nTrain);
+                PhiThetaMat = zeros(3*obj.coarseScaleDomain.nEl,...
+                    obj.nTrain);
             else
                 PhiThetaMat = zeros(obj.coarseScaleDomain.nEl, obj.nTrain);
             end
             
             for n = 1:obj.nTrain
-                sumPhiTSigmaInvXmean = sumPhiTSigmaInvXmean + obj.designMatrix{n}'*SigmaInvXMean(:, n);
-                sumPhiTSigmaInvPhi = sumPhiTSigmaInvPhi + obj.designMatrix{n}'*SigmaInv*obj.designMatrix{n};
+                sumPhiTSigmaInvXmean = sumPhiTSigmaInvXmean +...
+                    obj.designMatrix{n}'*SigmaInvXMean(:, n);
+                sumPhiTSigmaInvPhi = sumPhiTSigmaInvPhi +...
+                    obj.designMatrix{n}'*SigmaInv*obj.designMatrix{n};
                 PhiThetaMat(:, n) = obj.designMatrix{n}*obj.theta_c.theta;
             end
             
             stabilityParam = 1e-2;    %for stability in matrix inversion
-            if(strcmp(obj.thetaPriorType, 'adaptiveGaussian') || strcmp(obj.thetaPriorType, 'RVM') || ...
+            if(strcmp(obj.thetaPriorType, 'adaptiveGaussian') ||...
+                    strcmp(obj.thetaPriorType, 'RVM') || ...
                     strcmp(obj.thetaPriorType, 'sharedRVM'))
                 %Find prior hyperparameter by max marginal likelihood
                 converged = false;
                 iter = 0;
                 if strcmp(obj.thetaPriorType, 'adaptiveGaussian')
                     obj.thetaPriorHyperparam = 1;
-                elseif(strcmp(obj.thetaPriorType, 'RVM') || strcmp(obj.thetaPriorType, 'sharedRVM'))
+                elseif(strcmp(obj.thetaPriorType, 'RVM') ||...
+                        strcmp(obj.thetaPriorType, 'sharedRVM'))
                     if(numel(obj.thetaPriorHyperparam) ~= dim_theta)
                         warning('resizing theta hyperparam')
                         obj.thetaPriorHyperparam = 1e-4*ones(dim_theta, 1);
@@ -891,42 +1028,62 @@ classdef ROM_SPDE
 					nElc = obj.coarseScaleDomain.nEl;
 					nFeatures = dim_theta/nElc; %for shared RVM
                 end
+                
+                %prior hyperparameter update
                 while(~converged)
                     if strcmp(obj.thetaPriorType, 'adaptiveGaussian')
-                        SigmaTilde = inv(sumPhiTSigmaInvPhi + (obj.thetaPriorHyperparam + stabilityParam)*I);
+                        SigmaTilde = inv(sumPhiTSigmaInvPhi +...
+                            (obj.thetaPriorHyperparam + stabilityParam)*I);
                         muTilde = SigmaTilde*sumPhiTSigmaInvXmean;
-                        theta_prior_hyperparam_old = obj.thetaPriorHyperparam;
-                        obj.thetaPriorHyperparam = dim_theta/(muTilde'*muTilde + trace(SigmaTilde));
-                    elseif(strcmp(obj.thetaPriorType, 'RVM') || strcmp(obj.thetaPriorType, 'sharedRVM'))
-                        SigmaTilde = inv(sumPhiTSigmaInvPhi + diag(obj.thetaPriorHyperparam));
+                        theta_prior_hyperparam_old =...
+                            obj.thetaPriorHyperparam;
+                        obj.thetaPriorHyperparam = dim_theta/...
+                            (muTilde'*muTilde + trace(SigmaTilde));
+                    elseif(strcmp(obj.thetaPriorType, 'RVM') ||...
+                            strcmp(obj.thetaPriorType, 'sharedRVM'))
+                        SigmaTilde = inv(sumPhiTSigmaInvPhi +...
+                            diag(obj.thetaPriorHyperparam));
 %                         muTilde = SigmaTilde*sumPhiTSigmaInvXmean;
 %                         muTilde = obj.theta_c.theta;
-                        muTilde = (sumPhiTSigmaInvPhi + diag(obj.thetaPriorHyperparam))\sumPhiTSigmaInvXmean;
-                        theta_prior_hyperparam_old = obj.thetaPriorHyperparam;
+                        muTilde = (sumPhiTSigmaInvPhi +...
+                            diag(obj.thetaPriorHyperparam))\...
+                            sumPhiTSigmaInvXmean;
+                        theta_prior_hyperparam_old =...
+                            obj.thetaPriorHyperparam;
                         if strcmp(obj.thetaPriorType, 'RVM')
-%                             gamma = 1 - obj.thetaPriorHyperparam.*diag(SigmaTilde);
+%                             gamma = 1 - obj.thetaPriorHyperparam.*...
+%                                diag(SigmaTilde);
 %                             gamma(gamma <= 0) = eps;
-                            obj.thetaPriorHyperparam = 1./(muTilde.^2 + diag(SigmaTilde));
-%                             obj.thetaPriorHyperparam = gamma./(muTilde.^2 + 1e-10);
+                            obj.thetaPriorHyperparam =...
+                                1./(muTilde.^2 + diag(SigmaTilde));
+%                             obj.thetaPriorHyperparam =...
+%                                gamma./(muTilde.^2 + 1e-10);
                         elseif strcmp(obj.thetaPriorType, 'sharedRVM')
                             muTildeSq = muTilde.^2;
                             varTilde = diag(SigmaTilde);
-                            lambdaInv = (1/nElc)*(sum(reshape(muTildeSq, nFeatures, nElc), 2) + ...
-                                sum(reshape(varTilde, nFeatures, nElc), 2));
-                            obj.thetaPriorHyperparam = repmat(1./lambdaInv, nElc, 1);
+                            lambdaInv = (1/nElc)*(sum(reshape(...
+                                muTildeSq, nFeatures, nElc), 2) + ...
+                                sum(reshape(varTilde, nFeatures, nElc),2));
+                            obj.thetaPriorHyperparam =...
+                                repmat(1./lambdaInv, nElc, 1);
                         end
-                        obj.thetaPriorHyperparam = obj.thetaPriorHyperparam + stabilityParam;
+                        obj.thetaPriorHyperparam =...
+                            obj.thetaPriorHyperparam + stabilityParam;
                     end
-                    crit = norm(1./obj.thetaPriorHyperparam - 1./theta_prior_hyperparam_old)/...
+                    crit = norm(1./obj.thetaPriorHyperparam...
+                        - 1./theta_prior_hyperparam_old)/...
                             norm(1./obj.thetaPriorHyperparam);
-                    if(crit < 1e-5 || iter >= 10)
+                    if(crit < 1e-5 || iter >= 100)
                         converged = true;
-                    elseif(any(~isfinite(obj.thetaPriorHyperparam)) || any(obj.thetaPriorHyperparam <= 0))
+                    elseif(any(~isfinite(obj.thetaPriorHyperparam))...
+                            || any(obj.thetaPriorHyperparam <= 0))
                         converged = true;
                         muTilde.^2
                         obj.thetaPriorHyperparam
                         obj.thetaPriorHyperparam = ones(dim_theta, 1);
-                        warning('Gaussian hyperparameter precision is negative or not a number. Setting it to 1.')
+                        warning(strcat('Gaussian hyperparameter',...
+                            'precision is negative or not a number.',...
+                            'Setting it to 1.'))
                     end
                     iter = iter + 1;
                 end
@@ -937,45 +1094,67 @@ classdef ROM_SPDE
             linsolveOpts.POSDEF = true;
             iter = 0;
             converged = false;
+            %For parametric feature optimization
+            options = optimoptions(@fminunc,'Display','off',...
+                'Algorithm', 'quasi-newton',...
+                'SpecifyObjectiveGradient', true);
+            %update theta_c
             while(~converged)
                 theta_old = theta;  %to check for iterative convergence
                 
-                %Matrix M is pos. def., invertible even if badly conditioned
+                %Matrix M is pos. def., invert. even if badly conditioned
                 %warning('off', 'MATLAB:nearlySingularMatrix');
                 if strcmp(obj.thetaPriorType, 'hierarchical_laplace')
                     offset = 1e-30;
-                    U = diag(sqrt((abs(theta) + offset)/obj.thetaPriorHyperparam(1)));
+                    U = diag(sqrt((abs(theta) + offset)...
+                        /obj.thetaPriorHyperparam(1)));
                 elseif strcmp(obj.thetaPriorType, 'hierarchical_gamma')
-                    U = diag(sqrt((.5*abs(theta).^2 + obj.thetaPriorHyperparam(2))./...
+                    U = diag(sqrt((.5*abs(theta).^2 +...
+                        obj.thetaPriorHyperparam(2))./...
                         (obj.thetaPriorHyperparam(1) + .5)));
-                elseif(strcmp(obj.thetaPriorType, 'gaussian') || strcmp(obj.thetaPriorType, 'adaptiveGaussian'))
-                    sumPhiTSigmaInvPhi = sumPhiTSigmaInvPhi + (obj.thetaPriorHyperparam(1) + stabilityParam)*I;
-                elseif(strcmp(obj.thetaPriorType, 'RVM') || strcmp(obj.thetaPriorType, 'sharedRVM'))
-                    sumPhiTSigmaInvPhi = sumPhiTSigmaInvPhi + diag(obj.thetaPriorHyperparam);
+                elseif(strcmp(obj.thetaPriorType, 'gaussian')...
+                        || strcmp(obj.thetaPriorType, 'adaptiveGaussian'))
+                    sumPhiTSigmaInvPhi = sumPhiTSigmaInvPhi +...
+                        (obj.thetaPriorHyperparam(1) + stabilityParam)*I;
+                elseif(strcmp(obj.thetaPriorType, 'RVM')...
+                        || strcmp(obj.thetaPriorType, 'sharedRVM'))
+                    sumPhiTSigmaInvPhi =...
+                        sumPhiTSigmaInvPhi+ diag(obj.thetaPriorHyperparam);
                 elseif strcmp(obj.thetaPriorType, 'none')
                 else
                     error('Unknown prior on theta_c')
                 end
                 
-                if (strcmp(obj.thetaPriorType, 'gaussian') || strcmp(obj.thetaPriorType, 'RVM') ||...
-                        strcmp(obj.thetaPriorType, 'none') || strcmp(obj.thetaPriorType, 'adaptiveGaussian') || ...
-                        strcmp(obj.thetaPriorType, 'sharedRVM'))
+                if (strcmp(obj.thetaPriorType, 'gaussian')...
+                        || strcmp(obj.thetaPriorType, 'RVM')...
+                        || strcmp(obj.thetaPriorType, 'none')...
+                        || strcmp(obj.thetaPriorType,'adaptiveGaussian')...
+                        || strcmp(obj.thetaPriorType, 'sharedRVM'))
                     theta_temp = sumPhiTSigmaInvPhi\sumPhiTSigmaInvXmean;
-                    converged = true;   %is this true? we do not need to iteratively maximize theta
+                    %is this true? we do not need to iteratively max. theta
+                    converged = true;
                 else
-%                     theta_temp = U*((U*sumPhiTSigmaInvPhi*U + I)\U)*sumPhiTSigmaInvXmean;
-%                     A = linsolve((U*sumPhiTSigmaInvPhi*U + I), U, linsolveOpts);
-                    theta_temp = U*linsolve((U*sumPhiTSigmaInvPhi*U + I), U, linsolveOpts)*sumPhiTSigmaInvXmean;
+%                     theta_temp = U*((U*sumPhiTSigmaInvPhi*U + I)\U)*...
+%                        sumPhiTSigmaInvXmean;
+%                     A = linsolve((U*sumPhiTSigmaInvPhi*U + I),...
+%                            U, linsolveOpts);
+                    theta_temp =U*linsolve((U*sumPhiTSigmaInvPhi*U + I),...
+                        U, linsolveOpts)*sumPhiTSigmaInvXmean;
                 end
                 [~, msgid] = lastwarn;     %to catch nearly singular matrix
                 
-                if(strcmp(msgid, 'MATLAB:singularMatrix') || strcmp(msgid, 'MATLAB:nearlySingularMatrix')...
-                        || strcmp(msgid, 'MATLAB:illConditionedMatrix') || norm(theta_temp)/length(theta) > 1e8)
-                    warning('theta_c is assuming unusually large values. Only go small step.')
-                    theta = .5*(theta + .1*(norm(theta)/norm(theta_temp))*theta_temp)
+                if(strcmp(msgid, 'MATLAB:singularMatrix')...
+                        || strcmp(msgid, 'MATLAB:nearlySingularMatrix')...
+                        || strcmp(msgid, 'MATLAB:illConditionedMatrix')...
+                        || norm(theta_temp)/length(theta) > 1e8)
+                    warning(strcat('theta_c is assuming large values.',...
+                        'Only go small step.'))
+                    theta = .5*(theta + .1*(norm(theta)/...
+                        norm(theta_temp))*theta_temp)
                     if any(~isfinite(theta))
                         %restart from 0
-                        warning('Some components of theta are not finite. Restarting from theta = 0...')
+                        warning(strcat('Some components of theta',...
+                        'are not finite. Restarting from theta = 0'))
                         theta = 0*theta;
                     end
                 else
@@ -984,9 +1163,11 @@ classdef ROM_SPDE
                 theta= theta_temp;
                 
                 if obj.useConvection
-                    PhiThetaMat = zeros(3*obj.coarseScaleDomain.nEl, obj.nTrain);
+                    PhiThetaMat =...
+                        zeros(3*obj.coarseScaleDomain.nEl, obj.nTrain);
                 else
-                    PhiThetaMat = zeros(obj.coarseScaleDomain.nEl, obj.nTrain);
+                    PhiThetaMat =...
+                        zeros(obj.coarseScaleDomain.nEl, obj.nTrain);
                 end
                 for n = 1:obj.nTrain
                     PhiThetaMat(:, n) = obj.designMatrix{n}*theta;
@@ -998,29 +1179,39 @@ classdef ROM_SPDE
                 end
                 if strcmp(sigma_prior_type, 'none')
                     if obj.useConvection
-                        Sigma = sparse(1:3*obj.coarseScaleDomain.nEl, 1:3*obj.coarseScaleDomain.nEl,...
-                        mean(obj.XSqMean - 2*(PhiThetaMat.*obj.XMean) + PhiThetaMat.^2, 2));
+                        Sigma = sparse(1:3*obj.coarseScaleDomain.nEl,...
+                            1:3*obj.coarseScaleDomain.nEl,...
+                        mean(obj.XSqMean - 2*(PhiThetaMat.*obj.XMean) +...
+                        PhiThetaMat.^2, 2));
                     else
                         if obj.theta_c.full_Sigma
                             sumPhiThetaPhiTThetaT = 0;
                             sumPhiThetaXT = 0;
                             sumXXT = 0;
                             for n = 1:obj.nTrain
-                                sumPhiThetaPhiTThetaT = sumPhiThetaPhiTThetaT +...
+                                sumPhiThetaPhiTThetaT =...
+                                    sumPhiThetaPhiTThetaT +...
                                     PhiThetaMat(:, n)*PhiThetaMat(:, n)';
-                                sumPhiThetaXT = sumPhiThetaXT + PhiThetaMat(:, n)*obj.XMean(:, n)';
-                                sumXXT = sumXXT + obj.XMean(:, n)*obj.XMean(:, n)';
+                                sumPhiThetaXT = sumPhiThetaXT +...
+                                    PhiThetaMat(:, n)*obj.XMean(:, n)';
+                                sumXXT = sumXXT +...
+                                    obj.XMean(:, n)*obj.XMean(:, n)';
                             end
-                            Sigma = diag(mean(obj.XSqMean, 2)) + (sumXXT - diag(diag(sumXXT)))/obj.nTrain +...
-                                (sumPhiThetaPhiTThetaT/obj.nTrain) - (sumPhiThetaXT + sumPhiThetaXT')/obj.nTrain;
+                            Sigma = diag(mean(obj.XSqMean, 2)) +...
+                                (sumXXT-diag(diag(sumXXT)))/obj.nTrain +...
+                                (sumPhiThetaPhiTThetaT/obj.nTrain) -...
+                                (sumPhiThetaXT+ sumPhiThetaXT')/obj.nTrain;
                         else
-                            Sigma = sparse(1:obj.coarseScaleDomain.nEl, 1:obj.coarseScaleDomain.nEl,...
-                                mean(obj.XSqMean - 2*(PhiThetaMat.*obj.XMean) + PhiThetaMat.^2, 2));
+                            Sigma = sparse(1:obj.coarseScaleDomain.nEl,...
+                                1:obj.coarseScaleDomain.nEl, mean(...
+                                obj.XSqMean - 2*(PhiThetaMat.*obj.XMean)...
+                                + PhiThetaMat.^2, 2));
                         end
                     end
 %                     Sigma(Sigma < 0) = eps; %for numerical stability
                     %Variances must be positive
-                    Sigma(logical(eye(size(Sigma)))) = abs(Sigma(logical(eye(size(Sigma)))));
+                    Sigma(logical(eye(size(Sigma)))) =...
+                        abs(Sigma(logical(eye(size(Sigma)))));
                     
                 
                     %sum_i Phi_i^T Sigma^-1 <X^i>_qi
@@ -1034,16 +1225,21 @@ classdef ROM_SPDE
                     sumPhiTSigmaInvPhi = 0;
                     
                     for n = 1:obj.nTrain
-                        sumPhiTSigmaInvXmean = sumPhiTSigmaInvXmean + obj.designMatrix{n}'*SigmaInvXMean(:, n);
-                        sumPhiTSigmaInvPhi = sumPhiTSigmaInvPhi + obj.designMatrix{n}'*(Sigma\obj.designMatrix{n});
+                        sumPhiTSigmaInvXmean = sumPhiTSigmaInvXmean...
+                            + obj.designMatrix{n}'*SigmaInvXMean(:, n);
+                        sumPhiTSigmaInvPhi = sumPhiTSigmaInvPhi +...
+                          obj.designMatrix{n}'*(Sigma\obj.designMatrix{n});
                     end
                 elseif strcmp(sigma_prior_type, 'expSigSq')
                     %Vector of variances
                     sigmaSqVec = .5*(1./obj.sigmaPriorHyperparam).*...
-                        (-.5*obj.nTrain + sqrt(2*obj.nTrain*obj.sigmaPriorHyperparam.*...
-                        mean(obj.XSqMean - 2*(PhiThetaMat.*obj.XMean) + PhiThetaMat.^2, 2) + .25*obj.nTrain^2));
+                        (-.5*obj.nTrain...
+                        + sqrt(2*obj.nTrain*obj.sigmaPriorHyperparam.*...
+                        mean(obj.XSqMean - 2*(PhiThetaMat.*obj.XMean)...
+                        + PhiThetaMat.^2, 2) + .25*obj.nTrain^2));
                     
-                    Sigma = sparse(1:obj.coarseScaleDomain.nEl, 1:obj.coarseScaleDomain.nEl, sigmaSqVec);
+                    Sigma = sparse(1:obj.coarseScaleDomain.nEl,...
+                        1:obj.coarseScaleDomain.nEl, sigmaSqVec);
                     Sigma(Sigma < 0) = eps; %for numerical stability
                     sumPhiTSigmaInvXmean = 0;
                     %Only valid for diagonal Sigma
@@ -1053,8 +1249,10 @@ classdef ROM_SPDE
                     sumPhiTSigmaInvPhi = 0;
                     
                     for n = 1:obj.nTrain
-                        sumPhiTSigmaInvXmean = sumPhiTSigmaInvXmean + obj.designMatrix{n}'*SigmaInvXMean(:, n);
-                        sumPhiTSigmaInvPhi = sumPhiTSigmaInvPhi + obj.designMatrix{n}'*SigmaInv*obj.designMatrix{n};
+                        sumPhiTSigmaInvXmean = sumPhiTSigmaInvXmean...
+                            + obj.designMatrix{n}'*SigmaInvXMean(:, n);
+                        sumPhiTSigmaInvPhi = sumPhiTSigmaInvPhi +...
+                         obj.designMatrix{n}'*SigmaInv*obj.designMatrix{n};
                     end
                 elseif strcmp(sigma_prior_type, 'delta')
                     %Don't change sigma
@@ -1067,17 +1265,37 @@ classdef ROM_SPDE
                     sumPhiTSigmaInvPhi = 0;
                     
                     for n = 1:obj.nTrain
-                        sumPhiTSigmaInvXmean = sumPhiTSigmaInvXmean + obj.designMatrix{n}'*SigmaInvXMean(:, n);
-                        sumPhiTSigmaInvPhi = sumPhiTSigmaInvPhi + obj.designMatrix{n}'*SigmaInv*obj.designMatrix{n};
+                        sumPhiTSigmaInvXmean = sumPhiTSigmaInvXmean +...
+                            obj.designMatrix{n}'*SigmaInvXMean(:, n);
+                        sumPhiTSigmaInvPhi = sumPhiTSigmaInvPhi +...
+                         obj.designMatrix{n}'*SigmaInv*obj.designMatrix{n};
                     end
                 end
                 
-                iter = iter + 1;
-                thetaDiffRel = norm(theta_old - theta)/(norm(theta)*numel(theta));
-                if((iter > 5 && thetaDiffRel < 1e-8) || iter > 200)
+                %Update gamma
+                objFun = @(gamma) gaussFiltObjective(gamma,...
+                    obj.designMatrix, obj.distanceMatrix, obj.lambdak,...
+                    obj.XMean, theta, SigmaInv);
+                obj.gaussFiltPrecision = fminunc(objFun, ...
+                    obj.gaussFiltPrecision, options);
+                for n = 1:obj.nTrain
+                    for k = 1:size(obj.designMatrix{n}, 1)
+                        obj.designMatrix{n}(k, end) = sum(sum(...
+                           obj.lambdak{n,k}.*exp(obj.gaussFiltPrecision*...
+                            obj.distanceMatrix)));
+                    end
+                end
+                gamma = obj.gaussFiltPrecision
+                
+                iter = iter + 1
+                thetaDiffRel =...
+                    norm(theta_old - theta)/(norm(theta)*numel(theta));
+                if((iter > 5 && thetaDiffRel < 1e-8) || iter > 400)
                     converged = true;
                 end
             end
+            
+            %Update parametric features
             
             obj.theta_c.theta = theta;
             % theta_c.sigma = sqrt(sigma2);
@@ -1087,7 +1305,8 @@ classdef ROM_SPDE
             obj.theta_c.Sigma = Sigma;
             obj.theta_c.SigmaInv = SigmaInv;
             obj.thetaPriorHyperparam = obj.thetaPriorHyperparam;
-%             noPriorSigma = mean(obj.XSqMean - 2*(PhiThetaMat.*obj.XMean) + PhiThetaMat.^2, 2);
+%             noPriorSigma = mean(obj.XSqMean...
+%                    - 2*(PhiThetaMat.*obj.XMean) + PhiThetaMat.^2, 2);
 %             save('./data/noPriorSigma.mat', 'noPriorSigma');
             
         end
@@ -1147,8 +1366,10 @@ classdef ROM_SPDE
             end
         end
         
-        function [lambda_theta_c, lambda_log_s2, lambda_log_sigma2] = laplaceApproximation(obj)
-            %Computes parameter precisions based on second derivatives of posterior lower bound F
+        function [lambda_theta_c, lambda_log_s2, lambda_log_sigma2] =...
+                laplaceApproximation(obj)
+            %Computes parameter precisions based on second derivatives of
+            %posterior lower bound F
             
             %p_cf
             %precision of variances s_n^2
@@ -1453,7 +1674,8 @@ classdef ROM_SPDE
             end
         end
 
-        function [predMean, predSqMean] = randThetaPredict(obj, mode, nSamplesTheta, boundaryConditions)
+        function [predMean, predSqMean] = randThetaPredict(obj, mode,...
+                nSamplesTheta, boundaryConditions)
             %Function to predict finescale output from generative model
             
             if(nargin < 2)
@@ -1799,11 +2021,13 @@ classdef ROM_SPDE
 
         function obj = computeDesignMatrix(obj, mode, recompute)
             %Actual computation of design matrix
-            %set recompute to true if design matrices have to be recomputed during optimization (parametric features)
+            %set recompute to true if design matrices have to be recomputed
+            %during optimization (parametric features)
             debug = false; %for debug mode
             tic
             if(obj.loadDesignMatrix && ~recompute && strcmp(mode, 'train'))
-                load(strcat('./persistentData/', mode, 'DesignMatrix.mat'));
+                load(strcat('./persistentData/',...
+                    mode, 'DesignMatrix.mat'));
                 obj.designMatrix = designMatrix;
                 if obj.useAutoEnc
                     load('./persistentData/latentDim');
@@ -1830,7 +2054,8 @@ classdef ROM_SPDE
                 
                 %load finescale conductivity field
                 conductivity = dataFile.cond(:, dataSamples);
-                conductivity = num2cell(conductivity, 1);   %to avoid parallelization communication overhead
+                %to avoid parallelization communication overhead
+                conductivity = num2cell(conductivity, 1);
                 dataVars = whos(dataFile);
                 if ismember('convField', {dataVars.name})
                     %convField is cell array
@@ -1877,8 +2102,10 @@ classdef ROM_SPDE
                 end
                 PhiCell = repmat(PhiCell, nData, 1);
                 
-                if(obj.linFilt.totalUpdates > 0)
-                    %These only need to be stored if we sequentially add features
+                if(obj.linFilt.totalUpdates > 0 ...
+                    || ~isempty(obj.distanceMatrix))
+                    %These only need to be stored if we
+                    %sequentially add features
                     obj.lambdak = lambdak;
                     obj.xk = xk;
                     save('./persistentData/lambdak', 'lambdak', 'xk');
@@ -1895,7 +2122,8 @@ classdef ROM_SPDE
                             m = m + 1;
                         end
                     end
-                    lambdakMatBin = logical(lambdakMat - obj.lowerConductivity);
+                    lambdakMatBin = logical(lambdakMat -...
+                        obj.lowerConductivity);
                     %Encoded version of test samples
                     load('./autoencoder/trainedAutoencoder.mat');
                     latentMu = ba.encode(lambdakMatBin);
@@ -1905,7 +2133,9 @@ classdef ROM_SPDE
                     if ~debug
                         clear ba;
                     end
-                    latentMu = reshape(latentMu, obj.latentDim, obj.coarseScaleDomain.nEl, nData);
+                    latentMu =...
+                        reshape(latentMu, obj.latentDim,...
+                        obj.coarseScaleDomain.nEl, nData);
                 else
                     latentMu = [];
                 end
@@ -1918,9 +2148,11 @@ classdef ROM_SPDE
                 ld = obj.latentDim;
                 uc = obj.useConvection;
                 ticBytes(gcp)
-                parfor s = 1:nData    %for very cheap features, serial evaluation might be more efficient
-                    %inputs belonging to same coarse element are in the same column of xk. They are ordered in
-                    %x-direction.
+                %for very cheap features, serial evaluation might be
+                %more efficient
+                for s = 1:nData
+                    %inputs belonging to same coarse element are in the
+                    %same column of xk. They are ordered in x-direction.
                     
                     %construct conductivity design matrix
                     for i = 1:nElc
@@ -3551,287 +3783,294 @@ classdef ROM_SPDE
             disp('done')
         end
 
-        function [obj, phi, phiGlobal, phiConvection, phiGlobalConvection] = setFeatureFunctions(obj)
+        function [obj, phi, phiGlobal, phiConvection, phiGlobalConvection]...
+                = setFeatureFunctions(obj)
             %Set up feature function handles;
-            %First cell array index is for macro-cell. This allows different features for different
-            %macro-cells
+            %First cell array index is for macro-cell. This allows...
+            %different features for different macro-cells
 
-            addpath('./featureFunctions')   %Path to feature function library
+            %Path to feature function library
+            addpath('./featureFunctions')
             conductivities = [obj.lowerConductivity obj.upperConductivity];
             log_cutoff = 1e-5;
+            
             phi = {};
             phiGlobal = {};
-            ct = obj.conductivityTransformation;    %avoid broadcasting overhead in designMatrix
+            %avoid broadcasting overhead in designMatrix
+            ct = obj.conductivityTransformation;
             nElf = [obj.nElFX obj.nElFY];
-            %constant bias
             for k = 1:obj.coarseScaleDomain.nEl
                 nFeatures = 0;
+                %constant bias
                 phi{k, nFeatures + 1} = @(lambda) 1;
                 nFeatures = nFeatures + 1;
-%                 
-                phi{k, nFeatures + 1} = @(lambda)...
-                    SCA(lambda, conductivities, ct);
-                nFeatures = nFeatures + 1;
-                phi{k, nFeatures + 1} = @(lambda)...
-                    maxwellGarnett(lambda, conductivities, ct, 'lo');
-                nFeatures = nFeatures + 1;
-                phi{k, nFeatures + 1} = @(lambda)...
-                    maxwellGarnett(lambda, conductivities, ct, 'hi');
-                nFeatures = nFeatures + 1;
-                phi{k, nFeatures + 1} = @(lambda)...
-                    differentialEffectiveMedium(lambda, conductivities, ct, 'lo');
-                nFeatures = nFeatures + 1;
-                phi{k, nFeatures + 1} = @(lambda)...
-                    differentialEffectiveMedium(lambda, conductivities, ct, 'hi');
-                nFeatures = nFeatures + 1;
                 
-                phi{k, nFeatures + 1} = @(lambda)...
-                    log(linealPath(lambda, 4, 'x', 2, conductivities) +...
-                    linealPath(lambda, 4, 'y', 2, conductivities) + 1/4096);
-                nFeatures = nFeatures + 1;
-                phi{k, nFeatures + 1} = @(lambda)...
-                    log(linealPath(lambda, 4, 'x', 1, conductivities) +...
-                    linealPath(lambda, 4, 'y', 1, conductivities) + 1/4096);
-                nFeatures = nFeatures + 1;
-                phi{k, nFeatures + 1} = @(lambda)...
-                    log(linealPath(lambda, 7, 'x', 2, conductivities) +...
-                    linealPath(lambda, 7, 'y', 2, conductivities) + 1/4096);
-                nFeatures = nFeatures + 1;
-                phi{k, nFeatures + 1} = @(lambda)...
-                    log(linealPath(lambda, 7, 'x', 1, conductivities) +...
-                    linealPath(lambda, 7, 'y', 1, conductivities) + 1/4096);
-                nFeatures = nFeatures + 1;
-                phi{k, nFeatures + 1} = @(lambda)...
-                    log(linealPath(lambda, 10, 'x', 2, conductivities) +...
-                    linealPath(lambda, 10, 'y', 2, conductivities) + 1/4096);
-                nFeatures = nFeatures + 1;
-                phi{k, nFeatures + 1} = @(lambda)...
-                    log(linealPath(lambda, 10, 'x', 1, conductivities) +...
-                    linealPath(lambda, 10, 'y', 1, conductivities) + 1/4096);
-                nFeatures = nFeatures + 1;
-                phi{k, nFeatures + 1} = @(lambda) linPathParams(lambda, (2:2:8)', conductivities, 1, 'a');
-                nFeatures = nFeatures + 1;
-                phi{k, nFeatures + 1} = @(lambda) linPathParams(lambda, (2:2:8)', conductivities, 1, 'b');
-                nFeatures = nFeatures + 1;
-                phi{k, nFeatures + 1} = @(lambda) linPathParams(lambda, (2:2:8)', conductivities, 2, 'a');
-                nFeatures = nFeatures + 1;
-                phi{k, nFeatures + 1} = @(lambda) linPathParams(lambda, (2:2:8)', conductivities, 2, 'b');
-                nFeatures = nFeatures + 1;
+                
 %                 phi{k, nFeatures + 1} = @(lambda)...
-%                     linealPath(lambda, 3, 'y', 2, conductivities);
+%                     SCA(lambda, conductivities, ct);
+%                 nFeatures = nFeatures + 1;
+%                 phi{k, nFeatures + 1} = @(lambda)...
+%                     maxwellGarnett(lambda, conductivities, ct, 'lo');
+%                 nFeatures = nFeatures + 1;
+%                 phi{k, nFeatures + 1} = @(lambda)...
+%                     maxwellGarnett(lambda, conductivities, ct, 'hi');
+%                 nFeatures = nFeatures + 1;
+%                 phi{k, nFeatures + 1} = @(lambda)...
+%                     differentialEffectiveMedium(lambda,...
+%                     conductivities, ct, 'lo');
+%                 nFeatures = nFeatures + 1;
+%                 phi{k, nFeatures + 1} = @(lambda)...
+%                     differentialEffectiveMedium(lambda,...
+%                     conductivities, ct, 'hi');
+%                 nFeatures = nFeatures + 1;
+%                 
+%                 phi{k, nFeatures + 1} = @(lambda)...
+%                     log(linealPath(lambda, 4, 'x', 2, conductivities) +...
+%                     linealPath(lambda, 4, 'y', 2, conductivities) + 1/4096);
+%                 nFeatures = nFeatures + 1;
+%                 phi{k, nFeatures + 1} = @(lambda)...
+%                     log(linealPath(lambda, 4, 'x', 1, conductivities) +...
+%                     linealPath(lambda, 4, 'y', 1, conductivities) + 1/4096);
+%                 nFeatures = nFeatures + 1;
+%                 phi{k, nFeatures + 1} = @(lambda)...
+%                     log(linealPath(lambda, 7, 'x', 2, conductivities) +...
+%                     linealPath(lambda, 7, 'y', 2, conductivities) + 1/4096);
+%                 nFeatures = nFeatures + 1;
+%                 phi{k, nFeatures + 1} = @(lambda)...
+%                     log(linealPath(lambda, 7, 'x', 1, conductivities) +...
+%                     linealPath(lambda, 7, 'y', 1, conductivities) + 1/4096);
+%                 nFeatures = nFeatures + 1;
+%                 phi{k, nFeatures + 1} = @(lambda)...
+%                     log(linealPath(lambda, 10, 'x', 2, conductivities) +...
+%                     linealPath(lambda, 10, 'y', 2, conductivities) + 1/4096);
+%                 nFeatures = nFeatures + 1;
+%                 phi{k, nFeatures + 1} = @(lambda)...
+%                     log(linealPath(lambda, 10, 'x', 1, conductivities) +...
+%                     linealPath(lambda, 10, 'y', 1, conductivities) + 1/4096);
+%                 nFeatures = nFeatures + 1;
+%                 phi{k, nFeatures + 1} = @(lambda) linPathParams(lambda, (2:2:8)', conductivities, 1, 'a');
+%                 nFeatures = nFeatures + 1;
+%                 phi{k, nFeatures + 1} = @(lambda) linPathParams(lambda, (2:2:8)', conductivities, 1, 'b');
+%                 nFeatures = nFeatures + 1;
+%                 phi{k, nFeatures + 1} = @(lambda) linPathParams(lambda, (2:2:8)', conductivities, 2, 'a');
+%                 nFeatures = nFeatures + 1;
+%                 phi{k, nFeatures + 1} = @(lambda) linPathParams(lambda, (2:2:8)', conductivities, 2, 'b');
 %                 nFeatures = nFeatures + 1;
 % %                 phi{k, nFeatures + 1} = @(lambda)...
-% %                     linealPath(lambda, 3, 'x', 1, conductivities);
+% %                     linealPath(lambda, 3, 'y', 2, conductivities);
 % %                 nFeatures = nFeatures + 1;
-% %                 phi{k, nFeatures + 1} = @(lambda)...
-% %                     linealPath(lambda, 3, 'y', 1, conductivities);
-% %                 nFeatures = nFeatures + 1;
-% %                 phi{k, nFeatures + 1} = @(lambda)...
-% %                     linealPath(lambda, 6, 'x', 1, conductivities);
-% %                 nFeatures = nFeatures + 1;
-% %                 phi{k, nFeatures + 1} = @(lambda)...
-% %                     linealPath(lambda, 6, 'y', 1, conductivities);
-% %                 nFeatures = nFeatures + 1;
-% % 
-                phi{k, nFeatures + 1} = @(lambda)...
-                    numberOfObjects(lambda, conductivities, 'hi');
-                nFeatures = nFeatures + 1;
-                phi{k, nFeatures + 1} = @(lambda)...
-                    numberOfObjects(lambda, conductivities, 'lo');
-                nFeatures = nFeatures + 1;
-                phi{k, nFeatures + 1} = @(lambda)...
-                    nPixelCross(lambda, 'y', 1, conductivities, 'max');
-				nFeatures = nFeatures + 1;
-                phi{k, nFeatures + 1} = @(lambda)...
-                    nPixelCross(lambda, 'x', 1, conductivities, 'max');
-				nFeatures = nFeatures + 1;
-                phi{k, nFeatures + 1} = @(lambda)...
-                    nPixelCross(lambda, 'y', 2, conductivities, 'max');
-				nFeatures = nFeatures + 1;
-                phi{k, nFeatures + 1} = @(lambda)...
-                    nPixelCross(lambda, 'x', 2, conductivities, 'max');
-				nFeatures = nFeatures + 1;
-                phi{k, nFeatures + 1} = @(lambda)...
-                    maxExtent(lambda, conductivities, 'hi', 'y');
-                nFeatures = nFeatures + 1;
-                phi{k, nFeatures + 1} = @(lambda)...
-                    maxExtent(lambda, conductivities, 'hi', 'x');
-                nFeatures = nFeatures + 1;
-                phi{k, nFeatures + 1} = @(lambda)...
-                    maxExtent(lambda, conductivities, 'lo', 'y');
-                nFeatures = nFeatures + 1;
-                phi{k, nFeatures + 1} = @(lambda)...
-                    maxExtent(lambda, conductivities, 'lo', 'x');
-                nFeatures = nFeatures + 1;
-                
-
-                phi{k, nFeatures + 1} = @(lambda)...
-                    conductivityTransform(generalizedMean(lambda, -1), ct);
-                nFeatures = nFeatures + 1;
-                phi{k, nFeatures + 1} = @(lambda)...
-                    conductivityTransform(generalizedMean(lambda, -.5), ct);
-                nFeatures = nFeatures + 1;
-                phi{k, nFeatures + 1} = @(lambda)...
-                    conductivityTransform(generalizedMean(lambda, 0), ct);
-                nFeatures = nFeatures + 1;
-                phi{k, nFeatures + 1} = @(lambda)...
-                    conductivityTransform(generalizedMean(lambda, .5), ct);
-                nFeatures = nFeatures + 1;
-                phi{k, nFeatures + 1} = @(lambda)...
-                    conductivityTransform(generalizedMean(lambda, 1), ct);
-                nFeatures = nFeatures + 1;
-
-                phi{k, nFeatures + 1} = @(lambda) log(meanImageProps(lambda,...
-                    conductivities, 'hi', 'ConvexArea', 'max') + log_cutoff);
-                nFeatures = nFeatures + 1;
-                phi{k, nFeatures + 1} = @(lambda) log(meanImageProps(lambda,...
-                    conductivities, 'lo', 'ConvexArea', 'max') + log_cutoff);
-                nFeatures = nFeatures + 1;
-                phi{k, nFeatures + 1} = @(lambda) log(meanImageProps(lambda,...
-                    conductivities, 'hi', 'ConvexArea', 'var') + log_cutoff);
-                nFeatures = nFeatures + 1;
-                phi{k, nFeatures + 1} = @(lambda) log(meanImageProps(lambda,...
-                    conductivities, 'lo', 'ConvexArea', 'var') + log_cutoff);
-                nFeatures = nFeatures + 1;
-                phi{k, nFeatures + 1} = @(lambda) log(meanImageProps(lambda,...
-                    conductivities, 'hi', 'ConvexArea', 'mean') + log_cutoff);
-                nFeatures = nFeatures + 1;
-                phi{k, nFeatures + 1} = @(lambda) log(meanImageProps(lambda,...
-                    conductivities, 'lo', 'ConvexArea', 'mean') + log_cutoff);
-                nFeatures = nFeatures + 1;
-                
-                phi{k, nFeatures + 1} = @(lambda) ...
-                    connectedPathExist(lambda, 1, conductivities, 'x', 'invdist');
-                nFeatures = nFeatures + 1;
-                phi{k, nFeatures + 1} = @(lambda) ...
-                    connectedPathExist(lambda, 1, conductivities, 'y', 'invdist');
-                nFeatures = nFeatures + 1;
-                phi{k, nFeatures + 1} = @(lambda) ...
-                    connectedPathExist(lambda, 2, conductivities, 'x', 'invdist');
-                nFeatures = nFeatures + 1;
-                phi{k, nFeatures + 1} = @(lambda) ...
-                    connectedPathExist(lambda, 2, conductivities, 'y', 'invdist');
-                nFeatures = nFeatures + 1;
-                
-                phi{k, nFeatures + 1} = @(lambda)...
-                    log(specificSurface(lambda, 1, conductivities, nElf) + log_cutoff);
-                nFeatures = nFeatures + 1;
-                phi{k, nFeatures + 1} = @(lambda)...
-                    log(specificSurface(lambda, 2, conductivities, nElf) + log_cutoff);
-                nFeatures = nFeatures + 1;
-
-                
-                phi{k, nFeatures + 1} = @(lambda)...
-                    gaussLinFilt(lambda, nan, 1);
-                nFeatures = nFeatures + 1;
-                phi{k, nFeatures + 1} = @(lambda)...
-                    gaussLinFilt(lambda, nan, 2);
-                nFeatures = nFeatures + 1;
-                phi{k, nFeatures + 1} = @(lambda)...
-                    gaussLinFilt(lambda, nan, 4);
-                nFeatures = nFeatures + 1;
-                phi{k, nFeatures + 1} = @(lambda)...
-                    gaussLinFilt(lambda, nan, 8);
-                nFeatures = nFeatures + 1;
-                phi{k, nFeatures + 1} = @(lambda)...
-                    gaussLinFilt(lambda, nan, 16);
-                nFeatures = nFeatures + 1;
-
-                phi{k, nFeatures + 1} = @(lambda) std(lambda(:));
-                nFeatures = nFeatures + 1;
-                phi{k, nFeatures + 1} = @(lambda) log(std(lambda(:)) + log_cutoff);
-                nFeatures = nFeatures + 1;
-                
-                phi{k, nFeatures + 1} = @(lambda) isingEnergy(lambda);
-                nFeatures = nFeatures + 1;
-                
-                phi{k, nFeatures + 1} = @(lambda) generalizedMeanBoundary(lambda, -1, 'left');
-                nFeatures = nFeatures + 1;
-                phi{k, nFeatures + 1} = @(lambda) generalizedMeanBoundary(lambda, -1, 'lower');
-                nFeatures = nFeatures + 1;
-                phi{k, nFeatures + 1} = @(lambda) generalizedMeanBoundary(lambda, -1, 'right');
-                nFeatures = nFeatures + 1;
-                phi{k, nFeatures + 1} = @(lambda) generalizedMeanBoundary(lambda, -1, 'upper');
-                nFeatures = nFeatures + 1;
-                
-                phi{k, nFeatures + 1} = @(lambda) generalizedMeanBoundary(lambda, 0, 'left');
-                nFeatures = nFeatures + 1;
-                phi{k, nFeatures + 1} = @(lambda) generalizedMeanBoundary(lambda, 0, 'lower');
-                nFeatures = nFeatures + 1;
-                phi{k, nFeatures + 1} = @(lambda) generalizedMeanBoundary(lambda, 0, 'right');
-                nFeatures = nFeatures + 1;
-                phi{k, nFeatures + 1} = @(lambda) generalizedMeanBoundary(lambda, 0, 'upper');
-                nFeatures = nFeatures + 1;
-                
-                phi{k, nFeatures + 1} = @(lambda) generalizedMeanBoundary(lambda, 1, 'left');
-                nFeatures = nFeatures + 1;
-                phi{k, nFeatures + 1} = @(lambda) generalizedMeanBoundary(lambda, 1, 'lower');
-                nFeatures = nFeatures + 1;
-                phi{k, nFeatures + 1} = @(lambda) generalizedMeanBoundary(lambda, 1, 'right');
-                nFeatures = nFeatures + 1;
-                phi{k, nFeatures + 1} = @(lambda) generalizedMeanBoundary(lambda, 1, 'upper');
-                nFeatures = nFeatures + 1;
-                
-                phi{k, nFeatures + 1} = @(lambda) distanceProps(lambda, conductivities, 'hi',...
-                    'euclidean', 'mean');
-                nFeatures = nFeatures + 1;
-                phi{k, nFeatures + 1} = @(lambda) distanceProps(lambda, conductivities, 'hi',...
-                    'euclidean', 'var');
-                nFeatures = nFeatures + 1;
-                phi{k, nFeatures + 1} = @(lambda) distanceProps(lambda, conductivities, 'hi',...
-                    'euclidean', 'max');
-                nFeatures = nFeatures + 1;
-                
-                phi{k, nFeatures + 1} = @(lambda) distanceProps(lambda, conductivities, 'hi',...
-                    'cityblock', 'mean');
-                nFeatures = nFeatures + 1;
-                phi{k, nFeatures + 1} = @(lambda) distanceProps(lambda, conductivities, 'hi',...
-                    'cityblock', 'var');
-                nFeatures = nFeatures + 1;
-                phi{k, nFeatures + 1} = @(lambda) distanceProps(lambda, conductivities, 'hi',...
-                    'cityblock', 'max');
-                nFeatures = nFeatures + 1;
-                
-                phi{k, nFeatures + 1} = @(lambda) distanceProps(lambda, conductivities, 'hi',...
-                    'chessboard', 'mean');
-                nFeatures = nFeatures + 1;
-                phi{k, nFeatures + 1} = @(lambda) distanceProps(lambda, conductivities, 'hi',...
-                    'chessboard', 'var');
-                nFeatures = nFeatures + 1;
-                phi{k, nFeatures + 1} = @(lambda) distanceProps(lambda, conductivities, 'hi',...
-                    'chessboard', 'max');
-                nFeatures = nFeatures + 1;
-
-                
-                phi{k, nFeatures + 1} = @(lambda) distanceProps(lambda, conductivities, 'lo',...
-                    'euclidean', 'mean');
-                nFeatures = nFeatures + 1;
-                phi{k, nFeatures + 1} = @(lambda) distanceProps(lambda, conductivities, 'lo',...
-                    'euclidean', 'var');
-                nFeatures = nFeatures + 1;
-                phi{k, nFeatures + 1} = @(lambda) distanceProps(lambda, conductivities, 'lo',...
-                    'euclidean', 'max');
-                nFeatures = nFeatures + 1;
-                
-                phi{k, nFeatures + 1} = @(lambda) distanceProps(lambda, conductivities, 'lo',...
-                    'cityblock', 'mean');
-                nFeatures = nFeatures + 1;
-                phi{k, nFeatures + 1} = @(lambda) distanceProps(lambda, conductivities, 'lo',...
-                    'cityblock', 'var');
-                nFeatures = nFeatures + 1;
-                phi{k, nFeatures + 1} = @(lambda) distanceProps(lambda, conductivities, 'lo',...
-                    'cityblock', 'max');
-                nFeatures = nFeatures + 1;
-                
-                phi{k, nFeatures + 1} = @(lambda) distanceProps(lambda, conductivities, 'lo',...
-                    'chessboard', 'mean');
-                nFeatures = nFeatures + 1;
-                phi{k, nFeatures + 1} = @(lambda) distanceProps(lambda, conductivities, 'lo',...
-                    'chessboard', 'var');
-                nFeatures = nFeatures + 1;
-                phi{k, nFeatures + 1} = @(lambda) distanceProps(lambda, conductivities, 'lo',...
-                    'chessboard', 'max');
-                nFeatures = nFeatures + 1;
+% % %                 phi{k, nFeatures + 1} = @(lambda)...
+% % %                     linealPath(lambda, 3, 'x', 1, conductivities);
+% % %                 nFeatures = nFeatures + 1;
+% % %                 phi{k, nFeatures + 1} = @(lambda)...
+% % %                     linealPath(lambda, 3, 'y', 1, conductivities);
+% % %                 nFeatures = nFeatures + 1;
+% % %                 phi{k, nFeatures + 1} = @(lambda)...
+% % %                     linealPath(lambda, 6, 'x', 1, conductivities);
+% % %                 nFeatures = nFeatures + 1;
+% % %                 phi{k, nFeatures + 1} = @(lambda)...
+% % %                     linealPath(lambda, 6, 'y', 1, conductivities);
+% % %                 nFeatures = nFeatures + 1;
+% % % 
+%                 phi{k, nFeatures + 1} = @(lambda)...
+%                     numberOfObjects(lambda, conductivities, 'hi');
+%                 nFeatures = nFeatures + 1;
+%                 phi{k, nFeatures + 1} = @(lambda)...
+%                     numberOfObjects(lambda, conductivities, 'lo');
+%                 nFeatures = nFeatures + 1;
+%                 phi{k, nFeatures + 1} = @(lambda)...
+%                     nPixelCross(lambda, 'y', 1, conductivities, 'max');
+% 				nFeatures = nFeatures + 1;
+%                 phi{k, nFeatures + 1} = @(lambda)...
+%                     nPixelCross(lambda, 'x', 1, conductivities, 'max');
+% 				nFeatures = nFeatures + 1;
+%                 phi{k, nFeatures + 1} = @(lambda)...
+%                     nPixelCross(lambda, 'y', 2, conductivities, 'max');
+% 				nFeatures = nFeatures + 1;
+%                 phi{k, nFeatures + 1} = @(lambda)...
+%                     nPixelCross(lambda, 'x', 2, conductivities, 'max');
+% 				nFeatures = nFeatures + 1;
+%                 phi{k, nFeatures + 1} = @(lambda)...
+%                     maxExtent(lambda, conductivities, 'hi', 'y');
+%                 nFeatures = nFeatures + 1;
+%                 phi{k, nFeatures + 1} = @(lambda)...
+%                     maxExtent(lambda, conductivities, 'hi', 'x');
+%                 nFeatures = nFeatures + 1;
+%                 phi{k, nFeatures + 1} = @(lambda)...
+%                     maxExtent(lambda, conductivities, 'lo', 'y');
+%                 nFeatures = nFeatures + 1;
+%                 phi{k, nFeatures + 1} = @(lambda)...
+%                     maxExtent(lambda, conductivities, 'lo', 'x');
+%                 nFeatures = nFeatures + 1;
+%                 
+% 
+%                 phi{k, nFeatures + 1} = @(lambda)...
+%                     conductivityTransform(generalizedMean(lambda, -1), ct);
+%                 nFeatures = nFeatures + 1;
+%                 phi{k, nFeatures + 1} = @(lambda)...
+%                     conductivityTransform(generalizedMean(lambda, -.5), ct);
+%                 nFeatures = nFeatures + 1;
+%                 phi{k, nFeatures + 1} = @(lambda)...
+%                     conductivityTransform(generalizedMean(lambda, 0), ct);
+%                 nFeatures = nFeatures + 1;
+%                 phi{k, nFeatures + 1} = @(lambda)...
+%                     conductivityTransform(generalizedMean(lambda, .5), ct);
+%                 nFeatures = nFeatures + 1;
+%                 phi{k, nFeatures + 1} = @(lambda)...
+%                     conductivityTransform(generalizedMean(lambda, 1), ct);
+%                 nFeatures = nFeatures + 1;
+% 
+%                 phi{k, nFeatures + 1} = @(lambda) log(meanImageProps(lambda,...
+%                     conductivities, 'hi', 'ConvexArea', 'max') + log_cutoff);
+%                 nFeatures = nFeatures + 1;
+%                 phi{k, nFeatures + 1} = @(lambda) log(meanImageProps(lambda,...
+%                     conductivities, 'lo', 'ConvexArea', 'max') + log_cutoff);
+%                 nFeatures = nFeatures + 1;
+%                 phi{k, nFeatures + 1} = @(lambda) log(meanImageProps(lambda,...
+%                     conductivities, 'hi', 'ConvexArea', 'var') + log_cutoff);
+%                 nFeatures = nFeatures + 1;
+%                 phi{k, nFeatures + 1} = @(lambda) log(meanImageProps(lambda,...
+%                     conductivities, 'lo', 'ConvexArea', 'var') + log_cutoff);
+%                 nFeatures = nFeatures + 1;
+%                 phi{k, nFeatures + 1} = @(lambda) log(meanImageProps(lambda,...
+%                     conductivities, 'hi', 'ConvexArea', 'mean') + log_cutoff);
+%                 nFeatures = nFeatures + 1;
+%                 phi{k, nFeatures + 1} = @(lambda) log(meanImageProps(lambda,...
+%                     conductivities, 'lo', 'ConvexArea', 'mean') + log_cutoff);
+%                 nFeatures = nFeatures + 1;
+%                 
+%                 phi{k, nFeatures + 1} = @(lambda) ...
+%                     connectedPathExist(lambda, 1, conductivities, 'x', 'invdist');
+%                 nFeatures = nFeatures + 1;
+%                 phi{k, nFeatures + 1} = @(lambda) ...
+%                     connectedPathExist(lambda, 1, conductivities, 'y', 'invdist');
+%                 nFeatures = nFeatures + 1;
+%                 phi{k, nFeatures + 1} = @(lambda) ...
+%                     connectedPathExist(lambda, 2, conductivities, 'x', 'invdist');
+%                 nFeatures = nFeatures + 1;
+%                 phi{k, nFeatures + 1} = @(lambda) ...
+%                     connectedPathExist(lambda, 2, conductivities, 'y', 'invdist');
+%                 nFeatures = nFeatures + 1;
+%                 
+%                 phi{k, nFeatures + 1} = @(lambda)...
+%                     log(specificSurface(lambda, 1, conductivities, nElf) + log_cutoff);
+%                 nFeatures = nFeatures + 1;
+%                 phi{k, nFeatures + 1} = @(lambda)...
+%                     log(specificSurface(lambda, 2, conductivities, nElf) + log_cutoff);
+%                 nFeatures = nFeatures + 1;
+% 
+%                 
+%                 phi{k, nFeatures + 1} = @(lambda)...
+%                     gaussLinFilt(lambda, nan, 1/64);
+%                 nFeatures = nFeatures + 1;
+%                 phi{k, nFeatures + 1} = @(lambda)...
+%                     gaussLinFilt(lambda, nan, 1/32);
+%                 nFeatures = nFeatures + 1;
+%                 phi{k, nFeatures + 1} = @(lambda)...
+%                     gaussLinFilt(lambda, nan, 1/16);
+%                 nFeatures = nFeatures + 1;
+%                 phi{k, nFeatures + 1} = @(lambda)...
+%                     gaussLinFilt(lambda, nan, 1/8);
+%                 nFeatures = nFeatures + 1;
+%                 phi{k, nFeatures + 1} = @(lambda)...
+%                     gaussLinFilt(lambda, nan, 1/4);
+%                 nFeatures = nFeatures + 1;
+% 
+%                 phi{k, nFeatures + 1} = @(lambda) std(lambda(:));
+%                 nFeatures = nFeatures + 1;
+%                 phi{k, nFeatures + 1} = @(lambda) log(std(lambda(:)) + log_cutoff);
+%                 nFeatures = nFeatures + 1;
+%                 
+%                 phi{k, nFeatures + 1} = @(lambda) isingEnergy(lambda);
+%                 nFeatures = nFeatures + 1;
+%                 
+%                 phi{k, nFeatures + 1} = @(lambda) generalizedMeanBoundary(lambda, -1, 'left');
+%                 nFeatures = nFeatures + 1;
+%                 phi{k, nFeatures + 1} = @(lambda) generalizedMeanBoundary(lambda, -1, 'lower');
+%                 nFeatures = nFeatures + 1;
+%                 phi{k, nFeatures + 1} = @(lambda) generalizedMeanBoundary(lambda, -1, 'right');
+%                 nFeatures = nFeatures + 1;
+%                 phi{k, nFeatures + 1} = @(lambda) generalizedMeanBoundary(lambda, -1, 'upper');
+%                 nFeatures = nFeatures + 1;
+%                 
+%                 phi{k, nFeatures + 1} = @(lambda) generalizedMeanBoundary(lambda, 0, 'left');
+%                 nFeatures = nFeatures + 1;
+%                 phi{k, nFeatures + 1} = @(lambda) generalizedMeanBoundary(lambda, 0, 'lower');
+%                 nFeatures = nFeatures + 1;
+%                 phi{k, nFeatures + 1} = @(lambda) generalizedMeanBoundary(lambda, 0, 'right');
+%                 nFeatures = nFeatures + 1;
+%                 phi{k, nFeatures + 1} = @(lambda) generalizedMeanBoundary(lambda, 0, 'upper');
+%                 nFeatures = nFeatures + 1;
+%                 
+%                 phi{k, nFeatures + 1} = @(lambda) generalizedMeanBoundary(lambda, 1, 'left');
+%                 nFeatures = nFeatures + 1;
+%                 phi{k, nFeatures + 1} = @(lambda) generalizedMeanBoundary(lambda, 1, 'lower');
+%                 nFeatures = nFeatures + 1;
+%                 phi{k, nFeatures + 1} = @(lambda) generalizedMeanBoundary(lambda, 1, 'right');
+%                 nFeatures = nFeatures + 1;
+%                 phi{k, nFeatures + 1} = @(lambda) generalizedMeanBoundary(lambda, 1, 'upper');
+%                 nFeatures = nFeatures + 1;
+%                 
+%                 phi{k, nFeatures + 1} = @(lambda) distanceProps(lambda, conductivities, 'hi',...
+%                     'euclidean', 'mean');
+%                 nFeatures = nFeatures + 1;
+%                 phi{k, nFeatures + 1} = @(lambda) distanceProps(lambda, conductivities, 'hi',...
+%                     'euclidean', 'var');
+%                 nFeatures = nFeatures + 1;
+%                 phi{k, nFeatures + 1} = @(lambda) distanceProps(lambda, conductivities, 'hi',...
+%                     'euclidean', 'max');
+%                 nFeatures = nFeatures + 1;
+%                 
+%                 phi{k, nFeatures + 1} = @(lambda) distanceProps(lambda, conductivities, 'hi',...
+%                     'cityblock', 'mean');
+%                 nFeatures = nFeatures + 1;
+%                 phi{k, nFeatures + 1} = @(lambda) distanceProps(lambda, conductivities, 'hi',...
+%                     'cityblock', 'var');
+%                 nFeatures = nFeatures + 1;
+%                 phi{k, nFeatures + 1} = @(lambda) distanceProps(lambda, conductivities, 'hi',...
+%                     'cityblock', 'max');
+%                 nFeatures = nFeatures + 1;
+%                 
+%                 phi{k, nFeatures + 1} = @(lambda) distanceProps(lambda, conductivities, 'hi',...
+%                     'chessboard', 'mean');
+%                 nFeatures = nFeatures + 1;
+%                 phi{k, nFeatures + 1} = @(lambda) distanceProps(lambda, conductivities, 'hi',...
+%                     'chessboard', 'var');
+%                 nFeatures = nFeatures + 1;
+%                 phi{k, nFeatures + 1} = @(lambda) distanceProps(lambda, conductivities, 'hi',...
+%                     'chessboard', 'max');
+%                 nFeatures = nFeatures + 1;
+% 
+%                 
+%                 phi{k, nFeatures + 1} = @(lambda) distanceProps(lambda, conductivities, 'lo',...
+%                     'euclidean', 'mean');
+%                 nFeatures = nFeatures + 1;
+%                 phi{k, nFeatures + 1} = @(lambda) distanceProps(lambda, conductivities, 'lo',...
+%                     'euclidean', 'var');
+%                 nFeatures = nFeatures + 1;
+%                 phi{k, nFeatures + 1} = @(lambda) distanceProps(lambda, conductivities, 'lo',...
+%                     'euclidean', 'max');
+%                 nFeatures = nFeatures + 1;
+%                 
+%                 phi{k, nFeatures + 1} = @(lambda) distanceProps(lambda, conductivities, 'lo',...
+%                     'cityblock', 'mean');
+%                 nFeatures = nFeatures + 1;
+%                 phi{k, nFeatures + 1} = @(lambda) distanceProps(lambda, conductivities, 'lo',...
+%                     'cityblock', 'var');
+%                 nFeatures = nFeatures + 1;
+%                 phi{k, nFeatures + 1} = @(lambda) distanceProps(lambda, conductivities, 'lo',...
+%                     'cityblock', 'max');
+%                 nFeatures = nFeatures + 1;
+%                 
+%                 phi{k, nFeatures + 1} = @(lambda) distanceProps(lambda, conductivities, 'lo',...
+%                     'chessboard', 'mean');
+%                 nFeatures = nFeatures + 1;
+%                 phi{k, nFeatures + 1} = @(lambda) distanceProps(lambda, conductivities, 'lo',...
+%                     'chessboard', 'var');
+%                 nFeatures = nFeatures + 1;
+%                 phi{k, nFeatures + 1} = @(lambda) distanceProps(lambda, conductivities, 'lo',...
+%                     'chessboard', 'max');
+%                 nFeatures = nFeatures + 1;
 
                 %Dummy random features
 %                 phi{k, nFeatures + 1} = @(lambda) normrnd(0, 1);
@@ -3842,42 +4081,65 @@ classdef ROM_SPDE
 %                 nFeatures = nFeatures + 1;
             end
             
-            %Global features
+            %% Global features
+            centers = elementCenters(obj.coarseGridVectorX,...
+                obj.coarseGridVectorY);
+            centers(1, :) = centers(1, :)*(obj.fineScaleDomain.nElX + 1);
+            centers(2, :) = centers(2, :)*(obj.fineScaleDomain.nElY + 1);
             for k = 1:obj.coarseScaleDomain.nEl
                 nGlobalFeatures = 0;
 %                 phiGlobal{k, nGlobalFeatures + 1} = @(lambda) ...
-%                     connectedPathExist(lambda, 2, conductivities, 'x', 'invdist');
+%                     connectedPathExist(lambda,...
+%                     2, conductivities, 'x', 'invdist');
 %                 nGlobalFeatures = nGlobalFeatures + 1;
 %                 phiGlobal{k, nGlobalFeatures + 1} = @(lambda) ...
-%                     connectedPathExist(lambda, 2, conductivities, 'y', 'invdist');
+%                     connectedPathExist(lambda, 2,...
+%                     conductivities, 'y', 'invdist');
 %                 nGlobalFeatures = nGlobalFeatures + 1;
-                phiGlobal{k, nGlobalFeatures + 1} = @(lambda)...
-                    maxExtent(lambda, conductivities, 'hi', 'x');
-                nGlobalFeatures = nGlobalFeatures + 1;
-                phiGlobal{k, nGlobalFeatures + 1} = @(lambda)...
-                    maxExtent(lambda, conductivities, 'hi', 'y');
-                nGlobalFeatures = nGlobalFeatures + 1;
-                phiGlobal{k, nGlobalFeatures + 1} = @(lambda)...
-                    maxExtent(lambda, conductivities, 'lo', 'x');
-                nGlobalFeatures = nGlobalFeatures + 1;
-                phiGlobal{k, nGlobalFeatures + 1} = @(lambda)...
-                    maxExtent(lambda, conductivities, 'lo', 'y');
-                nGlobalFeatures = nGlobalFeatures + 1;
-                phiGlobal{k, nGlobalFeatures + 1} = @(lambda)...
-                    SCA(lambda, conductivities, ct);
-                nGlobalFeatures = nGlobalFeatures + 1;
-                phiGlobal{k, nGlobalFeatures + 1} = @(lambda)...
-                    maxwellGarnett(lambda, conductivities, ct, 'lo');
-                nGlobalFeatures = nGlobalFeatures + 1;
-                phiGlobal{k, nGlobalFeatures + 1} = @(lambda)...
-                    maxwellGarnett(lambda, conductivities, ct, 'hi');
-                nGlobalFeatures = nGlobalFeatures + 1;
-                phiGlobal{k, nGlobalFeatures + 1} = @(lambda)...
-                    differentialEffectiveMedium(lambda, conductivities, ct, 'lo');
-                nGlobalFeatures = nGlobalFeatures + 1;
-                phiGlobal{k, nGlobalFeatures + 1} = @(lambda)...
-                    differentialEffectiveMedium(lambda, conductivities, ct, 'hi');
-                nGlobalFeatures = nGlobalFeatures + 1;
+%                 phiGlobal{k, nGlobalFeatures + 1} = @(lambda)...
+%                     maxExtent(lambda, conductivities, 'hi', 'x');
+%                 nGlobalFeatures = nGlobalFeatures + 1;
+%                 phiGlobal{k, nGlobalFeatures + 1} = @(lambda)...
+%                     maxExtent(lambda, conductivities, 'hi', 'y');
+%                 nGlobalFeatures = nGlobalFeatures + 1;
+%                 phiGlobal{k, nGlobalFeatures + 1} = @(lambda)...
+%                     maxExtent(lambda, conductivities, 'lo', 'x');
+%                 nGlobalFeatures = nGlobalFeatures + 1;
+%                 phiGlobal{k, nGlobalFeatures + 1} = @(lambda)...
+%                     maxExtent(lambda, conductivities, 'lo', 'y');
+%                 nGlobalFeatures = nGlobalFeatures + 1;
+%                 phiGlobal{k, nGlobalFeatures + 1} = @(lambda)...
+%                     SCA(lambda, conductivities, ct);
+%                 nGlobalFeatures = nGlobalFeatures + 1;
+%                 phiGlobal{k, nGlobalFeatures + 1} = @(lambda)...
+%                     maxwellGarnett(lambda, conductivities, ct, 'lo');
+%                 nGlobalFeatures = nGlobalFeatures + 1;
+%                 phiGlobal{k, nGlobalFeatures + 1} = @(lambda)...
+%                     maxwellGarnett(lambda, conductivities, ct, 'hi');
+%                 nGlobalFeatures = nGlobalFeatures + 1;
+%                 phiGlobal{k, nGlobalFeatures + 1} = @(lambda)...
+%                     differentialEffectiveMedium(lambda,...
+%                     conductivities, ct, 'lo');
+%                 nGlobalFeatures = nGlobalFeatures + 1;
+%                 phiGlobal{k, nGlobalFeatures + 1} = @(lambda)...
+%                     differentialEffectiveMedium(lambda,...
+%                     conductivities, ct, 'hi');
+%                 nGlobalFeatures = nGlobalFeatures + 1;
+                
+%                 for nc = 1:size(centers, 2)
+%                     phiGlobal{k, nGlobalFeatures + 1} = @(lambda)...
+%                         conductivityTransform(gaussLinFilt(lambda,...
+%                         centers(:, nc)', 1/32), ct);
+%                     nGlobalFeatures = nGlobalFeatures + 1;
+%                 end
+            end
+            
+            %% parametric features
+            obj.distanceMatrix = computeDistanceMatrix([64, 64]);
+            for k = 1:obj.coarseScaleDomain.nEl
+                phi{k, nFeatures + 1} = @(lambda) sum(sum(...
+                    exp(obj.distanceMatrix.*obj.gaussFiltPrecision)...
+                    .*lambda));
             end
             
             pltPca = false;
@@ -3888,7 +4150,8 @@ classdef ROM_SPDE
             %PCA projection
             for n = 1:obj.globalPcaComponents
                 for k = 1:obj.coarseScaleDomain.nEl
-                    phiGlobal{k, nGlobalFeatures + n} = @(lambda) globalComponents(:, n)'*lambda(:);
+                    phiGlobal{k, nGlobalFeatures + n} =...
+                        @(lambda) globalComponents(:, n)'*lambda(:);
                 end
             end
             
@@ -3899,9 +4162,11 @@ classdef ROM_SPDE
                     for k = 1:obj.coarseScaleDomain.nEl
                         if(ndims(localComponents) == 3)
                             %Separate PCA on every macro cell
-                            phi{k, nFeatures + n} = @(lambda) localComponents(:, n, k)'*lambda(:);
+                            phi{k, nFeatures + n} = @(lambda)...
+                                localComponents(:, n, k)'*lambda(:);
                         else
-                            phi{k, nFeatures + n} = @(lambda) localComponents(:, n)'*lambda(:);
+                            phi{k, nFeatures + n} = @(lambda)...
+                                localComponents(:, n)'*lambda(:);
                         end
                     end
                 end
@@ -3911,7 +4176,8 @@ classdef ROM_SPDE
 %             obj.secondOrderTerms(2, 2) = true;
 %             obj.secondOrderTerms(2, 3) = true;
 %             obj.secondOrderTerms(3, 3) = true;
-            assert(sum(sum(tril(obj.secondOrderTerms, -1))) == 0, 'Second order matrix must be upper triangular')
+            assert(sum(sum(tril(obj.secondOrderTerms, -1))) == 0,...
+                'Second order matrix must be upper triangular')
             
             
             %Convection features
@@ -3945,7 +4211,8 @@ classdef ROM_SPDE
                     end
                     
                     if exist('./data/wGlobal.mat', 'file')
-                        load('./data/wGlobal.mat');   %to load w_allGlobal, i.e. global linear filters
+                        %to load w_allGlobal, i.e. global linear filters
+                        load('./data/wGlobal.mat');
                         for i = 1:size(w_allGlobal, 2)
                             for m = 1:obj.coarseScaleDomain.nEl
                                 obj.globalFeatureFunctions{m, nGlobalFeatures + 1} = @(lambda) sum(w_allGlobal{m, i}'.*...

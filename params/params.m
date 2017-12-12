@@ -1,20 +1,23 @@
 %main parameter file for 2d coarse-graining
 
-%load old configuration? (Optimal parameters, optimal variational distributions
+%load old configuration? (Optimal parameters, optimal variational
+%distributions)
 loadOldConf = false;
 
 %linear filter options
 romObj.linFilt.type = 'local';  %local or global
 romObj.linFilt.gap = 0;
-romObj.linFilt.initialEpochs = 100;
+romObj.linFilt.initialEpochs = 400;
 romObj.linFilt.updates = 0;     %Already added linear filters
 romObj.linFilt.totalUpdates = 0;
-romObj.maxEpochs = (romObj.linFilt.totalUpdates + 1)*romObj.linFilt.gap - 2 + romObj.linFilt.initialEpochs;
+romObj.maxEpochs = (romObj.linFilt.totalUpdates + 1)*romObj.linFilt.gap...
+    - 2 + romObj.linFilt.initialEpochs;
 
 
 %% Start value of model parameters
 %Shape function interpolate in W
-romObj.theta_cf.W = shapeInterp(romObj.coarseScaleDomain, romObj.fineScaleDomain);
+romObj.theta_cf.W = shapeInterp(romObj.coarseScaleDomain,...
+    romObj.fineScaleDomain);
 %shrink finescale domain object to save memory
 romObj.fineScaleDomain = romObj.fineScaleDomain.shrink();
 if loadOldConf
@@ -38,9 +41,12 @@ else
         latentDim = 0;
     end
     nSecondOrderTerms = sum(sum(romObj.secondOrderTerms));
-    romObj.theta_c.theta = 0*ones(size(romObj.featureFunctions, 2) +...
-        size(romObj.globalFeatureFunctions, 2) + latentDim + nSecondOrderTerms + ...
-        size(romObj.convectionFeatureFunctions, 2) + size(romObj.globalConvectionFeatureFunctions, 2), 1);
+    nTheta = size(romObj.featureFunctions, 2) +...
+        size(romObj.globalFeatureFunctions, 2) +...
+        latentDim + nSecondOrderTerms + ...
+        size(romObj.convectionFeatureFunctions, 2) +...
+        size(romObj.globalConvectionFeatureFunctions, 2);
+    romObj.theta_c.theta = (1/nTheta)*ones(nTheta, 1);
     if romObj.useConvection
         romObj.theta_c.Sigma = 1e0*speye(3*romObj.coarseScaleDomain.nEl);
     else

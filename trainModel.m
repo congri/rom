@@ -23,8 +23,9 @@ rng('shuffle')  %system time seed
 delete('./data/*')  %delete old data
 
 %initialize reduced order model object
-romObj = ROM_SPDE('train')
-tempArray = zeros(romObj.fineScaleDomain.nNodes, romObj.nTrain); %prealloc for p_cf inference
+romObj = ROM_SPDE('train');
+%prealloc for p_cf inference
+tempArray = zeros(romObj.fineScaleDomain.nNodes, romObj.nTrain);
 %% Load training data
 % romObj = romObj.loadTrainingData;
 %Get model and training parameters
@@ -37,12 +38,13 @@ pend = 0;       %for sequential qi-updates
 %Compute design matrices
 romObj = romObj.computeDesignMatrix('train', false);
 if(size(romObj.designMatrix{1}, 2) ~= size(romObj.theta_c.theta))
-    warning('Wrong dimension of theta_c. Setting it to 0 with correct dimension.')
+    warning('Wrong dim of theta_c. Setting it to 0 with correct dim.')
     romObj.theta_c.theta = zeros(size(romObj.designMatrix{1}, 2), 1);
 end
 %random initialization
 %romObj.theta_c.theta = normrnd(0, 1, size(romObj.theta_c.theta));
-% romObj.theta_c.theta(1) = 0;
+%romObj.theta_c.theta = ones(size(romObj.theta_c.theta, 1), 1)/...
+%    size(romObj.theta_c.theta, 1);
 
 if strcmp(romObj.inferenceMethod, 'monteCarlo')
     MonteCarlo = true;
@@ -61,7 +63,8 @@ while true
     
     %% Establish distribution to sample from
     for i = 1:romObj.nTrain
-        Tf_i_minus_mu = romObj.fineScaleDataOutput(:, i) - romObj.theta_cf.mu;
+        Tf_i_minus_mu = romObj.fineScaleDataOutput(:, i) -...
+            romObj.theta_cf.mu;
         PhiMat = romObj.designMatrix{i};
         %this transfers less data in parfor loops
         tcf = romObj.theta_cf;
@@ -77,7 +80,8 @@ while true
             nY = romObj.coarseScaleDomain.nElY;
             bc = romObj.trainingDataMatfile.bc;
             j = romObj.trainingSamples(i);
-            bcT = @(x) bc{j}(1) + bc{j}(2)*x(1) + bc{j}(3)*x(2) + bc{j}(4)*x(1)*x(2);
+            bcT = @(x) bc{j}(1) + bc{j}(2)*x(1) +...
+                bc{j}(3)*x(2) + bc{j}(4)*x(1)*x(2);
             bcQ{1} = @(x) -(bc{j}(3) + bc{j}(4)*x);      %lower bound
             bcQ{2} = @(y) (bc{j}(2) + bc{j}(4)*y);       %right bound
             bcQ{3} = @(x) (bc{j}(3) + bc{j}(4)*x);       %upper bound
@@ -85,11 +89,13 @@ while true
             cd(i) = romObj.coarseScaleDomain;
             cd(i) = cd(i).setBoundaries([2:(2*nX + 2*nY)], bcT, bcQ);
             cd_i = cd(i);
-            log_qi{i} = @(Xi) log_q_i(Xi, Tf_i_minus_mu, tcf, tc, PhiMat, cd_i, ct);
+            log_qi{i} = @(Xi)...
+                log_q_i(Xi, Tf_i_minus_mu, tcf, tc, PhiMat, cd_i, ct);
         else
             %Every coarse model has the same boundary conditions
             cd = romObj.coarseScaleDomain;
-            log_qi{i} = @(Xi) log_q_i(Xi, Tf_i_minus_mu, tcf, tc, PhiMat, cd, ct);
+            log_qi{i} = @(Xi)...
+                log_q_i(Xi, Tf_i_minus_mu, tcf, tc, PhiMat, cd, ct);
         end
         
         
@@ -208,7 +214,7 @@ while true
                 pstart = 1;
                 romObj.epoch = romObj.epoch + 1;
             end
-            pend = pstart + 8*ppool.NumWorkers - 1;
+            pend = pstart + ppool.NumWorkers - 1;
             if pend > romObj.nTrain
                 pend = romObj.nTrain;
             elseif pend < pstart
