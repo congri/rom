@@ -3,15 +3,8 @@ function [log_p, d_log_p, Tc] = log_p_cf(Tf_i_minus_mu, domainc, Xi, theta_cf, c
 %ignore constant prefactor
 %log_p = -.5*logdet(S, 'chol') - .5*(Tf - mu)'*(S\(Tf - mu));
 %diagonal S
-if domainc.useConvection
-    %We are in convection-diffusion mode here
-    conductivity = conductivityBackTransform(Xi(1:domainc.nEl), condTransOpts);
-    %is this correctly reshaped?
-    convectionField = reshape(Xi((domainc.nEl + 1):end), domainc.nEl, 2)';
-else
-    %only diffusion
-    conductivity = conductivityBackTransform(Xi, condTransOpts);
-end
+
+conductivity = conductivityBackTransform(Xi, condTransOpts);
 D = zeros(2, 2, domainc.nEl);
 %Conductivity matrix D, only consider isotropic materials here
 for j = 1:domainc.nEl

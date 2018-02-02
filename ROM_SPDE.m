@@ -11,7 +11,8 @@ classdef ROM_SPDE
         upperConductivity = 2;
         %Conductivity field distribution type
         conductivityDistribution = 'squaredExponential';
-        %Boundary condition functions; evaluate those on boundaries to get boundary conditions
+        %Boundary condition functions; 
+        %evaluate those on boundaries to get boundary conditions
         boundaryTemperature;
         boundaryHeatFlux;
         bcArrayTrain;   %boundary condition cell array for training data
@@ -19,7 +20,7 @@ classdef ROM_SPDE
         
         naturalNodes;
         %Directory where finescale data is stored; specify basename here
-        fineScaleDataPath = '~/cluster/matlab/data/fineData/';
+        fineScaleDataPath = '~/matlab/data/fineData/';
         %matfile handle
         trainingDataMatfile;
         testDataMatfile;
@@ -38,17 +39,25 @@ classdef ROM_SPDE
         %% Model training parameters
         nStart = 1;             %first training data sample in file
         nTrain = 16;            %number of samples used for training
-        mode = 'none';          %useNeighbor, useLocalNeighbor, useDiagNeighbor, useLocalDiagNeighbor, useLocal, global
-                                %global: take whole microstructure as feature function input, not
-                                %only local window (only recommended for pooling)
-        inferenceMethod = 'variationalInference';        %E-step inference method. variationalInference or monteCarlo
+        mode = 'none';          %useNeighbor, useLocalNeighbor, useDiagNeighbor,
+                                %useLocalDiagNeighbor, useLocal, global
+                                %global: take whole microstructure as feature
+                                %function input, not
+                                %only local window 
+                                %(only recommended for pooling)
+        inferenceMethod = 'variationalInference'; %E-step inference 
+                                                  %method. variationalInference
+                                                  %or monteCarlo
         
         %% Sequential addition of linear filters
         linFilt
         
-        useAutoEnc = false;     %Use autoencoder information? Do not forget to pre-train autoencoder!
-        globalPcaComponents = 3;   %Principal components of the whole microstructure used as features 
-        localPcaComponents = 7;     %Principal components of single macro-cell used as features
+        useAutoEnc = false;     %Use autoencoder information? Do not forget to
+                                %pre-train autoencoder!
+        globalPcaComponents = 3;   %Principal components of the whole 
+                                   %microstructure used as features 
+        localPcaComponents = 7;     %Principal components of single macro-cell 
+                                    %used as features
         pcaSamples = 4096;
         secondOrderTerms;
         mix_S = 0;              %To slow down convergence of S
@@ -59,51 +68,67 @@ classdef ROM_SPDE
         %% Prior specifications
         sigmaPriorType = 'none';    %none, delta, expSigSq
         sigmaPriorHyperparam = 1;
-        thetaPriorType = 'RVM';
+        thetaPriorType = 'VRVM';
         thetaPriorHyperparam = [0 1e-30];
+        %the same for all components
+        VRVM_a = 1e-6;
+        VRVM_b = 1e-6;
+        VRVM_c = 1e-6;
+        VRVM_d = 1e-6;
+        VRVM_e = 1e-6;
+        VRVM_f = 1e-6;
+        VRVM_iter = 10;  %iterations with fixed q(lambda_c)
+        
         
         %% Model parameters
         theta_c;
         theta_cf;
         free_W = false;
-        featureFunctions;       %Cell array containing local feature function handles
-        globalFeatureFunctions; %cell array with handles to global feature functions
-        convectionFeatureFunctions;       %Cell array containing local convection feature function handles
-        globalConvectionFeatureFunctions; %cell array with handles to global convection feature functions
+        featureFunctions; %Cell array containing local feature function handles
+        globalFeatureFunctions; %cell array with handles to glob. feature func.
+        convectionFeatureFunctions;       %Cell array containing local
+                                          %convection feature function handles
+        globalConvectionFeatureFunctions; %cell array with handles to global 
+                                          %convection feature functions
         kernelHandles
         %transformation of finescale conductivity to real axis
         conductivityTransformation;
         latentDim = 0;              %If autoencoder is used
         sumPhiTPhi;             %Design matrix precomputation
-        padding = 0;           %How many pixels around macro-cell should be considered in local features?
+        padding = 0;           %How many pixels around macro-cell should be
+                               %considered in local features?
         
         %% Feature function rescaling parameters
-        featureScaling = 'normalize'; %'standardize' for zero mean and unit variance of features, 'rescale' to have
-                                        %all between 0 and 1, 'normalize' to have unit variance only
-                                        %(and same mean as before)
+        featureScaling = 'normalize'; %'standardize' for zero mean and unit 
+                                      %variance of features, 'rescale' to have
+                                      %all between 0 and 1, 'normalize' to have
+                                      %unit var. only (and same mean as before)
         featureFunctionMean;
         featureFunctionSqMean;
         featureFunctionMin;
         featureFunctionMax;
         loadDesignMatrix = false;
-        useKernels = false;              %Use linear combination of kernels in feature function space
+        useKernels = false;              %Use linear combination of kernels in 
+                                         %feature function space
         kernelBandwidth = 2;              %only used if no rule of thumb is taken
-        bandwidthSelection = 'silverman'  %'fixed' for fixed kernel bandwidth, 'silverman' for
-                                          %silverman's rule of thumb 'scott' for scott's rule of thumb,
-                                          %see wikipedia on multivariate kernel density estimation
+        bandwidthSelection = 'silverman'  %'fixed' for fixed kernel bandwidth, 
+                                          %'silverman' for
+                                          %silverman's rule of thumb 'scott' for
+                                          %scott's rule of thumb, see wikipedia 
+                                          %on multivariate kernel density est.
         kernelType = 'squaredExponential';
         
         %% Prediction parameters
         nSamples_p_c = 1000;
-        useLaplaceApproximation = true;   %Use Laplace approx around MAP for prediction?
+        useLaplaceApproximation = true;   %Laplace approx around MAP for pred.?
         testSamples = [1:1024];       %pick out specific test samples here
         trainingSamples;   %pick out specific training samples here
         
         %% Prediction outputs
         predMeanArray;
         predVarArray;
-        meanPredMeanOutput;                %mean predicted mean of output field
-        meanSquaredDistance;               %mean squared distance of predicted mean to true solution
+        meanPredMeanOutput; %mean predicted mean of output field
+        meanSquaredDistance;%mean squared dist. of pred. mean to true solution
         meanSquaredDistanceField;
         meanSquaredDistanceError;          %Monte Carlo error
         meanLogLikelihood;
@@ -131,7 +156,8 @@ classdef ROM_SPDE
         epoch_old = 0;  %To check if epoch has changed
         maxEpochs;      %Maximum number of epochs
         
-        useConvection = false;      %Include a convection term to the pde? Uses convection term in coarse model in
+        useConvection = false;      %Include a convection term to the pde? 
+                                    %Uses convection term in coarse model in
                                    %training/prediction
         useConvectionData = false;
     end
@@ -139,9 +165,11 @@ classdef ROM_SPDE
     
     properties(SetAccess = private)
         %% finescale data specifications
-        conductivityLengthScaleDist = 'delta';      %delta for fixed length scale, lognormal for rand
+        conductivityLengthScaleDist = 'delta';      %delta for fixed length 
+                                                    %scale, lognormal for rand
         conductivityDistributionParams = {-1 [.01 .01] 1};
-        advectionDistributionParams = [10, 15];   %mu and sigma for advection field coefficients
+        advectionDistributionParams = [10, 15];   %mu and sigma for advection 
+                                                  %field coefficients
         %{volumeFraction, correlationLength, sigma_f2}
         %for log normal length scale, the
         %length scale parameters are log normal mu and
@@ -155,8 +183,8 @@ classdef ROM_SPDE
         coarseGridVectorX = (1/4)*ones(1, 4);
         coarseGridVectorY = (1/4)*ones(1, 4);
         
-        %Design matrices. Cell index gives data point, row index coarse cell, and column index
-        %feature function
+        %Design matrices. Cell index gives data point, row index coarse cell, 
+        %and column index feature function
         designMatrix
         originalDesignMatrix    %design matrix without any locality mode
         testDesignMatrix    %design matrices on independent test set
@@ -182,7 +210,8 @@ classdef ROM_SPDE
             obj = obj.genBoundaryConditionFunctions;
             obj.naturalNodes = [2:(2*obj.nElFX + 2*obj.nElFY)];
             
-            %Set up coarseScaleDomain; must be done after boundary conditions are set up
+            %Set up coarseScaleDomain
+            %must be done after boundary conditions are set up
             obj = obj.genCoarseDomain;
             
             %prealloc
@@ -205,12 +234,14 @@ classdef ROM_SPDE
                 obj.conductivityTransformation.limits = [1e-6 1e6];
             elseif strcmp(obj.conductivityTransformation.type, 'logit')
                 obj.conductivityTransformation.limits =...
-                    [(1 - 1e-2)*obj.lowerConductivity (1 + 1e-2)*obj.upperConductivity];
+                    [(1 - 1e-2)*obj.lowerConductivity,...
+                    (1 + 1e-2)*obj.upperConductivity];
             else
                 obj.conductivityTransformation.limits = [1e-8 1e8];
             end
             conductivityTransformation = obj.conductivityTransformation;
-            save('./data/conductivityTransformation', 'conductivityTransformation');
+            save('./data/conductivityTransformation',...
+                'conductivityTransformation');
             
             obj.linFilt.totalUpdates = 0;
             if ~strcmp(mode, 'genData')
@@ -219,11 +250,13 @@ classdef ROM_SPDE
                 %Set up feature function handles
                 %obj = obj.setFeatureFunctions;
                 %Prealloc
-                obj.varExpect_p_cf_exp_mean = zeros(obj.fineScaleDomain.nNodes, 1);
+                obj.varExpect_p_cf_exp_mean =...
+                    zeros(obj.fineScaleDomain.nNodes, 1);
             end
             
             %Check
-            if(strcmp(obj.thetaPriorType, 'sharedRVM') && ~strcmp(obj.mode, 'useLocal'))
+            if(strcmp(obj.thetaPriorType, 'sharedRVM') &&...
+                    ~strcmp(obj.mode, 'useLocal'))
                 error('sharedRVM prior only allowed for useLocal mode')
             end
         end
@@ -242,7 +275,7 @@ classdef ROM_SPDE
             end
             
             %for boundary condition functions
-            if(isempty(obj.boundaryTemperature) || isempty(obj.boundaryHeatFlux))
+            if(isempty(obj.boundaryTemperature) ||isempty(obj.boundaryHeatFlux))
                 obj = obj.genBoundaryConditionFunctions;
             end
             
@@ -252,8 +285,8 @@ classdef ROM_SPDE
             addpath('./heatFEM')    %to find Domain class
             obj.fineScaleDomain = Domain(obj.nElFX, obj.nElFY);
             obj.fineScaleDomain.useConvection = obj.useConvectionData;
-            obj.fineScaleDomain = setBoundaries(obj.fineScaleDomain, obj.naturalNodes,...
-                obj.boundaryTemperature, obj.boundaryHeatFlux);       %Only fix lower left corner as essential node
+            obj.fineScaleDomain = setBoundaries(obj.fineScaleDomain,...
+                obj.naturalNodes, obj.boundaryTemperature,obj.boundaryHeatFlux);       %Only fix lower left corner as essential node
             disp('done')
             domain_generating_time = toc
             
@@ -603,7 +636,8 @@ classdef ROM_SPDE
             nX = length(obj.coarseGridVectorX);
             nY = length(obj.coarseGridVectorY);
             addpath('./heatFEM')        %to find Domain class
-            obj.coarseScaleDomain = Domain(nX, nY, obj.coarseGridVectorX, obj.coarseGridVectorY);
+            obj.coarseScaleDomain = Domain(nX, nY,...
+                obj.coarseGridVectorX, obj.coarseGridVectorY);
             obj.coarseScaleDomain.useConvection = obj.useConvection;
             %ATTENTION: natural nodes have to be set manually
             %and consistently in coarse and fine scale domain!!
@@ -757,8 +791,10 @@ classdef ROM_SPDE
             obj.theta_c.theta = obj.theta_c.theta(end, :)';
             obj.theta_c.Sigma = dlmread('./data/sigma');
             if(numel(obj.theta_c.Sigma) == obj.coarseScaleDomain.nEl)
+                %?
                 obj.theta_c.Sigma = diag(obj.theta_c.Sigma(end, :));
             else
+                %?
                 obj.theta_c.Sigma = diag(obj.theta_c.Sigma(end, :));
             end
             obj.theta_cf.S = dlmread('./data/S')';
@@ -804,43 +840,106 @@ classdef ROM_SPDE
         
         function obj = M_step(obj)
             disp('M-step: find optimal params...')
-            %Optimal S (decelerated convergence)
-            lowerBoundS = eps;
-            obj.theta_cf.S = (1 - obj.mix_S)*obj.varExpect_p_cf_exp_mean...
-                + obj.mix_S*obj.theta_cf.S + lowerBoundS*ones(obj.fineScaleDomain.nNodes, 1);
-
-            if obj.free_W
-                obj.mean_TcTcT(obj.coarseScaleDomain.essentialNodes, :) = [];
-                obj.mean_TcTcT(:, obj.coarseScaleDomain.essentialNodes) = [];
-                if isempty(obj.fineScaleDomain.essentialNodes)
-                    warning('No essential nodes stored in fineScaleDomain. Setting first node to be essential.')
-                    obj.fineScaleDomain.essentialNodes = 1;
-                end
-                obj.mean_TfTcT(obj.fineScaleDomain.essentialNodes, :) = [];
-                obj.mean_TfTcT(:, obj.coarseScaleDomain.essentialNodes) = [];
-                W_temp = obj.mean_TfTcT/obj.mean_TcTcT;
+            if strcmp(obj.thetaPriorType, 'VRVM')
+                dim_theta = numel(obj.theta_c.theta);
+                %Parameters that do not change when q(lambda_c) is fixed
+                a = obj.VRVM_a + .5;
+                e = obj.VRVM_e + .5*obj.nTrain;
+                c = obj.VRVM_c + .5*obj.nTrain;
+                f = obj.VRVM_f + .5*obj.varExpect_p_cf_exp_mean;
+                tau_cf = e./f;  %p_cf precision
                 
-                natNodesFine = 1:obj.fineScaleDomain.nNodes;
-                natNodesFine(obj.fineScaleDomain.essentialNodes) = [];
-                natNodesCoarse = 1:obj.coarseScaleDomain.nNodes;
-                natNodesCoarse(obj.coarseScaleDomain.essentialNodes) = [];
-                obj.theta_cf.W(natNodesFine, natNodesCoarse) = W_temp;
-            end
-            
-            obj.theta_cf.Sinv = sparse(1:obj.fineScaleDomain.nNodes,...
-                1:obj.fineScaleDomain.nNodes, 1./obj.theta_cf.S);
-            obj.theta_cf.Sinv_vec = 1./obj.theta_cf.S;
-            obj.theta_cf.WTSinv = obj.theta_cf.W'*obj.theta_cf.Sinv;        %Precomputation for efficiency
-            
-            %optimal theta_c and sigma
-            Sigma_old = obj.theta_c.Sigma;
-            theta_old = obj.theta_c.theta;
-            
-            obj = obj.updateTheta_c;
+                %initialization
+                if(numel(obj.thetaPriorHyperparam) ~= dim_theta)
+                    warning('resizing theta hyperparam')
+                    obj.thetaPriorHyperparam = 1e0*ones(dim_theta, 1);
+                end
+                gamma = obj.thetaPriorHyperparam;
+                tau_theta = diag(gamma);    %precision of q(theta_c)
+                Sigma_theta = inv(tau_theta);
+                mu_theta = obj.theta_c.theta;
 
-            obj.theta_c.Sigma = (1 - obj.mix_sigma)*obj.theta_c.Sigma + obj.mix_sigma*Sigma_old;
-            obj.theta_c.theta = (1 - obj.mix_theta)*obj.theta_c.theta + obj.mix_theta*theta_old;
-            
+                
+                for i = 1:obj.VRVM_iter
+                    b = obj.VRVM_b + .5*(mu_theta.^2 + diag(Sigma_theta));
+                    gamma = a./b;
+                    d = obj.VRVM_d + .5*sum(obj.XSqMean, 2);
+                    for n = 1:obj.nTrain
+                        PhiThetaMean_n = obj.designMatrix{n}*mu_theta;
+                        d = d - obj.XMean(:, n).*PhiThetaMean_n;
+                        PhiThetaSq_n = diag(PhiThetaMean_n*...
+                            PhiThetaMean_n'+ obj.designMatrix{n}*...
+                            Sigma_theta*obj.designMatrix{n}');
+                        d = d + .5*PhiThetaSq_n;
+                    end
+                    tau_c = c./d;   %precision of p_c
+                    tau_theta = diag(gamma);
+                    sumPhiTau_cXMean = 0;
+                    for n = 1:obj.nTrain
+                        tau_theta = tau_theta + obj.designMatrix{n}'*...
+                            diag(tau_c)*obj.designMatrix{n};
+                        sumPhiTau_cXMean = sumPhiTau_cXMean + ...
+                            obj.designMatrix{n}'*diag(tau_c)*obj.XMean(:, n);
+                    end
+                    Sigma_theta = inv(tau_theta);
+                    mu_theta = Sigma_theta*sumPhiTau_cXMean;
+                end
+                
+                %assign <S>, <Sigma_c>, <theta_c>
+                obj.theta_cf.S = 1./tau_cf;
+                obj.theta_cf.Sinv = sparse(1:obj.fineScaleDomain.nNodes,...
+                    1:obj.fineScaleDomain.nNodes, tau_cf);
+                obj.theta_cf.Sinv_vec = tau_cf;
+                %Precomputation for efficiency
+                obj.theta_cf.WTSinv = obj.theta_cf.W'*obj.theta_cf.Sinv;
+                
+                obj.theta_c.Sigma = diag(1./tau_c);
+                obj.theta_c.theta = mu_theta;
+                
+                obj.thetaPriorHyperparam = gamma;
+            else
+                %Optimal S (decelerated convergence)
+                lowerBoundS = eps;
+                obj.theta_cf.S = (1 - obj.mix_S)*obj.varExpect_p_cf_exp_mean+...
+                    obj.mix_S*obj.theta_cf.S +...
+                    lowerBoundS*ones(obj.fineScaleDomain.nNodes, 1);
+                
+                if obj.free_W
+                    obj.mean_TcTcT(obj.coarseScaleDomain.essentialNodes, :)= [];
+                    obj.mean_TcTcT(:, obj.coarseScaleDomain.essentialNodes)= [];
+                    if isempty(obj.fineScaleDomain.essentialNodes)
+                        warning(strcat('No essential nodes stored in',...
+                        'fineScaleDomain. Setting first node to be essential.'))
+                        obj.fineScaleDomain.essentialNodes = 1;
+                    end
+                    obj.mean_TfTcT(obj.fineScaleDomain.essentialNodes, :) = [];
+                    obj.mean_TfTcT(:, obj.coarseScaleDomain.essentialNodes)= [];
+                    W_temp = obj.mean_TfTcT/obj.mean_TcTcT;
+                    
+                    natNodesFine = 1:obj.fineScaleDomain.nNodes;
+                    natNodesFine(obj.fineScaleDomain.essentialNodes) = [];
+                    natNodesCoarse = 1:obj.coarseScaleDomain.nNodes;
+                    natNodesCoarse(obj.coarseScaleDomain.essentialNodes) = [];
+                    obj.theta_cf.W(natNodesFine, natNodesCoarse) = W_temp;
+                end
+                
+                obj.theta_cf.Sinv = sparse(1:obj.fineScaleDomain.nNodes,...
+                    1:obj.fineScaleDomain.nNodes, 1./obj.theta_cf.S);
+                obj.theta_cf.Sinv_vec = 1./obj.theta_cf.S;
+                %Precomputation for efficiency
+                obj.theta_cf.WTSinv = obj.theta_cf.W'*obj.theta_cf.Sinv;
+                
+                %optimal theta_c and sigma
+                Sigma_old = obj.theta_c.Sigma;
+                theta_old = obj.theta_c.theta;
+                
+                obj = obj.updateTheta_c;
+                
+                obj.theta_c.Sigma = (1 - obj.mix_sigma)*obj.theta_c.Sigma +...
+                    obj.mix_sigma*Sigma_old;
+                obj.theta_c.theta = (1 - obj.mix_theta)*obj.theta_c.theta +...
+                    obj.mix_theta*theta_old;
+            end
             disp('M-step done')
         end
         
@@ -1147,7 +1246,8 @@ classdef ROM_SPDE
             end
         end
         
-        function [lambda_theta_c, lambda_log_s2, lambda_log_sigma2] = laplaceApproximation(obj)
+        function [lambda_theta_c, lambda_log_s2, lambda_log_sigma2] =...
+                laplaceApproximation(obj)
             %Computes parameter precisions based on second derivatives of posterior lower bound F
             
             %p_cf
@@ -3146,7 +3246,8 @@ classdef ROM_SPDE
             else
                 if(size(obj.theta_c.theta, 1) > size(obj.thetaArray, 2))
                     %New basis function included. Expand array
-                    obj.thetaArray = [obj.thetaArray, zeros(size(obj.thetaArray, 1),...
+                    obj.thetaArray =...
+                        [obj.thetaArray, zeros(size(obj.thetaArray, 1),...
                         numel(obj.theta_c.theta) - size(obj.thetaArray, 2))];
                     obj.thetaArray = [obj.thetaArray; obj.theta_c.theta'];
                 else
@@ -3156,13 +3257,18 @@ classdef ROM_SPDE
             if isempty(obj.thetaHyperparamArray)
                 obj.thetaHyperparamArray = obj.thetaPriorHyperparam';
             else
-                if(size(obj.thetaPriorHyperparam, 1) > size(obj.thetaHyperparamArray, 2))
+                if(size(obj.thetaPriorHyperparam, 1) >...
+                        size(obj.thetaHyperparamArray, 2))
                     %New basis function included. Expand array
-                    obj.thetaHyperparamArray = [obj.thetaHyperparamArray, zeros(size(obj.thetaHyperparamArray, 1),...
-                        numel(obj.thetaPriorHyperparam) - size(obj.thetaHyperparamArray, 2))];
-                    obj.thetaHyperparamArray = [obj.thetaHyperparamArray; obj.thetaPriorHyperparam'];
+                    obj.thetaHyperparamArray = [obj.thetaHyperparamArray,...
+                        zeros(size(obj.thetaHyperparamArray, 1),...
+                        numel(obj.thetaPriorHyperparam) -...
+                        size(obj.thetaHyperparamArray, 2))];
+                    obj.thetaHyperparamArray = [obj.thetaHyperparamArray;...
+                        obj.thetaPriorHyperparam'];
                 else
-                    obj.thetaHyperparamArray = [obj.thetaHyperparamArray; obj.thetaPriorHyperparam'];
+                    obj.thetaHyperparamArray = [obj.thetaHyperparamArray;...
+                        obj.thetaPriorHyperparam'];
                 end
             end
             if isempty(obj.sigmaArray)
@@ -3170,35 +3276,49 @@ classdef ROM_SPDE
             else
                 obj.sigmaArray = [obj.sigmaArray; diag(obj.theta_c.Sigma)'];
             end
-%            figure(figHandle);
             sb = subplot(3, 2, 1, 'Parent', figHandle);
-            plot(obj.thetaArray, 'linewidth', 1, 'Parent', sb)
-            axis tight;
-            ylim([(min(obj.thetaArray(end, :)) - 1) (max(obj.thetaArray(end, :)) + 1)]);
-            sb = subplot(3,2,2, 'Parent', figHandle);
-            bar(obj.theta_c.theta, 'linewidth', 1, 'Parent', sb)
-            axis tight;
-            sb = subplot(3,2,3, 'Parent', figHandle);
+            plot(obj.thetaArray, 'linewidth', 1, 'Parent', sb);
+            axis(sb, 'tight');
+            sb.YLim = ([(min(obj.thetaArray(end, :)) - 1),...
+                (max(obj.thetaArray(end, :)) + 1)]);
+            
+            sb = subplot(3, 2, 2, 'Parent', figHandle);
+            bar(obj.theta_c.theta, 'linewidth', 1, 'Parent', sb);
+            axis(sb, 'tight');
+            
+            sb = subplot(3, 2, 3, 'Parent', figHandle);
             semilogy(sqrt(obj.sigmaArray), 'linewidth', 1, 'Parent', sb)
-            axis tight;
-            sb = subplot(3,2,4, 'Parent', figHandle);
+            axis(sb, 'tight');
+            
+            sb = subplot(3, 2, 4, 'Parent', figHandle);
             if ~obj.theta_c.full_Sigma
-                imagesc(reshape(diag(sqrt(obj.theta_c.Sigma(1:obj.coarseScaleDomain.nEl, 1:obj.coarseScaleDomain.nEl))),...
-                    obj.coarseScaleDomain.nElX, obj.coarseScaleDomain.nElY), 'Parent', sb)
+                imagesc(reshape(diag(sqrt(obj.theta_c.Sigma(1:...
+                    obj.coarseScaleDomain.nEl,1:obj.coarseScaleDomain.nEl))),...
+                    obj.coarseScaleDomain.nElX, obj.coarseScaleDomain.nElY),...
+                    'Parent', sb)
             else
                 imagesc(reshape(sqrt(diag(obj.theta_c.Sigma)),...
-                    obj.coarseScaleDomain.nElX, obj.coarseScaleDomain.nElY), 'Parent', sb)
+                    obj.coarseScaleDomain.nElX, obj.coarseScaleDomain.nElY),...
+                    'Parent', sb)
             end
-            title('\sigma_k')
-            colorbar
-            grid off;
-            axis tight;
-            sb = subplot(3,2,5, 'Parent', figHandle);
+            sb.YDir = 'normal';
+            sb.Title.String = '$\sigma_k$';
+            colorbar('Parent', figHandle);
+            sb.GridLineStyle = 'none';
+            axis(sb, 'square');
+            
+            sb = subplot(3, 2, 5, 'Parent', figHandle);
             semilogy(obj.thetaHyperparamArray, 'linewidth', 1, 'Parent', sb)
-            axis tight;
-            sb = subplot(3,2,6, 'Parent', figHandle);
-            bar(obj.thetaPriorHyperparam, 'linewidth', 1, 'Parent', sb)
-            axis tight;
+            axis(sb, 'tight');
+            sb = subplot(3, 2, 6, 'Parent', figHandle);
+            nSX = obj.fineScaleDomain.nElX + 1;
+            nSY = obj.fineScaleDomain.nElY + 1;
+            imagesc(reshape(sqrt(obj.theta_cf.S), nSX, nSY)', 'Parent', sb)
+            sb.Title.String = 'S';
+            colorbar('Parent', figHandle);
+            sb.GridLineStyle = 'none';
+            axis(sb, 'square');
+            sb.YDir = 'normal';
             drawnow
         end
 

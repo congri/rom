@@ -24,7 +24,9 @@ delete('./data/*')  %delete old data
 
 %initialize reduced order model object
 romObj = ROM_SPDE('train')
-tempArray = zeros(romObj.fineScaleDomain.nNodes, romObj.nTrain); %prealloc for p_cf inference
+
+%prealloc for p_cf inference
+tempArray = zeros(romObj.fineScaleDomain.nNodes, romObj.nTrain);
 %% Load training data
 % romObj = romObj.loadTrainingData;
 %Get model and training parameters
@@ -42,7 +44,7 @@ if(size(romObj.designMatrix{1}, 2) ~= size(romObj.theta_c.theta))
 end
 %random initialization
 %romObj.theta_c.theta = normrnd(0, 1, size(romObj.theta_c.theta));
-% romObj.theta_c.theta(1) = 0;
+%romObj.theta_c.theta(1) = 0;
 
 if strcmp(romObj.inferenceMethod, 'monteCarlo')
     MonteCarlo = true;
