@@ -261,7 +261,8 @@ classdef ROM_SPDE
             end
         end
         
-        function obj = genFineScaleData(obj, boundaryConditions, condDistParams)
+        function obj =...
+                genFineScaleData(obj, boundaryConditions, condDistParams)
             %Function to generate and save finescale data
             
             disp('Generate fine scale data...')
@@ -285,8 +286,9 @@ classdef ROM_SPDE
             addpath('./heatFEM')    %to find Domain class
             obj.fineScaleDomain = Domain(obj.nElFX, obj.nElFY);
             obj.fineScaleDomain.useConvection = obj.useConvectionData;
+            %Only fix lower left corner as essential node
             obj.fineScaleDomain = setBoundaries(obj.fineScaleDomain,...
-                obj.naturalNodes, obj.boundaryTemperature,obj.boundaryHeatFlux);       %Only fix lower left corner as essential node
+                obj.naturalNodes, obj.boundaryTemperature,obj.boundaryHeatFlux);
             disp('done')
             domain_generating_time = toc
             
@@ -296,13 +298,15 @@ classdef ROM_SPDE
             
             %Generate finescale conductivity samples and solve FEM
             for i = 1:numel(obj.nSets)
-                filename = strcat(obj.fineScaleDataPath, 'set', num2str(i), '-samples=', num2str(obj.nSets(i)));
+                filename = strcat(obj.fineScaleDataPath, 'set', num2str(i),...
+                    '-samples=', num2str(obj.nSets(i)));
                 obj.solveFEM(i, filename);
             end
             
             %save params
             fineScaleDomain = obj.fineScaleDomain;
-            save(strcat(obj.fineScaleDataPath, 'fineScaleDomain.mat'), 'fineScaleDomain');
+            save(strcat(obj.fineScaleDataPath, 'fineScaleDomain.mat'),...
+                'fineScaleDomain');
             
             disp('done')
         end
@@ -313,11 +317,12 @@ classdef ROM_SPDE
                 error('No string specified for boundary conditions')
             end
             bc = str2num(obj.boundaryConditions);
-            obj.boundaryTemperature = @(x) bc(1) + bc(2)*x(1) + bc(3)*x(2) + bc(4)*x(1)*x(2);
-            obj.boundaryHeatFlux{1} = @(x) -(bc(3) + bc(4)*x);      %lower bound
-            obj.boundaryHeatFlux{2} = @(y) (bc(2) + bc(4)*y);       %right bound
-            obj.boundaryHeatFlux{3} = @(x) (bc(3) + bc(4)*x);       %upper bound
-            obj.boundaryHeatFlux{4} = @(y) -(bc(2) + bc(4)*y);      %left bound
+            obj.boundaryTemperature =...
+                @(x) bc(1) + bc(2)*x(1) + bc(3)*x(2) + bc(4)*x(1)*x(2);
+            obj.boundaryHeatFlux{1} = @(x) -(bc(3) + bc(4)*x);    %lower bound
+            obj.boundaryHeatFlux{2} = @(y) (bc(2) + bc(4)*y);     %right bound
+            obj.boundaryHeatFlux{3} = @(x) (bc(3) + bc(4)*x);     %upper bound
+            obj.boundaryHeatFlux{4} = @(y) -(bc(2) + bc(4)*y);    %left bound
         end
         
         function cond = generateConductivityField(obj, nSet)
@@ -337,7 +342,8 @@ classdef ROM_SPDE
                 end
             elseif strcmp(obj.conductivityDistribution, 'gaussian')
                 %log conductivity gaussian distributed
-                x = normrnd(obj.conductivityDistributionParams{1}, obj.conductivityDistributionParams{2},...
+                x = normrnd(obj.conductivityDistributionParams{1},...
+                    obj.conductivityDistributionParams{2},...
                     obj.fineScaleDomain.nEl, obj.nSets(nSet));
                 cond{1} = zeros(obj.fineScaleDomain.nEl, 1);
                 cond = repmat(cond, 1, obj.nSets(nSet));
@@ -427,7 +433,8 @@ classdef ROM_SPDE
         function obj = solveFEM(obj, nSet, savepath)
             
             cond = obj.generateConductivityField(nSet);
-            globalVariationTest = false; %Every microstructure has a common macro-cell
+            %Every microstructure has a common macro-cell
+            globalVariationTest = false;
             if globalVariationTest
                 obj = obj.getCoarseElement;
                 %Conductivity of 10th window is the same in all samples
@@ -461,8 +468,10 @@ classdef ROM_SPDE
             parPoolInit(obj.nSets(nSet));
             if useConv
                 %Compute coordinates of element centers
-                x = .5*(obj.fineScaleDomain.cum_lElX(1:(end - 1)) + obj.fineScaleDomain.cum_lElX(2:end));
-                y = .5*(obj.fineScaleDomain.cum_lElY(1:(end - 1)) + obj.fineScaleDomain.cum_lElY(2:end));
+                x = .5*(obj.fineScaleDomain.cum_lElX(1:(end - 1)) +...
+                    obj.fineScaleDomain.cum_lElX(2:end));
+                y = .5*(obj.fineScaleDomain.cum_lElY(1:(end - 1)) +...
+                    obj.fineScaleDomain.cum_lElY(2:end));
                 [X, Y] = meshgrid(x, y);
                 %directly clear potentially large arrays
                 clear y;
@@ -697,7 +706,8 @@ classdef ROM_SPDE
             end
         end
         
-        function [meanLogLikelihood, err] = estimateLogL(obj, nTrainingData, Tf)
+        function [meanLogLikelihood, err] =...
+                estimateLogL(obj, nTrainingData, Tf)
             
             natNodes = true(obj.fineScaleDomain.nNodes, 1);
             natNodes(obj.fineScaleDomain.essentialNodes) = false;
@@ -846,7 +856,7 @@ classdef ROM_SPDE
                 a = obj.VRVM_a + .5;
                 e = obj.VRVM_e + .5*obj.nTrain;
                 c = obj.VRVM_c + .5*obj.nTrain;
-                f = obj.VRVM_f + .5*obj.varExpect_p_cf_exp_mean;
+                f = obj.VRVM_f + .5*obj.varExpect_p_cf_exp_mean*obj.nTrain;
                 tau_cf = e./f;  %p_cf precision
                 
                 %initialization
@@ -1553,7 +1563,8 @@ classdef ROM_SPDE
             end
         end
 
-        function [predMean, predSqMean] = randThetaPredict(obj, mode, nSamplesTheta, boundaryConditions)
+        function [predMean, predSqMean] =...
+                randThetaPredict(obj, mode,nSamplesTheta, boundaryConditions)
             %Function to predict finescale output from generative model
             
             if(nargin < 2)
@@ -2430,15 +2441,17 @@ classdef ROM_SPDE
         end
         
         function obj = computeFeatureFunctionMinMax(obj)
-            %Computes min/max of feature function outputs over training data, separately for every
-            %macro cell
+            %Computes min/max of feature function outputs over training data,
+            %separately for every macro cell
             obj.featureFunctionMin = obj.designMatrix{1};
             obj.featureFunctionMax = obj.designMatrix{1};
             for n = 1:numel(obj.designMatrix)
-                obj.featureFunctionMin(obj.featureFunctionMin > obj.designMatrix{n}) =...
-                    obj.designMatrix{n}(obj.featureFunctionMin > obj.designMatrix{n});
-                obj.featureFunctionMax(obj.featureFunctionMax < obj.designMatrix{n}) =...
-                    obj.designMatrix{n}(obj.featureFunctionMax < obj.designMatrix{n});
+                obj.featureFunctionMin(obj.featureFunctionMin >...
+                    obj.designMatrix{n}) = obj.designMatrix{n}...
+                    (obj.featureFunctionMin > obj.designMatrix{n});
+                obj.featureFunctionMax(obj.featureFunctionMax <...
+                    obj.designMatrix{n}) = obj.designMatrix{n}...
+                    (obj.featureFunctionMax < obj.designMatrix{n});
             end
         end
         
@@ -2447,20 +2460,24 @@ classdef ROM_SPDE
             disp('Rescale design matrix...')
             if strcmp(mode, 'test')
                 featFuncDiff = obj.featureFunctionMax - obj.featureFunctionMin;
-                %to avoid irregularities due to rescaling (if every macro cell has the same feature function output)
+                %to avoid irregularities due to rescaling (if every macro cell
+                %has the same feature function output)
                 obj.featureFunctionMin(featFuncDiff == 0) = 0;
                 featFuncDiff(featFuncDiff == 0) = 1;
                 for n = 1:numel(designMatrix)
-                    designMatrix{n} = (designMatrix{n} - obj.featureFunctionMin)./(featFuncDiff);
+                    designMatrix{n} =...
+                       (designMatrix{n}-obj.featureFunctionMin)./(featFuncDiff);
                 end
             else
                 obj = obj.computeFeatureFunctionMinMax;
                 featFuncDiff = obj.featureFunctionMax - obj.featureFunctionMin;
-                %to avoid irregularities due to rescaling (if every macro cell has the same feature function output)
+                %to avoid irregularities due to rescaling (if every macro cell
+                %has the same feature function output)
                 obj.featureFunctionMin(featFuncDiff == 0) = 0;
                 featFuncDiff(featFuncDiff == 0) = 1;
                 for n = 1:numel(designMatrix)
-                    designMatrix{n} = (designMatrix{n} - obj.featureFunctionMin)./(featFuncDiff);
+                    designMatrix{n} =...
+                       (designMatrix{n}-obj.featureFunctionMin)./(featFuncDiff);
                 end
             end
             %Check for finiteness
@@ -2874,21 +2891,23 @@ classdef ROM_SPDE
         end%includeLocalDiagNeighborFeatures
 
         function obj = localTheta_c(obj, designMatrix, mode)
-            %Sets separate coefficients theta_c for each macro-cell in a single microstructure
-            %sample
-            %Can never be executed before rescaling/standardization of design Matrix!
+            %Sets separate coefficients theta_c for each macro-cell in a single
+            %microstructure sample. Can never be executed before rescaling/
+            %standardization of design Matrix!
             debug = false; %debug mode
-            disp('Using separate feature coefficients theta_c for each macro-cell in a microstructure...')
+            disp(strcat('Using separate feature coefficients theta_c for', ...
+                'each macro-cell in a microstructure...'));
             nFeatureFunctionsTotal = size(designMatrix{1}, 2);
-            PhiCell{1} = zeros(obj.coarseScaleDomain.nEl, obj.coarseScaleDomain.nEl*nFeatureFunctionsTotal);
+            PhiCell{1} = zeros(obj.coarseScaleDomain.nEl,...
+                obj.coarseScaleDomain.nEl*nFeatureFunctionsTotal);
             nData = numel(designMatrix);
             PhiCell = repmat(PhiCell, nData, 1);
             
             %Reassemble design matrix
             for n = 1:nData
                 for i = 1:obj.coarseScaleDomain.nEl
-                    PhiCell{n}(i, ((i - 1)*nFeatureFunctionsTotal + 1):(i*nFeatureFunctionsTotal)) = ...
-                        designMatrix{n}(i, :);
+                    PhiCell{n}(i, ((i - 1)*nFeatureFunctionsTotal + 1):...
+                        (i*nFeatureFunctionsTotal)) = designMatrix{n}(i, :);
                 end
                 PhiCell{n} = sparse(PhiCell{n});
             end
@@ -3061,7 +3080,8 @@ classdef ROM_SPDE
 
         function p = plot_p_c_regression(obj, features)
             %Plots regressions of single features to the data <X>_q
-            totalFeatures = size(obj.featureFunctions, 2) + size(obj.globalFeatureFunctions, 2);
+            totalFeatures = size(obj.featureFunctions, 2) +...
+                size(obj.globalFeatureFunctions, 2);
             if obj.useAutoEnc
                 totalFeatures = totalFeatures + obj.latentDim;
             end
@@ -3076,13 +3096,16 @@ classdef ROM_SPDE
 %                     if size(obj.globalFeatureFunctions, 2)
 %                         error('Not yet generalized for global features')
 %                     end
-                    load(strcat('./persistentData/', 'train', 'DesignMatrix.mat'), 'designMatrix');
+                    load(strcat('./persistentData/', 'train',...
+                        'DesignMatrix.mat'), 'designMatrix');
                     %Setting up handles to kernel functions
                     for k = 1:obj.coarseScaleDomain.nEl
                         for n = 1:obj.nTrain
                             %phi_vec must be a row vector!!
-                            kernelDiff{n, k} = @(phi_vec) phi_vec - designMatrix{n}(k, :);
-                            kernelHandle{n, k} = @(phi_vec) obj.kernelFunction(kernelDiff{n, k}(phi_vec));
+                            kernelDiff{n, k} =...
+                                @(phi_vec) phi_vec - designMatrix{n}(k, :);
+                            kernelHandle{n, k} = @(phi_vec)...
+                                obj.kernelFunction(kernelDiff{n, k}(phi_vec));
                         end
                     end
                 end
@@ -3092,21 +3115,31 @@ classdef ROM_SPDE
                     maxk = -Inf*ones(obj.coarseScaleDomain.nEl, 1);
                     for i = 1:obj.coarseScaleDomain.nElX
                         for j = 1:obj.coarseScaleDomain.nElY
-                            subplot(obj.coarseScaleDomain.nElX, obj.coarseScaleDomain.nElY, k);
+                            subplot(obj.coarseScaleDomain.nElX,...
+                                obj.coarseScaleDomain.nElY, k);
                             for s = 1:obj.nTrain
                                 yData(k, s) = obj.XMean(k, s);
                                 for l = 1:totalFeatures
                                     if l~= feature
                                         yData(k, s) = yData(k, s) -...
-                                            obj.theta_c.theta(totalFeatures*(k - 1) + l)*...
-                                            obj.designMatrix{s}(k, totalFeatures*(k - 1) + l);
+                                            obj.theta_c.theta(totalFeatures*...
+                                            (k - 1) + l)*obj.designMatrix{s}...
+                                            (k, totalFeatures*(k - 1) + l);
                                     end
                                 end
-                                plot(obj.designMatrix{s}(k, totalFeatures*(k - 1) + feature), yData(k, s), 'xb')
-                                if(obj.designMatrix{s}(k, totalFeatures*(k - 1) + feature) < mink(k))
-                                    mink(k) = obj.designMatrix{s}(k, totalFeatures*(k - 1) + feature);
-                                elseif(obj.designMatrix{s}(k, totalFeatures*(k - 1) + feature) > maxk(k))
-                                    maxk(k) = obj.designMatrix{s}(k, totalFeatures*(k - 1) + feature);
+                                plot(obj.designMatrix{s}(k,...
+                                    totalFeatures*(k - 1) + feature),...
+                                    yData(k, s), 'xb')
+                                if(obj.designMatrix{s}(k,...
+                                        totalFeatures*(k - 1) + feature)...
+                                        < mink(k))
+                                    mink(k) = obj.designMatrix{s}(k,...
+                                        totalFeatures*(k - 1) + feature);
+                                elseif(obj.designMatrix{s}(k,...
+                                        totalFeatures*(k - 1) + feature)...
+                                        > maxk(k))
+                                    maxk(k) = obj.designMatrix{s}...
+                                        (k, totalFeatures*(k - 1) + feature);
                                 end
                                 hold on;
                             end
@@ -3118,37 +3151,44 @@ classdef ROM_SPDE
                                        size(obj.globalFeatureFunctions, 2) == 1)
                                     for m = 1:length(x)
                                         for n = 1:obj.nTrain
-                                            y(m) = y(m) + kernelHandle{n, k}(x(m))*...
-                                                obj.theta_c.theta((n - 1)*obj.coarseScaleDomain.nEl + k);
+                                            y(m) = y(m) + ...
+                                                kernelHandle{n, k}(x(m))*...
+                                                obj.theta_c.theta((n - 1)*...
+                                                obj.coarseScaleDomain.nEl + k);
                                         end
                                     end
                                     plot(x, y);
                                     axis tight;
                                     axis square;
-                                    xl = xlabel('Feature function output $\phi_i$');
+                                    xl = xlabel(...
+                                        'Feature function output $\phi_i$');
                                     xl.Interpreter = 'latex';
-                                    yl = ylabel('$<X_k> - \sum_{j\neq i} \theta_j \phi_j$');
+                                    yl = ylabel(strcat('$<X_k> - \sum',...
+                                        '_{j\neq i} \theta_j \phi_j$'));
                                     yl.Interpreter = 'latex';
                                     k = k + 1;
                                 else
-                                    error('Not yet generalized for more than 1 feature')
+                                    error('Not gener. for more than 1 feature')
                                 end
                             else
                                 useOffset = false;
                                 if useOffset
-                                    %it is important that the offset feature phi(lambda) = 1 is the very
-                                    %first feature
-                                    y = obj.theta_c.theta(totalFeatures*(k - 1) + 1) +...
-                                        obj.theta_c.theta(totalFeatures*(k - 1) + feature)*x;
+                                    %it is important that the offset feature
+                                    %phi(lambda) = 1 is the very first feature
+                                    y = obj.theta_c.theta(totalFeatures*...
+                                        (k - 1) + 1) + obj.theta_c.theta...
+                                        (totalFeatures*(k - 1) + feature)*x;
                                 else
-                                    y = obj.theta_c.theta(totalFeatures*(k - 1) + feature)*x;
+                                    y = obj.theta_c.theta(totalFeatures*...
+                                        (k - 1) + feature)*x;
                                 end
                                 plot(x, y);
                                 axis tight;
                                 axis square;
                                 xl = xlabel('Feature function output $\phi_i$');
                                 xl.Interpreter = 'latex';
-                                yl = ylabel('$<X_k> - \sum_{j\neq i} \theta_j \phi_j$');
+                                yl = ylabel(strcat('$<X_k> - \sum',...
+                                    '_{j\neq i} \theta_j \phi_j$'));
                                 yl.Interpreter = 'latex';
                                 k = k + 1;
                             end
@@ -3160,15 +3200,19 @@ classdef ROM_SPDE
                             for s = 1:obj.nTrain
                                 if obj.useKernels
                                     if(totalFeatures == 1)
-                                        plot(designMatrix{s}(k, feature), obj.XMean(k, s), 'xb')
+                                        plot(designMatrix{s}(k, feature),...
+                                            obj.XMean(k, s), 'xb')
                                     else
                                         if(feature == 1)
-                                            plot3(designMatrix{s}(k, 1), designMatrix{s}(k, 2), obj.XMean(k, s),...
-                                                'xb', 'linewidth', 2)
+                                            plot3(designMatrix{s}(k, 1),...
+                                                designMatrix{s}(k, 2),...
+                                                obj.XMean(k, s), 'xb',...
+                                                'linewidth', 2)
                                         end
                                     end
                                 else
-                                    plot(obj.designMatrix{s}(k, feature), obj.XMean(k, s), 'xb')
+                                    plot(obj.designMatrix{s}(k, feature),...
+                                        obj.XMean(k, s), 'xb')
                                 end
                                 hold on;
                             end
@@ -3183,11 +3227,16 @@ classdef ROM_SPDE
                         else
                             designMatrixArray = cell2mat(designMatrix');
                             %Maxima and minima of first and second feature
-                            max1 = max(max(designMatrixArray(:, 1:totalFeatures:end)));
-                            max2 = max(max(designMatrixArray(:, 2:totalFeatures:end)));
-                            min1 = min(min(designMatrixArray(:, 1:totalFeatures:end)));
-                            min2 = min(min(designMatrixArray(:, 2:totalFeatures:end)));
-                            [X, Y] = meshgrid(linspace(min1, max1, 30), linspace(min2, max2, 30));
+                            max1 = max(max(...
+                                designMatrixArray(:, 1:totalFeatures:end)));
+                            max2 = max(max(...
+                                designMatrixArray(:, 2:totalFeatures:end)));
+                            min1 = min(min(...
+                                designMatrixArray(:, 1:totalFeatures:end)));
+                            min2 = min(min(...
+                                designMatrixArray(:, 2:totalFeatures:end)));
+                            [X, Y] = meshgrid(linspace(...
+                                min1, max1, 30), linspace(min2, max2, 30));
                         end
                     else
                         x = linspace(min(min(cell2mat(obj.designMatrix))),...
@@ -3199,8 +3248,10 @@ classdef ROM_SPDE
                             for m = 1:length(x)
                                 for n = 1:obj.nTrain
                                     for h = 1:obj.coarseScaleDomain.nEl
-                                        y(m) = y(m) + kernelHandle{n, h}(x(m))*...
-                                            obj.theta_c.theta((n - 1)*obj.coarseScaleDomain.nEl + h);
+                                        y(m) =...
+                                            y(m) + kernelHandle{n, h}(x(m))*...
+                                            obj.theta_c.theta((n - 1)*...
+                                            obj.coarseScaleDomain.nEl + h);
                                     end
                                 end
                             end
@@ -3213,12 +3264,18 @@ classdef ROM_SPDE
                                 for c = 1:size(Z, 2)
                                     for r = 1:size(Z, 1)
                                         %Projection onto the first two features
-                                        phi_vec = zeros(1, size(designMatrix{1}, 2));
+                                        phi_vec =...
+                                            zeros(1, size(designMatrix{1}, 2));
                                         phi_vec(1:2) = [X(r, c) Y(r, c)];
                                         for n = 1:obj.nTrain
                                             for h = 1:obj.coarseScaleDomain.nEl
-                                                Z(r, c) = Z(r, c) + kernelHandle{n, h}(phi_vec)*...
-                                                    obj.theta_c.theta((n - 1)*obj.coarseScaleDomain.nEl + h);
+                                                Z(r, c) = Z(r, c) +...
+                                                    kernelHandle{n, h}...
+                                                    (phi_vec)*...
+                                                    obj.theta_c.theta...
+                                                    ((n - 1)*...
+                                                    obj.coarseScaleDomain.nEl...
+                                                    + h);
                                             end
                                         end
                                     end
@@ -3478,10 +3535,13 @@ classdef ROM_SPDE
             
         end
 
-        function [X, Y, corrX_log_p_cf, corrX, corrY, corrXp_cf, corrpcfX, corrpcfY] = findMeshRefinement(obj)
-            %Script to sample d_log_p_cf under p_c to find where to refine mesh next
+        function [X, Y, corrX_log_p_cf, corrX, corrY,...
+                corrXp_cf, corrpcfX, corrpcfY] = findMeshRefinement(obj)
+            %Script to sample d_log_p_cf under p_c to find where to refine
+            %mesh next
 
-            Tf = obj.trainingDataMatfile.Tf(:, obj.nStart:(obj.nStart + obj.nTrain - 1));
+            Tf = obj.trainingDataMatfile.Tf(:,...
+                obj.nStart:(obj.nStart + obj.nTrain - 1));
             
             obj = obj.loadTrainedParams;
             theta_cfTemp = obj.theta_cf;
@@ -3489,7 +3549,8 @@ classdef ROM_SPDE
             %comment this for inclusion of variances S of p_cf
             theta_cfTemp.S = ones(size(theta_cfTemp.S));
             
-            theta_cfTemp.Sinv = sparse(1:obj.fineScaleDomain.nNodes, 1:obj.fineScaleDomain.nNodes, 1./theta_cfTemp.S);
+            theta_cfTemp.Sinv = sparse(1:obj.fineScaleDomain.nNodes,...
+                1:obj.fineScaleDomain.nNodes, 1./theta_cfTemp.S);
             theta_cfTemp.Sinv_vec = 1./theta_cfTemp.S;
             %precomputation to save resources
             theta_cfTemp.WTSinv = theta_cfTemp.W'*theta_cfTemp.Sinv;
@@ -3518,17 +3579,24 @@ classdef ROM_SPDE
                 XsampleSqMean = ((i - 1)/i)*XsampleSqMean + (1/i)*mu_i.^2;
                 for j = 1:nSamples
                     Xsample = mvnrnd(mu_i, obj.theta_c.Sigma)';
-                    conductivity = conductivityBackTransform(Xsample, obj.conductivityTransformation);
-                    [lg_p_cf, d_log_p_cf] = log_p_cf(Tf(:, i), obj.coarseScaleDomain, conductivity,...
+                    conductivity = conductivityBackTransform(...
+                        Xsample, obj.conductivityTransformation);
+                    [lg_p_cf, d_log_p_cf] = log_p_cf(Tf(:, i),...
+                        obj.coarseScaleDomain, conductivity,...
                         theta_cfTemp, obj.conductivityTransformation);
-                    d_log_p_cf_mean = ((k - 1)/k)*d_log_p_cf_mean + (1/k)*d_log_p_cf;
-                    d_log_p_cf_sqMean = ((k - 1)/k)*d_log_p_cf_sqMean + (1/k)*d_log_p_cf.^2;
+                    d_log_p_cf_mean = ((k - 1)/k)*d_log_p_cf_mean +...
+                        (1/k)*d_log_p_cf;
+                    d_log_p_cf_sqMean = ((k - 1)/k)*d_log_p_cf_sqMean +...
+                        (1/k)*d_log_p_cf.^2;
                     log_p_cf_mean = ((k - 1)/k)*log_p_cf_mean + (1/k)*lg_p_cf;
-                    log_p_cfSqMean = ((k - 1)/k)*log_p_cfSqMean + (1/k)*lg_p_cf^2;
+                    log_p_cfSqMean = ((k - 1)/k)*log_p_cfSqMean +...
+                        (1/k)*lg_p_cf^2;
                     p_cfMean = ((k - 1)/k)*p_cfMean + (1/k)*exp(lg_p_cf);
                     p_cfSqMean = ((k - 1)/k)*p_cfSqMean + (1/k)*exp(2*lg_p_cf);
-                    Xlog_p_cf_mean = ((k - 1)/k)*Xlog_p_cf_mean + (1/k)*Xsample*lg_p_cf;
-                    Xp_cfMean = ((k - 1)/k)*Xp_cfMean + (1/k)*Xsample*exp(lg_p_cf);
+                    Xlog_p_cf_mean = ((k - 1)/k)*Xlog_p_cf_mean +...
+                        (1/k)*Xsample*lg_p_cf;
+                    Xp_cfMean = ((k - 1)/k)*Xp_cfMean +...
+                        (1/k)*Xsample*exp(lg_p_cf);
                     k = k + 1;
                 end
             end
@@ -3552,21 +3620,29 @@ classdef ROM_SPDE
             
             disp('Sum of grad squares in x-direction:')
             for i = 1:obj.coarseScaleDomain.nElY
-                X(i) = sum(d_log_p_cf_sqMean(((i - 1)*obj.coarseScaleDomain.nElX + 1):(i*obj.coarseScaleDomain.nElX)));
-                corrX(i) = sum(abs(corrX_log_p_cf(((i - 1)*obj.coarseScaleDomain.nElX + 1):...
+                X(i) = sum(d_log_p_cf_sqMean(((i - 1)*...
+                    obj.coarseScaleDomain.nElX + 1):...
+                    (i*obj.coarseScaleDomain.nElX)));
+                corrX(i) = sum(abs(corrX_log_p_cf(((i - 1)*...
+                    obj.coarseScaleDomain.nElX + 1):...
                     (i*obj.coarseScaleDomain.nElX))));
-                corrpcfX(i) = sum((corrXp_cf(((i - 1)*obj.coarseScaleDomain.nElX + 1):...
+                corrpcfX(i) = sum((corrXp_cf(((i - 1)*...
+                    obj.coarseScaleDomain.nElX + 1):...
                     (i*obj.coarseScaleDomain.nElX))).^2);
             end
             
             disp('Sum of grad squares in y-direction:')
             for i = 1:obj.coarseScaleDomain.nElX
                 Y(i) = sum(d_log_p_cf_sqMean(i:obj.coarseScaleDomain.nElX:...
-                    ((obj.coarseScaleDomain.nElY - 1)*obj.coarseScaleDomain.nElX + i)));
-                corrY(i) = sum(abs(corrX_log_p_cf(i:obj.coarseScaleDomain.nElX:...
-                    ((obj.coarseScaleDomain.nElY - 1)*obj.coarseScaleDomain.nElX + i))));
+                    ((obj.coarseScaleDomain.nElY - 1)*...
+                    obj.coarseScaleDomain.nElX + i)));
+                corrY(i) = sum(abs(corrX_log_p_cf(i:...
+                    obj.coarseScaleDomain.nElX:...
+                    ((obj.coarseScaleDomain.nElY - 1)*...
+                    obj.coarseScaleDomain.nElX + i))));
                 corrpcfY(i) = sum((corrXp_cf(i:obj.coarseScaleDomain.nElX:...
-                    ((obj.coarseScaleDomain.nElY - 1)*obj.coarseScaleDomain.nElX + i))).^2);
+                    ((obj.coarseScaleDomain.nElY - 1)*...
+                    obj.coarseScaleDomain.nElX + i))).^2);
             end
         end
 
@@ -3671,17 +3747,19 @@ classdef ROM_SPDE
             disp('done')
         end
 
-        function [obj, phi, phiGlobal, phiConvection, phiGlobalConvection] = setFeatureFunctions(obj)
+        function [obj, phi, phiGlobal, phiConvection, phiGlobalConvection] =...
+                setFeatureFunctions(obj)
             %Set up feature function handles;
-            %First cell array index is for macro-cell. This allows different features for different
-            %macro-cells
+            %First cell array index is for macro-cell. This allows different 
+            %features for different macro-cells
 
             addpath('./featureFunctions')   %Path to feature function library
             conductivities = [obj.lowerConductivity obj.upperConductivity];
             log_cutoff = 1e-5;
             phi = {};
             phiGlobal = {};
-            ct = obj.conductivityTransformation;    %avoid broadcasting overhead in designMatrix
+            %avoid broadcasting overhead in designMatrix
+            ct = obj.conductivityTransformation;
             nElf = [obj.nElFX obj.nElFY];
             %constant bias
             for k = 1:obj.coarseScaleDomain.nEl
@@ -3699,10 +3777,10 @@ classdef ROM_SPDE
                     maxwellGarnett(lambda, conductivities, ct, 'hi');
                 nFeatures = nFeatures + 1;
                 phi{k, nFeatures + 1} = @(lambda)...
-                    differentialEffectiveMedium(lambda, conductivities, ct, 'lo');
+                    differentialEffectiveMedium(lambda,conductivities,ct, 'lo');
                 nFeatures = nFeatures + 1;
                 phi{k, nFeatures + 1} = @(lambda)...
-                    differentialEffectiveMedium(lambda, conductivities, ct, 'hi');
+                    differentialEffectiveMedium(lambda,conductivities,ct, 'hi');
                 nFeatures = nFeatures + 1;
                 
                 phi{k, nFeatures + 1} = @(lambda)...
@@ -3729,13 +3807,17 @@ classdef ROM_SPDE
                     log(linealPath(lambda, 10, 'x', 1, conductivities) +...
                     linealPath(lambda, 10, 'y', 1, conductivities) + 1/4096);
                 nFeatures = nFeatures + 1;
-                phi{k, nFeatures + 1} = @(lambda) linPathParams(lambda, (2:2:8)', conductivities, 1, 'a');
+                phi{k, nFeatures + 1} = @(lambda)...
+                    linPathParams(lambda, (2:2:8)', conductivities, 1, 'a');
                 nFeatures = nFeatures + 1;
-                phi{k, nFeatures + 1} = @(lambda) linPathParams(lambda, (2:2:8)', conductivities, 1, 'b');
+                phi{k, nFeatures + 1} = @(lambda)...
+                    linPathParams(lambda, (2:2:8)', conductivities, 1, 'b');
                 nFeatures = nFeatures + 1;
-                phi{k, nFeatures + 1} = @(lambda) linPathParams(lambda, (2:2:8)', conductivities, 2, 'a');
+                phi{k, nFeatures + 1} = @(lambda)...
+                    linPathParams(lambda, (2:2:8)', conductivities, 2, 'a');
                 nFeatures = nFeatures + 1;
-                phi{k, nFeatures + 1} = @(lambda) linPathParams(lambda, (2:2:8)', conductivities, 2, 'b');
+                phi{k, nFeatures + 1} = @(lambda)...
+                    linPathParams(lambda, (2:2:8)', conductivities, 2, 'b');
                 nFeatures = nFeatures + 1;
 %                 phi{k, nFeatures + 1} = @(lambda)...
 %                     linealPath(lambda, 3, 'y', 2, conductivities);
@@ -3821,23 +3903,23 @@ classdef ROM_SPDE
                 nFeatures = nFeatures + 1;
                 
                 phi{k, nFeatures + 1} = @(lambda) ...
-                    connectedPathExist(lambda, 1, conductivities, 'x', 'invdist');
+                    connectedPathExist(lambda, 1, conductivities,'x','invdist');
                 nFeatures = nFeatures + 1;
                 phi{k, nFeatures + 1} = @(lambda) ...
-                    connectedPathExist(lambda, 1, conductivities, 'y', 'invdist');
+                    connectedPathExist(lambda, 1, conductivities,'y','invdist');
                 nFeatures = nFeatures + 1;
                 phi{k, nFeatures + 1} = @(lambda) ...
-                    connectedPathExist(lambda, 2, conductivities, 'x', 'invdist');
+                    connectedPathExist(lambda, 2, conductivities,'x','invdist');
                 nFeatures = nFeatures + 1;
                 phi{k, nFeatures + 1} = @(lambda) ...
-                    connectedPathExist(lambda, 2, conductivities, 'y', 'invdist');
+                    connectedPathExist(lambda, 2, conductivities,'y','invdist');
                 nFeatures = nFeatures + 1;
                 
-                phi{k, nFeatures + 1} = @(lambda)...
-                    log(specificSurface(lambda, 1, conductivities, nElf) + log_cutoff);
+                phi{k, nFeatures + 1} = @(lambda) log(specificSurface(...
+                    lambda, 1, conductivities, nElf) + log_cutoff);
                 nFeatures = nFeatures + 1;
-                phi{k, nFeatures + 1} = @(lambda)...
-                    log(specificSurface(lambda, 2, conductivities, nElf) + log_cutoff);
+                phi{k, nFeatures + 1} = @(lambda) log(specificSurface(...
+                    lambda, 2, conductivities, nElf) + log_cutoff);
                 nFeatures = nFeatures + 1;
 
                 
@@ -3859,97 +3941,121 @@ classdef ROM_SPDE
 
                 phi{k, nFeatures + 1} = @(lambda) std(lambda(:));
                 nFeatures = nFeatures + 1;
-                phi{k, nFeatures + 1} = @(lambda) log(std(lambda(:)) + log_cutoff);
+                phi{k, nFeatures + 1}= @(lambda) log(std(lambda(:))+log_cutoff);
                 nFeatures = nFeatures + 1;
                 
                 phi{k, nFeatures + 1} = @(lambda) isingEnergy(lambda);
                 nFeatures = nFeatures + 1;
                 
-                phi{k, nFeatures + 1} = @(lambda) generalizedMeanBoundary(lambda, -1, 'left');
+                phi{k, nFeatures + 1} = @(lambda)...
+                    generalizedMeanBoundary(lambda, -1, 'left');
                 nFeatures = nFeatures + 1;
-                phi{k, nFeatures + 1} = @(lambda) generalizedMeanBoundary(lambda, -1, 'lower');
+                phi{k, nFeatures + 1} = @(lambda)...
+                    generalizedMeanBoundary(lambda, -1, 'lower');
                 nFeatures = nFeatures + 1;
-                phi{k, nFeatures + 1} = @(lambda) generalizedMeanBoundary(lambda, -1, 'right');
+                phi{k, nFeatures + 1} = @(lambda)...
+                    generalizedMeanBoundary(lambda, -1, 'right');
                 nFeatures = nFeatures + 1;
-                phi{k, nFeatures + 1} = @(lambda) generalizedMeanBoundary(lambda, -1, 'upper');
-                nFeatures = nFeatures + 1;
-                
-                phi{k, nFeatures + 1} = @(lambda) generalizedMeanBoundary(lambda, 0, 'left');
-                nFeatures = nFeatures + 1;
-                phi{k, nFeatures + 1} = @(lambda) generalizedMeanBoundary(lambda, 0, 'lower');
-                nFeatures = nFeatures + 1;
-                phi{k, nFeatures + 1} = @(lambda) generalizedMeanBoundary(lambda, 0, 'right');
-                nFeatures = nFeatures + 1;
-                phi{k, nFeatures + 1} = @(lambda) generalizedMeanBoundary(lambda, 0, 'upper');
+                phi{k, nFeatures + 1} = @(lambda)...
+                    generalizedMeanBoundary(lambda, -1, 'upper');
                 nFeatures = nFeatures + 1;
                 
-                phi{k, nFeatures + 1} = @(lambda) generalizedMeanBoundary(lambda, 1, 'left');
+                phi{k, nFeatures + 1} = @(lambda)...
+                    generalizedMeanBoundary(lambda, 0, 'left');
                 nFeatures = nFeatures + 1;
-                phi{k, nFeatures + 1} = @(lambda) generalizedMeanBoundary(lambda, 1, 'lower');
+                phi{k, nFeatures + 1} = @(lambda)...
+                    generalizedMeanBoundary(lambda, 0, 'lower');
                 nFeatures = nFeatures + 1;
-                phi{k, nFeatures + 1} = @(lambda) generalizedMeanBoundary(lambda, 1, 'right');
+                phi{k, nFeatures + 1} = @(lambda)...
+                    generalizedMeanBoundary(lambda, 0, 'right');
                 nFeatures = nFeatures + 1;
-                phi{k, nFeatures + 1} = @(lambda) generalizedMeanBoundary(lambda, 1, 'upper');
-                nFeatures = nFeatures + 1;
-                
-                phi{k, nFeatures + 1} = @(lambda) distanceProps(lambda, conductivities, 'hi',...
-                    'euclidean', 'mean');
-                nFeatures = nFeatures + 1;
-                phi{k, nFeatures + 1} = @(lambda) distanceProps(lambda, conductivities, 'hi',...
-                    'euclidean', 'var');
-                nFeatures = nFeatures + 1;
-                phi{k, nFeatures + 1} = @(lambda) distanceProps(lambda, conductivities, 'hi',...
-                    'euclidean', 'max');
+                phi{k, nFeatures + 1} = @(lambda)...
+                    generalizedMeanBoundary(lambda, 0, 'upper');
                 nFeatures = nFeatures + 1;
                 
-                phi{k, nFeatures + 1} = @(lambda) distanceProps(lambda, conductivities, 'hi',...
-                    'cityblock', 'mean');
+                phi{k, nFeatures + 1} = @(lambda)...
+                    generalizedMeanBoundary(lambda, 1, 'left');
                 nFeatures = nFeatures + 1;
-                phi{k, nFeatures + 1} = @(lambda) distanceProps(lambda, conductivities, 'hi',...
-                    'cityblock', 'var');
+                phi{k, nFeatures + 1} = @(lambda)...
+                    generalizedMeanBoundary(lambda, 1, 'lower');
                 nFeatures = nFeatures + 1;
-                phi{k, nFeatures + 1} = @(lambda) distanceProps(lambda, conductivities, 'hi',...
-                    'cityblock', 'max');
+                phi{k, nFeatures + 1} = @(lambda)...
+                    generalizedMeanBoundary(lambda, 1, 'right');
+                nFeatures = nFeatures + 1;
+                phi{k, nFeatures + 1} = @(lambda)...
+                    generalizedMeanBoundary(lambda, 1, 'upper');
                 nFeatures = nFeatures + 1;
                 
-                phi{k, nFeatures + 1} = @(lambda) distanceProps(lambda, conductivities, 'hi',...
+                phi{k, nFeatures + 1} = @(lambda)...
+                   distanceProps(lambda,conductivities,'hi','euclidean','mean');
+                nFeatures = nFeatures + 1;
+                phi{k, nFeatures + 1} = @(lambda)...
+                    distanceProps(lambda,conductivities,'hi','euclidean','var');
+                nFeatures = nFeatures + 1;
+                phi{k, nFeatures + 1} = @(lambda)...
+                    distanceProps(lambda,conductivities,'hi','euclidean','max');
+                nFeatures = nFeatures + 1;
+                
+                phi{k, nFeatures + 1} = @(lambda)...
+                   distanceProps(lambda,conductivities,'hi','cityblock','mean');
+                nFeatures = nFeatures + 1;
+                phi{k, nFeatures + 1} = @(lambda)...
+                    distanceProps(lambda,conductivities,'hi','cityblock','var');
+                nFeatures = nFeatures + 1;
+                phi{k, nFeatures + 1} = @(lambda)...
+                    distanceProps(lambda,conductivities,'hi','cityblock','max');
+                nFeatures = nFeatures + 1;
+                
+                phi{k, nFeatures + 1} = @(lambda)...
+                    distanceProps(lambda, conductivities, 'hi',...
                     'chessboard', 'mean');
                 nFeatures = nFeatures + 1;
-                phi{k, nFeatures + 1} = @(lambda) distanceProps(lambda, conductivities, 'hi',...
+                phi{k, nFeatures + 1} = @(lambda)...
+                    distanceProps(lambda, conductivities, 'hi',...
                     'chessboard', 'var');
                 nFeatures = nFeatures + 1;
-                phi{k, nFeatures + 1} = @(lambda) distanceProps(lambda, conductivities, 'hi',...
+                phi{k, nFeatures + 1} = @(lambda)...
+                    distanceProps(lambda, conductivities, 'hi',...
                     'chessboard', 'max');
                 nFeatures = nFeatures + 1;
 
                 
-                phi{k, nFeatures + 1} = @(lambda) distanceProps(lambda, conductivities, 'lo',...
+                phi{k, nFeatures + 1} = @(lambda)...
+                    distanceProps(lambda, conductivities, 'lo',...
                     'euclidean', 'mean');
                 nFeatures = nFeatures + 1;
-                phi{k, nFeatures + 1} = @(lambda) distanceProps(lambda, conductivities, 'lo',...
+                phi{k, nFeatures + 1} = @(lambda)...
+                    distanceProps(lambda, conductivities, 'lo',...
                     'euclidean', 'var');
                 nFeatures = nFeatures + 1;
-                phi{k, nFeatures + 1} = @(lambda) distanceProps(lambda, conductivities, 'lo',...
+                phi{k, nFeatures + 1} = @(lambda)...
+                    distanceProps(lambda, conductivities, 'lo',...
                     'euclidean', 'max');
                 nFeatures = nFeatures + 1;
                 
-                phi{k, nFeatures + 1} = @(lambda) distanceProps(lambda, conductivities, 'lo',...
+                phi{k, nFeatures + 1} = @(lambda)...
+                    distanceProps(lambda, conductivities, 'lo',...
                     'cityblock', 'mean');
                 nFeatures = nFeatures + 1;
-                phi{k, nFeatures + 1} = @(lambda) distanceProps(lambda, conductivities, 'lo',...
+                phi{k, nFeatures + 1} = @(lambda)...
+                    distanceProps(lambda, conductivities, 'lo',...
                     'cityblock', 'var');
                 nFeatures = nFeatures + 1;
-                phi{k, nFeatures + 1} = @(lambda) distanceProps(lambda, conductivities, 'lo',...
+                phi{k, nFeatures + 1} = @(lambda)...
+                    distanceProps(lambda, conductivities, 'lo',...
                     'cityblock', 'max');
                 nFeatures = nFeatures + 1;
                 
-                phi{k, nFeatures + 1} = @(lambda) distanceProps(lambda, conductivities, 'lo',...
+                phi{k, nFeatures + 1} = @(lambda)...
+                    distanceProps(lambda, conductivities, 'lo',...
                     'chessboard', 'mean');
                 nFeatures = nFeatures + 1;
-                phi{k, nFeatures + 1} = @(lambda) distanceProps(lambda, conductivities, 'lo',...
+                phi{k, nFeatures + 1} = @(lambda)...
+                    distanceProps(lambda, conductivities, 'lo',...
                     'chessboard', 'var');
                 nFeatures = nFeatures + 1;
-                phi{k, nFeatures + 1} = @(lambda) distanceProps(lambda, conductivities, 'lo',...
+                phi{k, nFeatures + 1} = @(lambda)...
+                    distanceProps(lambda, conductivities, 'lo',...
                     'chessboard', 'max');
                 nFeatures = nFeatures + 1;
 
@@ -4031,7 +4137,8 @@ classdef ROM_SPDE
 %             obj.secondOrderTerms(2, 2) = true;
 %             obj.secondOrderTerms(2, 3) = true;
 %             obj.secondOrderTerms(3, 3) = true;
-            assert(sum(sum(tril(obj.secondOrderTerms, -1))) == 0, 'Second order matrix must be upper triangular')
+            assert(sum(sum(tril(obj.secondOrderTerms, -1))) == 0,...
+                'Second order matrix must be upper triangular')
             
             
             %Convection features
