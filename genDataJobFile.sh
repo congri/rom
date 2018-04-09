@@ -10,10 +10,10 @@ NSET4=[]
 NSET5=[]
 VOLFRAC=-1	#Theoretical volume fraction; negative value leads to uniform random volume fraction
 LOCOND=1
-UPCOND=100
+UPCOND=2
 BC1=0
-BC2=1500
-BC3=-500
+BC2=500
+BC3=-1500
 BC4=1000
 CONVECTION=false
 #best change boundary conditions in matlab
@@ -50,11 +50,10 @@ sed -i \"8s/.*/        nElFY = $NF;/\" ./ROM_SPDE.m
 sed -i \"10s/.*/        lowerConductivity = $LOCOND;/\" ./ROM_SPDE.m
 sed -i \"11s/.*/        upperConductivity = $UPCOND;/\" ./ROM_SPDE.m
 sed -i \"13s/.*/        conductivityDistribution = \'$COVARIANCE\';/\" ./ROM_SPDE.m
-sed -i \"31s/.*/        nSets = \[$NSET1 $NSET2 $NSET3 $NSET4 $NSET5\];/\" ./ROM_SPDE.m
-sed -i \"131s/.*/\        useConvection = $CONVECTION;      %%Include a convection term to the pde?/\" ./ROM_SPDE.m
-sed -i \"139s/.*/\        conductivityLengthScaleDist = \'${LENGTHSCALEDIST}\';      %%delta for fixed length scale, lognormal for rand/\" ./ROM_SPDE.m
-sed -i \"140s/.*/\        conductivityDistributionParams = {$VOLFRAC \[$CORRLENGTH1 $CORRLENGTH2\] 1\};/\" ./ROM_SPDE.m
-sed -i \"147s/.*/        boundaryConditions = \'\[$BC1 $BC2 $BC3 $BC4\]\';/\" ./ROM_SPDE.m
+sed -i \"32s/.*/        nSets = \[$NSET1 $NSET2 $NSET3 $NSET4 $NSET5\];/\" ./ROM_SPDE.m
+sed -i \"168s/.*/\        conductivityLengthScaleDist = \'${LENGTHSCALEDIST}\';      %%delta for fixed length scale, lognormal for rand/\" ./ROM_SPDE.m
+sed -i \"170s/.*/\        conductivityDistributionParams = {$VOLFRAC \[$CORRLENGTH1 $CORRLENGTH2\] 1\};/\" ./ROM_SPDE.m
+sed -i \"178s/.*/        boundaryConditions = \'\[$BC1 $BC2 $BC3 $BC4\]\';/\" ./ROM_SPDE.m
 
 
 

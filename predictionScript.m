@@ -1,6 +1,6 @@
 %%Script for output prediction
 romObjPred = ROM_SPDE('');
-romObjPred.testSamples = 1:1024;
+romObjPred.testSamples = 1:6;
 romObjPred = romObjPred.predict;
 
 predMetrics.meanSqDist = romObjPred.meanSquaredDistance;

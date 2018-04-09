@@ -37,9 +37,9 @@ ppool = parPoolInit(romObj.nTrain);
 pend = 0;       %for sequential qi-updates
 
 %Compute design matrices
-romObj = romObj.computeDesignMatrix('train', false);
+romObj = romObj.computeDesignMatrix('train', true);
 if(size(romObj.designMatrix{1}, 2) ~= size(romObj.theta_c.theta))
-    warning('Wrong dimension of theta_c. Setting it to 0 with correct dimension.')
+    warning('Wrong dimension of theta_c. Setting it to 0 with correct dim.')
     romObj.theta_c.theta = zeros(size(romObj.designMatrix{1}, 2), 1);
 end
 %random initialization
@@ -319,16 +319,16 @@ clear tempArray;
 runtime = toc
 
 
-romObj = romObj.predict;
-
-predMetrics.meanSqDist = romObj.meanSquaredDistance;
-predMetrics.meanLogLikelihood = romObj.meanLogLikelihood;
-predMetrics.meanPerp = romObj.meanPerplexity;
-predMetrics.maha = romObj.meanMahalanobisError;
-predMetrics.meanSqDistField = romObj.meanSquaredDistanceField;
-
-%save predictions
-save('./predictions.mat', 'predMetrics');
+% romObj = romObj.predict;
+% 
+% predMetrics.meanSqDist = romObj.meanSquaredDistance;
+% predMetrics.meanLogLikelihood = romObj.meanLogLikelihood;
+% predMetrics.meanPerp = romObj.meanPerplexity;
+% predMetrics.maha = romObj.meanMahalanobisError;
+% predMetrics.meanSqDistField = romObj.meanSquaredDistanceField;
+% 
+% %save predictions
+% save('./predictions.mat', 'predMetrics');
 
 
 
