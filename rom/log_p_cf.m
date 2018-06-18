@@ -3,31 +3,24 @@ function [log_p, d_log_p, Tc] = log_p_cf(Tf_i_minus_mu, domainc, Xi, theta_cf, c
 %ignore constant prefactor
 %log_p = -.5*logdet(S, 'chol') - .5*(Tf - mu)'*(S\(Tf - mu));
 %diagonal S
-if domainc.useConvection
-    %We are in convection-diffusion mode here
-    conductivity = conductivityBackTransform(Xi(1:domainc.nEl), condTransOpts);
-    %is this correctly reshaped?
-    convectionField = reshape(Xi((domainc.nEl + 1):end), domainc.nEl, 2)';
-else
-    %only diffusion
-    conductivity = conductivityBackTransform(Xi, condTransOpts);
-end
-D = zeros(2, 2, domainc.nEl);
-%Conductivity matrix D, only consider isotropic materials here
-for j = 1:domainc.nEl
-    D(:, :, j) =  conductivity(j)*eye(2);
-end
-if domainc.useConvection
-    FEMout = heat2d(domainc, D, convectionField);
-else
-    FEMout = heat2d(domainc, D);
-end
+
+conductivity = conductivityBackTransform(Xi, condTransOpts);
+% D = zeros(2, 2, domainc.nEl);
+% %Conductivity matrix D, only consider isotropic materials here
+% for j = 1:domainc.nEl
+%     D(:, :, j) =  conductivity(j)*eye(2);
+% end
+% 
+% FEMout = heat2d(domainc, D);
+
+FEMout = heat2d_v2(domainc, conductivity);
 
 Tc = FEMout.Tff';
 Tc = Tc(:);
 Tf_i_minus_mu_minus_WTc = Tf_i_minus_mu - theta_cf.W*Tc;
 %only for diagonal S!
-log_p = -.5*(theta_cf.sumLogS + (Tf_i_minus_mu_minus_WTc)'*(theta_cf.Sinv_vec.*(Tf_i_minus_mu_minus_WTc)));
+log_p = -.5*(theta_cf.sumLogS + (Tf_i_minus_mu_minus_WTc)'*...
+    (theta_cf.Sinv_vec.*(Tf_i_minus_mu_minus_WTc)));
 
 if nargout > 1
     %Gradient of FEM equation system w.r.t. conductivities
@@ -35,12 +28,8 @@ if nargout > 1
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     %TO BE DONE: DERIVATIVE W.R.T. MATRIX COMPONENTS FOR ANISOTROPY
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-    
-    if domainc.useConvection
-        d_r = FEMgrad(FEMout, domainc, conductivity, convectionField);
-    else
-        d_r = FEMgrad(FEMout, domainc, conductivity);
-    end
+
+    d_r = FEMgrad(FEMout, domainc, conductivity);
     d_rx = d_r;
     if strcmp(condTransOpts.type, 'log')
         %We need gradient of r w.r.t. log conductivities X, multiply each row with resp. conductivity
@@ -60,7 +49,8 @@ if nargout > 1
     else
         error('Unknown conductivity transformation')
     end
-    adjoints = get_adjoints(FEMout.globalStiffness, theta_cf, domainc, Tf_i_minus_mu_minus_WTc);
+    adjoints = get_adjoints(FEMout.globalStiffness,...
+        theta_cf, domainc, Tf_i_minus_mu_minus_WTc);
     d_log_p = - d_rx*adjoints;
 
     
@@ -69,11 +59,7 @@ if nargout > 1
     if FDcheck
         disp('Gradient check log p_cf')
         d = 1e-8;
-        if domainc.useConvection
-            FDgrad = zeros(3*domainc.nEl, 1);
-        else
-            FDgrad = zeros(domainc.nEl, 1);
-        end
+        FDgrad = zeros(domainc.nEl, 1);
         for e = 1:domainc.nEl
             conductivityFD = conductivity;
             conductivityFD(e) = conductivityFD(e) + d;
@@ -82,7 +68,7 @@ if nargout > 1
             for j = 1:domainc.nEl
                 DFD(:, :, j) =  conductivityFD(j)*eye(2);
             end
-            FEMoutFD = heat2d(domainc, DFD, convectionField);
+            FEMoutFD = heat2d(domainc, DFD);
             checkLocalStiffness = false;
             if checkLocalStiffness
                 k = FEMout.diffusionStiffness(:, :, e);
@@ -107,28 +93,12 @@ if nargout > 1
                 error('Unknown conductivity transformation')
             end
         end
-        if domainc.useConvection
-            for xy = 1:2    %x or y component of convection field
-                for e = 1:domainc.nEl
-                    convectionFieldFD = convectionField;
-                    convectionFieldFD(xy, e) = convectionFieldFD(xy, e) + d;
-                    FEMoutFD = heat2d(domainc, D, convectionFieldFD);
-                    TcFD = FEMoutFD.Tff';
-                    TcFD = TcFD(:);
-                    WTcFD = theta_cf.W*TcFD;
-                    log_pFD = -.5*(theta_cf.sumLogS + (Tf_i_minus_mu - WTcFD)'*...
-                        (theta_cf.Sinv_vec.*(Tf_i_minus_mu - WTcFD)));
-                    FDgrad(xy*domainc.nEl + e) = (log_pFD - log_p)/d;
-                end
-            end
-        end
         relgrad = FDgrad./d_log_p
         plot(1:numel(FDgrad), FDgrad, 1:numel(FDgrad), d_log_p)
         axis square
         drawnow
         pause(1)
         if(norm(relgrad - 1) > 1e-1)
-            convectionField
             log_p
             log_pFD
             d_log_p

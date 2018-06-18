@@ -1,52 +1,30 @@
-function [d_r] = FEMgrad(FEMout, domain, conductivity, convectionField)
+function [d_r] = FEMgrad(FEMout, mesh, conductivity)
 %Compute derivatives of FEM equation system r = K*Y - F w.r.t. Lambda_e
 %ONLY VALID FOR ISOTROPIC HEAT CONDUCTIVITY MATRIX D!!!
 
 
-    function gradKK = get_glob_stiff_gradient(grad_loc_k)
-        gradKK = sparse(domain.Equations(:,1), domain.Equations(:,2), grad_loc_k(domain.kIndex));
-    end
-
-if domain.useConvection
-    convGradMatX = sparse(1:2:7, 1:4, ones(1, 4), 8, 4);
-    convGradMatY = sparse(2:2:8, 1:4, ones(1, 4), 8, 4);
-end
+%     function gradKK = get_glob_stiff_gradient(grad_loc_k)
+%         gradKK = sparse(mesh.Equations(:,1),...
+%             mesh.Equations(:,2), grad_loc_k(mesh.kIndex));
+%     end
 
 
 % (d/d Lambda_e) k^(e) = (1/Lambda_e) k^(e)     as k^(e) linear in Lambda_e
-if domain.useConvection
-    d_r = zeros(3*domain.nEl, domain.nEq);
-else
-    d_r = zeros(domain.nEl, domain.nEq);
-end
+d_r = zeros(mesh.nEl, mesh.nEq);
 
-for e = 1:domain.nEl
-    gradLocStiffCond = zeros(4, 4, domain.nEl);
-    gradLocStiffConvX = gradLocStiffCond;
-    gradLocStiffConvY = gradLocStiffCond;
-    gradLocStiffCond(:, :, e) = FEMout.diffusionStiffness(:, :, e)/conductivity(e);     %gradient of local stiffnesses
+for e = 1:mesh.nEl
+%     gradLocStiffCond = zeros(4, 4, mesh.nEl);
+%     %gradient of local stiffnesses
+%     gradLocStiffCond(:, :, e) =...
+%         FEMout.diffusionStiffness(:, :, e)/conductivity(e);
+%     
+%     gradK = get_glob_stiff_gradient(gradLocStiffCond);
+%     gradF = get_glob_force_gradient(mesh, gradLocStiffCond(:, :, e), e);
+%     
+%     d_r(e, :) = (gradK*FEMout.naturalTemperatures - gradF)';
     
-    gradK = get_glob_stiff_gradient(gradLocStiffCond);
-    gradF = get_glob_force_gradient(domain, gradLocStiffCond(:, :, e), e);
-    if(domain.useConvection)
-        gradLocStiffConvX(:, :, e) = domain.convectionMatrix(:, :, e)*convGradMatX;
-        gradLocStiffConvY(:, :, e) = domain.convectionMatrix(:, :, e)*convGradMatY;
-        gradKconvX = get_glob_stiff_gradient(gradLocStiffConvX);
-        gradFconvX = get_glob_force_gradient(domain, gradLocStiffConvX(:, :, e), e);
-        gradKconvY = get_glob_stiff_gradient(gradLocStiffConvY);
-        gradFconvY = get_glob_force_gradient(domain, gradLocStiffConvY(:, :, e), e);
-        
-%         gradK = [gradK; gradKconvX; gradKconvY];
-%         gradF = [gradF; gradFconvX; gradFconvY];
-    end
-    
-    d_r(e, :) = (gradK*FEMout.naturalTemperatures - gradF)';
-    if domain.useConvection
-        d_r(e + domain.nEl, :) = (gradKconvX*FEMout.naturalTemperatures - gradFconvX)';
-        d_r(e + 2*domain.nEl, :) = (gradKconvY*FEMout.naturalTemperatures - gradFconvY)';
-    end
-    
-    
+    d_r(e, :) = (mesh.d_glob_stiff{e}*FEMout.naturalTemperatures -...
+        mesh.d_glob_force{e})';    
     
     
     %Finite difference gradient check
@@ -57,16 +35,12 @@ for e = 1:domain.nEl
         conductivityFD = conductivity;
         conductivityFD(e) = conductivityFD(e) + d;
         
-        DFD = zeros(2, 2, domain.nEl);
-        for j = 1:domain.nEl
+        DFD = zeros(2, 2, mesh.nEl);
+        for j = 1:mesh.nEl
             DFD(:, :, j) =  conductivityFD(j)*eye(2);
         end
         control.plt = false;
-        if domain.useConvection
-            FEMoutFD = heat2d(domain, DFD, convectionField);
-        else
-            FEMoutFD = heat2d(domain, DFD);
-        end
+        FEMoutFD = heat2d(mesh, DFD);
         
         gradKFD = (FEMoutFD.globalStiffness - FEMout.globalStiffness)/d;
         e

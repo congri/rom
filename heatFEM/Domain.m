@@ -44,6 +44,14 @@ classdef Domain
         
         fs                          %local forces due to heat source
         fh                          %local forces due to natural boundary
+        f_tot                       %sum of fs and fh
+        
+        compute_grad = false        %should gradients be computed? memory
+                                    %overhead!!
+        d_loc_stiff                 %local stiffness gradient
+        d_glob_stiff                %global stiffness gradient
+        
+        d_glob_force                %global force gradient
     end
     
     
@@ -52,136 +60,136 @@ classdef Domain
     
     
     methods
-        function domainObj = Domain(nElX, nElY, lElX, lElY)
+        function self = Domain(nElX, nElY, lElX, lElY)
             %constructor
             %nElX andnElY are number of elements in x- and y-direction
             %lElX, lElY are vectors specifying element lengths in x- and y-directions. i-th element
             %in lElX: i-th column; j-th element in lElY: j-th row
             if nargin > 0
-                domainObj.nElX = nElX;
+                self.nElX = nElX;
                 if nargin > 1
-                    domainObj.nElY = nElY;
+                    self.nElY = nElY;
                 end
             end
             %Set square mesh as default
             if nargin < 3
-                lElX = domainObj.lx/domainObj.nElX*ones(1, domainObj.nElX);
-                lElY = domainObj.ly/domainObj.nElY*ones(1, domainObj.nElY);
+                lElX = self.lx/self.nElX*ones(1, self.nElX);
+                lElY = self.ly/self.nElY*ones(1, self.nElY);
             end
-            domainObj.nEl = domainObj.nElX*domainObj.nElY;
-            assert(numel(lElX) == domainObj.nElX, 'incorrect number of elements specified in element length vector')
-            assert(numel(lElY) == domainObj.nElY, 'incorrect number of elements specified in element length vector')
-            diffX = abs(sum(lElX) - domainObj.lx);
-            diffY = abs(sum(lElY) - domainObj.ly);
+            self.nEl = self.nElX*self.nElY;
+            assert(numel(lElX) == self.nElX, 'incorrect number of elements specified in element length vector')
+            assert(numel(lElY) == self.nElY, 'incorrect number of elements specified in element length vector')
+            diffX = abs(sum(lElX) - self.lx);
+            diffY = abs(sum(lElY) - self.ly);
             assert(diffX < eps, 'element lengths do not sum up to lx')
             assert(diffY < eps, 'element lengths do not sum up to ly')
-            domainObj.lElX = zeros(1, domainObj.nEl);
-            domainObj.lElY = zeros(1, domainObj.nEl);
-            domainObj.AEl = zeros(1, domainObj.nEl);
-            for e = 1:domainObj.nEl
-                domainObj.lElX(e) = lElX(mod((e - 1), domainObj.nElX) + 1);
-                domainObj.lElY(e) = lElY(floor((e - 1)/domainObj.nElX) + 1);
-                domainObj.AEl(e) = domainObj.lElX(e)*domainObj.lElY(e);
+            self.lElX = zeros(1, self.nEl);
+            self.lElY = zeros(1, self.nEl);
+            self.AEl = zeros(1, self.nEl);
+            for e = 1:self.nEl
+                self.lElX(e) = lElX(mod((e - 1), self.nElX) + 1);
+                self.lElY(e) = lElY(floor((e - 1)/self.nElX) + 1);
+                self.AEl(e) = self.lElX(e)*self.lElY(e);
             end
-            domainObj.cum_lElX = cumsum([0 lElX]);
-            domainObj.cum_lElY = cumsum([0 lElY]);
-            domainObj.nNodes = (domainObj.nElX + 1)*(domainObj.nElY + 1);
-            domainObj.boundaryNodes = int32([1:(domainObj.nElX + 1),...
-                2*(domainObj.nElX + 1):(domainObj.nElX + 1):(domainObj.nElX + 1)*(domainObj.nElY + 1),...
-                ((domainObj.nElX + 1)*(domainObj.nElY + 1) - 1):(-1):((domainObj.nElX + 1)*domainObj.nElY + 1),...
-                (domainObj.nElX + 1)*((domainObj.nElY - 1):(-1):1) + 1]);
-            domainObj.boundaryElements = int32([1:domainObj.nElX,...
-                2*(domainObj.nElX):(domainObj.nElX):(domainObj.nElX*domainObj.nElY),...
-                ((domainObj.nElX)*(domainObj.nElY) - 1):(-1):(domainObj.nElX*(domainObj.nElY - 1) + 1),...
-                (domainObj.nElX)*((domainObj.nElY - 2):(-1):1) + 1]);
+            self.cum_lElX = cumsum([0 lElX]);
+            self.cum_lElY = cumsum([0 lElY]);
+            self.nNodes = (self.nElX + 1)*(self.nElY + 1);
+            self.boundaryNodes = int32([1:(self.nElX + 1),...
+                2*(self.nElX + 1):(self.nElX + 1):(self.nElX + 1)*(self.nElY + 1),...
+                ((self.nElX + 1)*(self.nElY + 1) - 1):(-1):((self.nElX + 1)*self.nElY + 1),...
+                (self.nElX + 1)*((self.nElY - 1):(-1):1) + 1]);
+            self.boundaryElements = int32([1:self.nElX,...
+                2*(self.nElX):(self.nElX):(self.nElX*self.nElY),...
+                ((self.nElX)*(self.nElY) - 1):(-1):(self.nElX*(self.nElY - 1) + 1),...
+                (self.nElX)*((self.nElY - 2):(-1):1) + 1]);
             
             %local coordinate array. First index is element number, 2 is local node, 3 is x or y
-            domainObj = domainObj.setLocCoord;
-            domainObj = domainObj.setGlobalNodeNumber;
+            self = self.setLocCoord;
+            self = self.setGlobalNodeNumber;
             
-            domainObj = setHeatSource(domainObj, zeros(domainObj.nEl, 1));  %zero as default
+            self = setHeatSource(self, zeros(self.nEl, 1));  %zero as default
         end
 
-        function domainObj = setLocCoord(domainObj)
+        function self = setLocCoord(self)
             %Gives arrays taking the element and local node number and giving the nodal coordinate
             
-            domainObj.lc = zeros(domainObj.nEl, 4, 2);
-            for e = 1:domainObj.nEl
-                row = floor((e - 1)/domainObj.nElX) + 1;
-                col = mod((e - 1), domainObj.nElX) + 1;
+            self.lc = zeros(self.nEl, 4, 2);
+            for e = 1:self.nEl
+                row = floor((e - 1)/self.nElX) + 1;
+                col = mod((e - 1), self.nElX) + 1;
 
                 %x-coordinates
-                domainObj.lc(e, 1, 1) = domainObj.cum_lElX(col);
-                domainObj.lc(e, 2, 1) = domainObj.cum_lElX(col + 1);
-                domainObj.lc(e, 3, 1) = domainObj.lc(e, 2, 1);
-                domainObj.lc(e, 4, 1) = domainObj.lc(e, 1, 1);
+                self.lc(e, 1, 1) = self.cum_lElX(col);
+                self.lc(e, 2, 1) = self.cum_lElX(col + 1);
+                self.lc(e, 3, 1) = self.lc(e, 2, 1);
+                self.lc(e, 4, 1) = self.lc(e, 1, 1);
                 
                 %y-coordinates
-                domainObj.lc(e, 1, 2) = domainObj.cum_lElY(row);
-                domainObj.lc(e, 2, 2) = domainObj.lc(e, 1, 2);
-                domainObj.lc(e, 3, 2) = domainObj.cum_lElY(row + 1);
-                domainObj.lc(e, 4, 2) = domainObj.lc(e, 3, 2);
+                self.lc(e, 1, 2) = self.cum_lElY(row);
+                self.lc(e, 2, 2) = self.lc(e, 1, 2);
+                self.lc(e, 3, 2) = self.cum_lElY(row + 1);
+                self.lc(e, 4, 2) = self.lc(e, 3, 2);
             end
         end
 
-        function domainObj = setGlobalNodeNumber(domainObj)
+        function self = setGlobalNodeNumber(self)
             %Get global node number from global element number and local node number
             
-            domainObj.globalNodeNumber = zeros(domainObj.nEl, 4, 'int32');
-            for e = 1:domainObj.nEl
+            self.globalNodeNumber = zeros(self.nEl, 4, 'int32');
+            for e = 1:self.nEl
                 for l = 1:4
-                    domainObj.globalNodeNumber(e,1) = e + floor((e - 1)/domainObj.nElX);
-                    domainObj.globalNodeNumber(e,2) = e + floor((e - 1)/domainObj.nElX) + 1;
-                    domainObj.globalNodeNumber(e,3) = domainObj.globalNodeNumber(e,1) + domainObj.nElX + 2;
-                    domainObj.globalNodeNumber(e,4) = domainObj.globalNodeNumber(e,1) + domainObj.nElX + 1;
+                    self.globalNodeNumber(e,1) = e + floor((e - 1)/self.nElX);
+                    self.globalNodeNumber(e,2) = e + floor((e - 1)/self.nElX) + 1;
+                    self.globalNodeNumber(e,3) = self.globalNodeNumber(e,1) + self.nElX + 2;
+                    self.globalNodeNumber(e,4) = self.globalNodeNumber(e,1) + self.nElX + 1;
                 end
             end
         end
 
-        function domainObj = setId(domainObj)
+        function self = setId(self)
             %put in equation number, get back global node number
             
-            [eqs, i] = sort(domainObj.nodalCoordinates(3, :));
+            [eqs, i] = sort(self.nodalCoordinates(3, :));
             
-            domainObj.id = [eqs', i'];
+            self.id = [eqs', i'];
             
             init = find(eqs == 1);
             
-            domainObj.id(1:(init-1), :) = [];
+            self.id(1:(init-1), :) = [];
             
-            domainObj.id = domainObj.id(:, 2);
-            domainObj.id = uint32(domainObj.id);
+            self.id = self.id(:, 2);
+            self.id = uint32(self.id);
         end
 
-        function domainObj = getEquations(domainObj)
+        function self = getEquations(self)
             %Equation number array for sparse global stiffness assembly
             
             localNodeInit = 1:4;
             %preallocate
-            domainObj.Equations = zeros(16*domainObj.nEl, 2);
-            domainObj.LocalNode = zeros(16*domainObj.nEl, 3);
+            self.Equations = zeros(16*self.nEl, 2);
+            self.LocalNode = zeros(16*self.nEl, 3);
             eq = 0; %equation number index
-            for e = 1:domainObj.nEl
-                equationslm = domainObj.lm(e, localNodeInit);
+            for e = 1:self.nEl
+                equationslm = self.lm(e, localNodeInit);
                 equations = equationslm(equationslm > 0);
                 localNode = localNodeInit(equationslm > 0);
                 prevnEq = eq;
                 eq = eq + numel(equations)^2;
                 
                 [Equations1, Equations2] = meshgrid(equations);
-                domainObj.Equations((prevnEq + 1):eq, :) = [Equations1(:) Equations2(:)];
+                self.Equations((prevnEq + 1):eq, :) = [Equations1(:) Equations2(:)];
                 
                 [LocalNode1, LocalNode2] = meshgrid(localNode);
-                domainObj.LocalNode((prevnEq + 1):eq, :) =...
+                self.LocalNode((prevnEq + 1):eq, :) =...
                    [LocalNode1(:) LocalNode2(:) repmat(e, length(equations)^2, 1)];
             end
             
             %Shrink to fit
-            domainObj.Equations((eq + 1):end, :) = [];
-            domainObj.LocalNode((eq + 1):end, :) = [];
+            self.Equations((eq + 1):end, :) = [];
+            self.LocalNode((eq + 1):end, :) = [];
         end
 
-        function domainObj = getCoord(domainObj)
+        function self = getCoord(self)
             %Gives nodal coordinates in the first two rows and equation number from
             %global node number in the third row. Temperature of essential boundaries
             %is given in the fourth row, heat flux on natural boundaries in the fifth
@@ -192,58 +200,58 @@ classdef Domain
             %and 21, 16, 11, 6 to the left boundary.
 
             j = 1;  %equation number index
-            domainObj.nodalCoordinates = NaN*zeros(3, domainObj.nNodes);
-            for i = 1:domainObj.nNodes
-                row = floor((i - 1)/(domainObj.nElX + 1)) + 1;
-                col = mod((i - 1), (domainObj.nElX + 1)) + 1;
-                x = domainObj.cum_lElX(col);
-                y = domainObj.cum_lElY(row);
-                domainObj.nodalCoordinates(1, i) = x;
-                domainObj.nodalCoordinates(2, i) = y;
+            self.nodalCoordinates = NaN*zeros(3, self.nNodes);
+            for i = 1:self.nNodes
+                row = floor((i - 1)/(self.nElX + 1)) + 1;
+                col = mod((i - 1), (self.nElX + 1)) + 1;
+                x = self.cum_lElX(col);
+                y = self.cum_lElY(row);
+                self.nodalCoordinates(1, i) = x;
+                self.nodalCoordinates(2, i) = y;
                 
-                if(any(domainObj.essentialNodes == i))
+                if(any(self.essentialNodes == i))
                     %essential node, no equation number assigned
-                    domainObj.nodalCoordinates(3, i) = 0;
+                    self.nodalCoordinates(3, i) = 0;
                 else
                     %Assign equation number j
-                    domainObj.nodalCoordinates(3, i) = j;
+                    self.nodalCoordinates(3, i) = j;
                     j = j + 1;
                 end
             end 
         end
 
-        function domainObj = setNodalCoordinates(domainObj)
-            domainObj = getCoord(domainObj);
-            domainObj.lm = domainObj.globalNodeNumber;
-            for i = 1:size(domainObj.globalNodeNumber, 1)
-                for j = 1:size(domainObj.globalNodeNumber, 2)
-                    domainObj.lm(i, j) = domainObj.nodalCoordinates(3, domainObj.globalNodeNumber(i, j));
+        function self = setNodalCoordinates(self)
+            self = getCoord(self);
+            self.lm = self.globalNodeNumber;
+            for i = 1:size(self.globalNodeNumber, 1)
+                for j = 1:size(self.globalNodeNumber, 2)
+                    self.lm(i, j) = self.nodalCoordinates(3, self.globalNodeNumber(i, j));
                 end
             end
-            domainObj = setId(domainObj);
-            domainObj = getEquations(domainObj);
-            domainObj.Equations = double(domainObj.Equations);
-            domainObj.kIndex = sub2ind([4 4 domainObj.nEl], domainObj.LocalNode(:,1),...
-                domainObj.LocalNode(:,2), domainObj.LocalNode(:,3));
+            self = setId(self);
+            self = getEquations(self);
+            self.Equations = double(self.Equations);
+            self.kIndex = sub2ind([4 4 self.nEl], self.LocalNode(:,1),...
+                self.LocalNode(:,2), self.LocalNode(:,3));
         end
 
-        function domainObj = setBvec(domainObj)
-            domainObj.nEq = max(domainObj.nodalCoordinates(3,:));
+        function self = setBvec(self)
+            self.nEq = max(self.nodalCoordinates(3,:));
             %Gauss points
             xi1 = -1/sqrt(3);
             xi2 = 1/sqrt(3);
             
-            domainObj.Bvec = zeros(8, 4, domainObj.nEl);
-            for e = 1:domainObj.nEl
+            self.Bvec = zeros(8, 4, self.nEl);
+            for e = 1:self.nEl
                 for i = 1:4
-                    domainObj.essentialBoundary(i, e) =...
-                        ~isnan(domainObj.essentialTemperatures(domainObj.globalNodeNumber(e, i)));
+                    self.essentialBoundary(i, e) =...
+                        ~isnan(self.essentialTemperatures(self.globalNodeNumber(e, i)));
                 end
                 %short hand notation
-                x1 = domainObj.lc(e,1,1);
-                x2 = domainObj.lc(e,2,1);
-                y1 = domainObj.lc(e,1,2);
-                y4 = domainObj.lc(e,4,2);
+                x1 = self.lc(e,1,1);
+                x2 = self.lc(e,2,1);
+                y1 = self.lc(e,1,2);
+                y4 = self.lc(e,4,2);
                 
                 %Coordinate transformation
                 xI = 0.5*(x1 + x2) + 0.5*xi1*(x2 - x1);
@@ -260,24 +268,31 @@ classdef Domain
                 
                 %Note:in Gauss quadrature, the differential transforms as dx = (l_x/2) d xi. Hence
                 %we take the additional factor of sqrt(A)/2 onto B
-                domainObj.Bvec(:, :, e) = (1/(2*sqrt(domainObj.AEl(e))))*[B1; B2; B3; B4];
+                self.Bvec(:, :, e) = (1/(2*sqrt(self.AEl(e))))*[B1; B2; B3; B4];
+            end
+            
+            self = self.get_loc_stiff_grad();
+            if self.compute_grad
+                %gradient precomputation
+                self = self.get_glob_stiff_grad();
+                self = self.get_glob_force_grad();
             end
         end
         
-        function domainObj = setConvectionMatrix(domainObj)
+        function self = setConvectionMatrix(self)
             %Only call if necessary. This is memory consuming!
             disp('Setting convection matrix...')
             
-            domainObj = domainObj.elementShapeFunctionArray;
-            domainObj = domainObj.elementShapeFunctionGradients;
-            domainObj.convectionMatrix = zeros(4, 8, domainObj.nEl);
-            for e = 1:domainObj.nEl
-                domainObj.convectionMatrix(:, :, e) = domainObj.NArray(:, :, e)*domainObj.d_N(:, :, e);
+            self = self.elementShapeFunctionArray;
+            self = self.elementShapeFunctionGradients;
+            self.convectionMatrix = zeros(4, 8, self.nEl);
+            for e = 1:self.nEl
+                self.convectionMatrix(:, :, e) = self.NArray(:, :, e)*self.d_N(:, :, e);
             end
             disp('done')
         end
 
-        function domainObj = setHeatSource(domainObj, heatSourceField)
+        function self = setHeatSource(self, heatSourceField)
             %Gets the elements of the local force due to the heat source (an array with
             %input element number e and local node number i
             
@@ -287,14 +302,14 @@ classdef Domain
             eta1 = -1/sqrt(3);
             eta2 = 1/sqrt(3);
             
-            domainObj.fs = zeros(4, domainObj.nEl);
+            self.fs = zeros(4, self.nEl);
 
-            for e = 1:domainObj.nEl
+            for e = 1:self.nEl
                 %short hand notation. Coordinates of local nodes
-                x1 = domainObj.lc(e, 1, 1);
-                x2 = domainObj.lc(e, 2, 1);
-                y1 = domainObj.lc(e, 1, 2);
-                y4 = domainObj.lc(e, 4, 2);
+                x1 = self.lc(e, 1, 1);
+                x2 = self.lc(e, 2, 1);
+                y1 = self.lc(e, 1, 2);
+                y4 = self.lc(e, 4, 2);
                 
                 %Coordinate transformation
                 xI = 0.5*(x1 + x2) + 0.5*xi1*(x2 - x1);
@@ -303,13 +318,13 @@ classdef Domain
                 yII = 0.5*(y1 + y4) + 0.5*eta2*(y4 - y1);
                 
                 
-                domainObj.fs(1, e) = heatSourceField(e)*(1/domainObj.AEl(e))*((xI - x2)*...
+                self.fs(1, e) = heatSourceField(e)*(1/self.AEl(e))*((xI - x2)*...
                     (yI - y4) + (xII - x2)*(yII - y4) + (xI - x2)*(yII - y4) + (xII - x2)*(yI - y4));
-                domainObj.fs(2, e) = -heatSourceField(e)*(1/domainObj.AEl(e))*((xI - x1)*...
+                self.fs(2, e) = -heatSourceField(e)*(1/self.AEl(e))*((xI - x1)*...
                     (yI - y4) + (xII - x1)*(yII - y4) + (xI - x1)*(yII - y4) + (xII - x1)*(yI - y4));
-                domainObj.fs(3, e) = heatSourceField(e)*(1/domainObj.AEl(e))*((xI - x1)*...
+                self.fs(3, e) = heatSourceField(e)*(1/self.AEl(e))*((xI - x1)*...
                     (yI - y1) + (xII - x1)*(yII - y1) + (xI - x1)*(yII - y1) + (xII - x1)*(yI - y1));
-                domainObj.fs(4, e) = -heatSourceField(e)*(1/domainObj.AEl(e))*((xI - x2)*...
+                self.fs(4, e) = -heatSourceField(e)*(1/self.AEl(e))*((xI - x2)*...
                     (yI - y1) + (xII - x2)*(yII - y1) + (xI - x2)*(yII - y1) + (xII - x2)*(yI - y1));
             end
         end
@@ -342,7 +357,7 @@ classdef Domain
             end
         end
         
-        function domainObj = elementShapeFunctionGradients(domainObj)
+        function self = elementShapeFunctionGradients(self)
             %Gives values of element shape function gradient arrays for Gauss quadrature
             %of convection matrix
             %This is similar to Bvec, but with different array arrangement
@@ -350,13 +365,13 @@ classdef Domain
             %Gauss points
             xi1 = -1/sqrt(3);
             xi2 = 1/sqrt(3);
-            domainObj.d_N = zeros(4, 8, domainObj.nEl);
-            for e = 1:domainObj.nEl
+            self.d_N = zeros(4, 8, self.nEl);
+            for e = 1:self.nEl
                 %short hand notation
-                x1 = domainObj.lc(e, 1, 1);
-                x2 = domainObj.lc(e, 2, 1);
-                y1 = domainObj.lc(e, 1, 2);
-                y4 = domainObj.lc(e, 4, 2);
+                x1 = self.lc(e, 1, 1);
+                x2 = self.lc(e, 2, 1);
+                y1 = self.lc(e, 1, 2);
+                y4 = self.lc(e, 4, 2);
                 
                 %Coordinate transformation of Gauss quadrature points xi1 and xi2
                 xI = 0.5*(x1 + x2) + 0.5*xi1*(x2 - x1);
@@ -376,24 +391,24 @@ classdef Domain
                 
                 %Note:in Gauss quadrature, the differential transforms as dx = (l_x/2) d xi. Hence
                 %we take the additional factor of sqrt(A)/2 onto B
-                domainObj.d_N(:, :, e) = (1/(2*sqrt(domainObj.AEl(e))))*B';
+                self.d_N(:, :, e) = (1/(2*sqrt(self.AEl(e))))*B';
             end
         end
         
-        function domainObj = elementShapeFunctionArray(domainObj)
+        function self = elementShapeFunctionArray(self)
             %Gives values of element shape function arrays for Gauss quadrature
             %of convection matrix
             
             %Gauss points
             xi1 = -1/sqrt(3);
             xi2 = 1/sqrt(3);
-            domainObj.NArray = zeros(4, 4, domainObj.nEl);
-            for e = 1:domainObj.nEl
+            self.NArray = zeros(4, 4, self.nEl);
+            for e = 1:self.nEl
                 %short hand notation
-                x1 = domainObj.lc(e, 1, 1);
-                x2 = domainObj.lc(e, 2, 1);
-                y1 = domainObj.lc(e, 1, 2);
-                y4 = domainObj.lc(e, 4, 2);
+                x1 = self.lc(e, 1, 1);
+                x2 = self.lc(e, 2, 1);
+                y1 = self.lc(e, 1, 2);
+                y4 = self.lc(e, 4, 2);
                 
                 %Coordinate transformation of Gauss quadrature points xi1 and xi2
                 xI = 0.5*(x1 + x2) + 0.5*xi1*(x2 - x1);
@@ -409,164 +424,191 @@ classdef Domain
                 
                 %Note:in Gauss quadrature, the differential transforms as dx = (l_x/2) d xi. Hence
                 %we take the additional factor of sqrt(A)/2 onto B
-                domainObj.NArray(:, :, e) = (1/(2*sqrt(domainObj.AEl(e))))*N';
+                self.NArray(:, :, e) = (1/(2*sqrt(self.AEl(e))))*N';
             end
         end
 
-        function domainObj = setFluxForce(domainObj, qb)
+        function self = setFluxForce(self, qb)
             %Contribution to local force due to heat flux
             
-            domainObj.fh = zeros(4, domainObj.nEl);
+            self.fh = zeros(4, self.nEl);
             
-            for e = 1:domainObj.nEl
-                xe(1) = domainObj.lc(e, 1, 1);
-                xe(2) = domainObj.lc(e, 2, 1);
-                xe(3) = domainObj.lc(e, 1, 2);
-                xe(4) = domainObj.lc(e, 4, 2);
-                N = @(x, y) domainObj.elementShapeFunctions(x, y, xe, domainObj.AEl(e));
-                if(e <= domainObj.nElX && domainObj.naturalBoundaries(e, 1))
+            for e = 1:self.nEl
+                xe(1) = self.lc(e, 1, 1);
+                xe(2) = self.lc(e, 2, 1);
+                xe(3) = self.lc(e, 1, 2);
+                xe(4) = self.lc(e, 4, 2);
+                N = @(x, y) self.elementShapeFunctions(x, y, xe, self.AEl(e));
+                if(e <= self.nElX && self.naturalBoundaries(e, 1))
                     %lower boundary
                     q = @(x) qb{1}(x);
                     Nlo = @(x) N(x, 0);
                     fun = @(x) q(x)*Nlo(x);
-                    domainObj.fh(:, e) = domainObj.fh(:, e) + integral(fun, xe(1), xe(2), 'ArrayValued', true);
+                    self.fh(:, e) = self.fh(:, e) + integral(fun, xe(1), xe(2), 'ArrayValued', true);
                 end
-                if(mod(e, domainObj.nElX) == 0 && domainObj.naturalBoundaries(e, 2))
+                if(mod(e, self.nElX) == 0 && self.naturalBoundaries(e, 2))
                     %right boundary
                     q = @(y) qb{2}(y);
                     Nr = @(y) N(1, y);
                     fun = @(y) q(y)*Nr(y);
-                    domainObj.fh(:, e) = domainObj.fh(:, e) + integral(fun, xe(3), xe(4), 'ArrayValued', true);
+                    self.fh(:, e) = self.fh(:, e) + integral(fun, xe(3), xe(4), 'ArrayValued', true);
                 end
-                if(e > (domainObj.nElY - 1)*domainObj.nElX && domainObj.naturalBoundaries(e, 3))
+                if(e > (self.nElY - 1)*self.nElX && self.naturalBoundaries(e, 3))
                     %upper boundary
                     q = @(x) qb{3}(x);
                     Nu = @(x) N(x, 1);
                     fun = @(x) q(x)*Nu(x);
-                    domainObj.fh(:, e) = domainObj.fh(:, e) + integral(fun, xe(1), xe(2), 'ArrayValued', true);
+                    self.fh(:, e) = self.fh(:, e) + integral(fun, xe(1), xe(2), 'ArrayValued', true);
                 end
-                if(mod(e, domainObj.nElX) == 1 && domainObj.naturalBoundaries(e, 4))
+                if(mod(e, self.nElX) == 1 && self.naturalBoundaries(e, 4))
                     %left boundary
                     q = @(y) qb{4}(y);
                     Nle = @(y) N(0, y);
                     fun = @(y) q(y)*Nle(y);
-                    domainObj.fh(:, e) = domainObj.fh(:, e) + integral(fun, xe(3), xe(4), 'ArrayValued', true);
+                    self.fh(:, e) = self.fh(:, e) + integral(fun, xe(3), xe(4), 'ArrayValued', true);
                 end
                 
             end
         end
 
-        function domainObj = setBoundaries(domainObj, natNodes, Tb, qb)    
+        function self = setBoundaries(self, natNodes, Tb, qb)    
             %natNodes holds natural nodes counted counterclockwise around domain, starting in lower
             %left corner. Tb and qb are function handles to temperature and heat flux boundary
             %functions
-            domainObj.boundaryType = true(1, 2*domainObj.nElX + 2*domainObj.nElY);
-            domainObj.boundaryType(natNodes) = false;
-            domainObj.essentialNodes = domainObj.boundaryNodes(domainObj.boundaryType);
-            domainObj.naturalNodes = int32(domainObj.boundaryNodes(~domainObj.boundaryType));
+            self.boundaryType = true(1, 2*self.nElX + 2*self.nElY);
+            self.boundaryType(natNodes) = false;
+            self.essentialNodes = self.boundaryNodes(self.boundaryType);
+            self.naturalNodes = int32(self.boundaryNodes(~self.boundaryType));
             
             %Set essential temperatures
-            domainObj.essentialTemperatures = NaN*ones(1, domainObj.nNodes);
+            self.essentialTemperatures = NaN*ones(1, self.nNodes);
             %this is wrong if lx, ly ~= 1 (size of domain)
-            boundaryCoordinates = [[0 cumsum(domainObj.lElX(1:domainObj.nElX))], ones(1, domainObj.nElY - 1),...
-                fliplr([0 cumsum(domainObj.lElX(1:domainObj.nElX))]), zeros(1, domainObj.nElY - 1);...
-                zeros(1, domainObj.nElX + 1),...
-                cumsum(domainObj.lElY(domainObj.nElX:domainObj.nElX:(domainObj.nElX*domainObj.nElY))),...
-                ones(1, domainObj.nElX - 1),...
-                fliplr(cumsum(domainObj.lElY(domainObj.nElX:domainObj.nElX:(domainObj.nElX*domainObj.nElY))))];
-            Tess = zeros(1, domainObj.nNodes);
-            for i = 1:(2*domainObj.nElX + 2*domainObj.nElY)
+            boundaryCoordinates = [[0 cumsum(self.lElX(1:self.nElX))], ones(1, self.nElY - 1),...
+                fliplr([0 cumsum(self.lElX(1:self.nElX))]), zeros(1, self.nElY - 1);...
+                zeros(1, self.nElX + 1),...
+                cumsum(self.lElY(self.nElX:self.nElX:(self.nElX*self.nElY))),...
+                ones(1, self.nElX - 1),...
+                fliplr(cumsum(self.lElY(self.nElX:self.nElX:(self.nElX*self.nElY))))];
+            Tess = zeros(1, self.nNodes);
+            for i = 1:(2*self.nElX + 2*self.nElY)
                 Tess(i) = Tb(boundaryCoordinates(:, i));
             end
-            domainObj.essentialTemperatures(domainObj.essentialNodes) = Tess(domainObj.boundaryType);
+            self.essentialTemperatures(self.essentialNodes) = Tess(self.boundaryType);
             
             %Natural boundaries have to enclose natural nodes
-            domainObj.naturalBoundaries = false(domainObj.nEl, 4);
-            globNatNodes = domainObj.boundaryNodes(natNodes);   %global node numbers of natural nodes
+            self.naturalBoundaries = false(self.nEl, 4);
+            globNatNodes = self.boundaryNodes(natNodes);   %global node numbers of natural nodes
             
             %Set natural boundaries
             for i = 1:numel(globNatNodes)
                 %find elements containing these nodes
-                natElem = find(globNatNodes(i) == domainObj.globalNodeNumber);
-                [elem, ~] = ind2sub(size(domainObj.globalNodeNumber), natElem);
+                natElem = find(globNatNodes(i) == self.globalNodeNumber);
+                [elem, ~] = ind2sub(size(self.globalNodeNumber), natElem);
                 %find out side of boundary (lo, r, u, le)
                 if(globNatNodes(i) == 1)
                     %lower left corner
                     assert(numel(elem) == 1, 'Error: corner node in more than one element?')
-                    domainObj.naturalBoundaries(1, 1) = true;
-                    domainObj.naturalBoundaries(1, 4) = true;
-                elseif(globNatNodes(i) == domainObj.nElX + 1)
+                    self.naturalBoundaries(1, 1) = true;
+                    self.naturalBoundaries(1, 4) = true;
+                elseif(globNatNodes(i) == self.nElX + 1)
                     %lower right corner
                     assert(numel(elem) == 1, 'Error: corner node in more than one element?')
-                    domainObj.naturalBoundaries(elem, 1) = true;
-                    domainObj.naturalBoundaries(elem, 2) = true;
-                elseif(globNatNodes(i) == (domainObj.nElX + 1)*(domainObj.nElY + 1))
+                    self.naturalBoundaries(elem, 1) = true;
+                    self.naturalBoundaries(elem, 2) = true;
+                elseif(globNatNodes(i) == (self.nElX + 1)*(self.nElY + 1))
                     %upper right corner
                     assert(numel(elem) == 1, 'Error: corner node in more than one element?')
-                    domainObj.naturalBoundaries(elem, 2) = true;
-                    domainObj.naturalBoundaries(elem, 3) = true;
-                elseif(globNatNodes(i) == (domainObj.nElX + 1)*(domainObj.nElY) + 1)
+                    self.naturalBoundaries(elem, 2) = true;
+                    self.naturalBoundaries(elem, 3) = true;
+                elseif(globNatNodes(i) == (self.nElX + 1)*(self.nElY) + 1)
                     %upper left corner
                     assert(numel(elem) == 1, 'Error: corner node in more than one element?')
-                    domainObj.naturalBoundaries(elem, 3) = true;
-                    domainObj.naturalBoundaries(elem, 4) = true;
-                elseif(globNatNodes(i) > 1 && globNatNodes(i) < domainObj.nElX + 1)
+                    self.naturalBoundaries(elem, 3) = true;
+                    self.naturalBoundaries(elem, 4) = true;
+                elseif(globNatNodes(i) > 1 && globNatNodes(i) < self.nElX + 1)
                     %exclusively on lower bound
                     assert(numel(elem) == 2, 'Error: boundary node not in 2 elements?')
-                    domainObj.naturalBoundaries(elem(1), 1) = true;
-                    domainObj.naturalBoundaries(elem(2), 1) = true;
-                elseif(mod(globNatNodes(i), domainObj.nElX + 1) == 0)
+                    self.naturalBoundaries(elem(1), 1) = true;
+                    self.naturalBoundaries(elem(2), 1) = true;
+                elseif(mod(globNatNodes(i), self.nElX + 1) == 0)
                     %exclusively on right bound
                     assert(numel(elem) == 2, 'Error: boundary node not in 2 elements?')
-                    domainObj.naturalBoundaries(elem(1), 2) = true;
-                    domainObj.naturalBoundaries(elem(2), 2) = true;
-                elseif(globNatNodes(i) > (domainObj.nElX + 1)*(domainObj.nElY) + 1)
+                    self.naturalBoundaries(elem(1), 2) = true;
+                    self.naturalBoundaries(elem(2), 2) = true;
+                elseif(globNatNodes(i) > (self.nElX + 1)*(self.nElY) + 1)
                     %exclusively on upper bound
                     assert(numel(elem) == 2, 'Error: boundary node not in 2 elements?')
-                    domainObj.naturalBoundaries(elem(1), 3) = true;
-                    domainObj.naturalBoundaries(elem(2), 3) = true;
-                elseif(mod(globNatNodes(i), domainObj.nElX + 1) == 1)
+                    self.naturalBoundaries(elem(1), 3) = true;
+                    self.naturalBoundaries(elem(2), 3) = true;
+                elseif(mod(globNatNodes(i), self.nElX + 1) == 1)
                     %exclusively on left bound
                     assert(numel(elem) == 2, 'Error: boundary node not in 2 elements?')
-                    domainObj.naturalBoundaries(elem(1), 4) = true;
-                    domainObj.naturalBoundaries(elem(2), 4) = true;
+                    self.naturalBoundaries(elem(1), 4) = true;
+                    self.naturalBoundaries(elem(2), 4) = true;
                 end
             end
             
             %Finally set local forces due to natural boundaries
-            domainObj = setFluxForce(domainObj, qb);
-            domainObj = setNodalCoordinates(domainObj);
-            domainObj = setBvec(domainObj);
-            if domainObj.useConvection
-                domainObj = domainObj.setConvectionMatrix;
-            end
+            self = setFluxForce(self, qb);
+            self.f_tot = self.fh + self.fs;
+            self = setNodalCoordinates(self);
+            self = setBvec(self);
+
         end
 
-        function domainObj = shrink(domainObj)
+        function self = shrink(self)
             %To save memory. We use that on finescale domain to save memory
-            domainObj.lc = [];
-            domainObj.Equations = [];
-            domainObj.kIndex = [];
-            domainObj.boundaryNodes = [];
-            domainObj.essentialNodes = [];
-            domainObj.essentialTemperatures = [];
-            domainObj.naturalNodes = [];
-            domainObj.boundaryElements = [];
-            domainObj.naturalBoundaries = [];
-            domainObj.boundaryType = [];
-            domainObj.lx = [];
-            domainObj.ly = [];
-            domainObj.AEl = [];
-            domainObj.nEq = [];
-            domainObj.nodalCoordinates = [];
-            domainObj.globalNodeNumber =[];
-            domainObj.Bvec = [];
-            domainObj.essentialBoundary = [];
-            domainObj.lm = [];
-            domainObj.id = [];
-            domainObj.LocalNode = [];
-            domainObj.fs = [];
-            domainObj.fh = [];
+            self.lc = [];
+            self.Equations = [];
+            self.kIndex = [];
+            self.boundaryNodes = [];
+            self.essentialNodes = [];
+            self.essentialTemperatures = [];
+            self.naturalNodes = [];
+            self.boundaryElements = [];
+            self.naturalBoundaries = [];
+            self.boundaryType = [];
+            self.lx = [];
+            self.ly = [];
+            self.AEl = [];
+            self.nEq = [];
+            self.nodalCoordinates = [];
+            self.globalNodeNumber =[];
+            self.Bvec = [];
+            self.essentialBoundary = [];
+            self.lm = [];
+            self.id = [];
+            self.LocalNode = [];
+            self.fs = [];
+            self.fh = [];
+        end
+        
+        function self = get_loc_stiff_grad(self)
+            %Gives the local stiffness matrix gradient
+            
+            self.d_loc_stiff = zeros(4, 4, self.nEl);
+            for e = 1:self.nEl
+                self.d_loc_stiff(:, :, e) =...
+                    self.Bvec(:, :, e)'*self.Bvec(:, :, e);
+            end
+        end
+        
+        function self = get_glob_stiff_grad(self)
+            %gives global stiffness matrix gradient
+            for e = 1:self.nEl
+                grad_loc_k = zeros(4, 4, self.nEl);
+                grad_loc_k(:, :, e) = self.d_loc_stiff(:, :, e);
+                self.d_glob_stiff{e} = sparse(self.Equations(:, 1),...
+                    self.Equations(:, 2), grad_loc_k(self.kIndex));
+            end
+        end
+        
+        function self = get_glob_force_grad(self)
+            %compute global force gradient
+            for e = 1:self.nEl
+                self.d_glob_force{e} = get_glob_force_gradient(self, ...
+                    self.d_loc_stiff(:, :, e), e);
+            end
         end
     end
 end

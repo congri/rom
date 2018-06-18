@@ -19,7 +19,7 @@ classdef ROM_SPDE
         
         naturalNodes;
         %Directory where finescale data is stored; specify basename here
-        fineScaleDataPath = '~/cluster/matlab/data/fineData/';
+        fineScaleDataPath = '~/matlab/data/fineData/';
         %matfile handle
         trainingDataMatfile;
         testDataMatfile;
@@ -477,7 +477,8 @@ classdef ROM_SPDE
                     FEMout = heat2d(domainTemp, D{i}, convFieldArray);
                     convField{i} = convFieldArray;
                 else
-                    FEMout = heat2d(domainTemp, D{i});
+%                     FEMout = heat2d(domainTemp, D{i});
+                    FEMout = heat2d(domainTemp, cond{i});
                 end
                 %Store fine temperatures as a vector Tf. Use reshape(Tf(:, i), domain.nElX + 1, domain.nElY + 1)
                 %and then transpose result to reconvert it to original temperature field
@@ -607,6 +608,7 @@ classdef ROM_SPDE
             obj.coarseScaleDomain.useConvection = obj.useConvection;
             %ATTENTION: natural nodes have to be set manually
             %and consistently in coarse and fine scale domain!!
+            obj.coarseScaleDomain.compute_grad = true;
             obj.coarseScaleDomain = setBoundaries(obj.coarseScaleDomain, [2:(2*nX + 2*nY)],...
                 obj.boundaryTemperature, obj.boundaryHeatFlux);
             
@@ -830,7 +832,8 @@ classdef ROM_SPDE
             obj.theta_cf.Sinv = sparse(1:obj.fineScaleDomain.nNodes,...
                 1:obj.fineScaleDomain.nNodes, 1./obj.theta_cf.S);
             obj.theta_cf.Sinv_vec = 1./obj.theta_cf.S;
-            obj.theta_cf.WTSinv = obj.theta_cf.W'*obj.theta_cf.Sinv;        %Precomputation for efficiency
+            %Precomputation for efficiency
+            obj.theta_cf.WTSinv = obj.theta_cf.W'*obj.theta_cf.Sinv;
             
             %optimal theta_c and sigma
             Sigma_old = obj.theta_c.Sigma;
@@ -1352,7 +1355,8 @@ classdef ROM_SPDE
                     if useConv
                         FEMout = heat2d(coarseDomain, D, convectionField{j}(:, :, i))
                     else
-                        FEMout = heat2d(coarseDomain, D);
+%                         FEMout = heat2d(coarseDomain, D);
+                        FEMout = heat2d(coarseDomain, LambdaSamples{j}(:, i));
                     end
                     Tctemp = FEMout.Tff';
                     
@@ -1582,7 +1586,8 @@ classdef ROM_SPDE
                             D(:, :, e) = LambdaSamples{n, t}(e, i)*eye(2);
                         end
                         
-                        FEMout = heat2d(coarseDomain, D);
+%                         FEMout = heat2d(coarseDomain, D);
+                        FEMout= heat2d(coarseDomain, LambdaSamples{n, t}(:, i));
                         Tctemp = FEMout.Tff';
                         
                         %sample from p_cf
