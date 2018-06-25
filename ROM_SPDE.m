@@ -11,7 +11,8 @@ classdef ROM_SPDE
         upperConductivity = 2;
         %Conductivity field distribution type
         conductivityDistribution = 'squaredExponential';
-        %Boundary condition functions; evaluate those on boundaries to get boundary conditions
+        %Boundary condition functions; 
+        %evaluate those on boundaries to get boundary conditions
         boundaryTemperature;
         boundaryHeatFlux;
         bcArrayTrain;   %boundary condition cell array for training data
@@ -38,17 +39,23 @@ classdef ROM_SPDE
         %% Model training parameters
         nStart = 1;             %first training data sample in file
         nTrain = 16;            %number of samples used for training
-        mode = 'none';          %useNeighbor, useLocalNeighbor, useDiagNeighbor, useLocalDiagNeighbor, useLocal, global
-                                %global: take whole microstructure as feature function input, not
-                                %only local window (only recommended for pooling)
-        inferenceMethod = 'variationalInference';        %E-step inference method. variationalInference or monteCarlo
+        mode = 'none';          %useNeighbor, useLocalNeighbor, useDiagNeighbor,
+                                %useLocalDiagNeighbor, useLocal, global
+                                %global: take whole microstructure as feature 
+                                %function input, not only local window (only 
+                                %recommended for pooling)
+        %E-step inference method. variationalInference or monteCarlo
+        inferenceMethod = 'variationalInference';
         
         %% Sequential addition of linear filters
         linFilt
         
-        useAutoEnc = false;     %Use autoencoder information? Do not forget to pre-train autoencoder!
-        globalPcaComponents = 3;   %Principal components of the whole microstructure used as features 
-        localPcaComponents = 7;     %Principal components of single macro-cell used as features
+        %Use autoencoder information? Do not forget to pre-train autoencoder!
+        useAutoEnc = false;
+        %Principal components of the whole microstructure used as features 
+        globalPcaComponents = 3;
+        %Principal components of single macro-cell used as features
+        localPcaComponents = 7;
         pcaSamples = 4096;
         secondOrderTerms;
         mix_S = 0;              %To slow down convergence of S
@@ -66,36 +73,46 @@ classdef ROM_SPDE
         theta_c;
         theta_cf;
         free_W = false;
-        featureFunctions;       %Cell array containing local feature function handles
-        globalFeatureFunctions; %cell array with handles to global feature functions
-        convectionFeatureFunctions;       %Cell array containing local convection feature function handles
-        globalConvectionFeatureFunctions; %cell array with handles to global convection feature functions
+        %Cell array containing local feature function handles
+        featureFunctions;
+        %cell array with handles to global feature functions
+        globalFeatureFunctions;
+        %Cell array containing local convection feature function handles
+        convectionFeatureFunctions;
+        %cell array with handles to global convection feature functions
+        globalConvectionFeatureFunctions;
         kernelHandles
         %transformation of finescale conductivity to real axis
         conductivityTransformation;
         latentDim = 0;              %If autoencoder is used
         sumPhiTPhi;             %Design matrix precomputation
-        padding = 0;           %How many pixels around macro-cell should be considered in local features?
+        %How many pixels around macro-cell 
+        %should be considered in local features?
+        padding = 0;
         
         %% Feature function rescaling parameters
-        featureScaling = 'normalize'; %'standardize' for zero mean and unit variance of features, 'rescale' to have
-                                        %all between 0 and 1, 'normalize' to have unit variance only
-                                        %(and same mean as before)
+        %'standardize' for zero mean and unit variance of features, 'rescale' 
+        %to have all between 0 and 1, 'normalize' to have unit variance only
+        %(and same mean as before)
+        featureScaling = 'normalize';
         featureFunctionMean;
         featureFunctionSqMean;
         featureFunctionMin;
         featureFunctionMax;
         loadDesignMatrix = false;
-        useKernels = false;              %Use linear combination of kernels in feature function space
-        kernelBandwidth = 2;              %only used if no rule of thumb is taken
-        bandwidthSelection = 'silverman'  %'fixed' for fixed kernel bandwidth, 'silverman' for
-                                          %silverman's rule of thumb 'scott' for scott's rule of thumb,
-                                          %see wikipedia on multivariate kernel density estimation
+        %Use linear combination of kernels in feature function space
+        useKernels = false;
+        kernelBandwidth = 2;    %only used if no rule of thumb is taken
+        %'fixed' for fixed kernel bandwidth, 'silverman' for
+        %silverman's rule of thumb 'scott' for scott's rule of thumb,
+        %see wikipedia on multivariate kernel density estimation
+        bandwidthSelection = 'silverman'
         kernelType = 'squaredExponential';
         
         %% Prediction parameters
         nSamples_p_c = 1000;
-        useLaplaceApproximation = true;   %Use Laplace approx around MAP for prediction?
+        %Use Laplace approx around MAP for prediction?
+        useLaplaceApproximation = true;
         testSamples = [1:1024];       %pick out specific test samples here
         trainingSamples;   %pick out specific training samples here
         
@@ -103,7 +120,8 @@ classdef ROM_SPDE
         predMeanArray;
         predVarArray;
         meanPredMeanOutput;                %mean predicted mean of output field
-        meanSquaredDistance;               %mean squared distance of predicted mean to true solution
+        %mean squared distance of predicted mean to true solution
+        meanSquaredDistance;
         meanSquaredDistanceField;
         meanSquaredDistanceError;          %Monte Carlo error
         meanLogLikelihood;
@@ -131,32 +149,37 @@ classdef ROM_SPDE
         epoch_old = 0;  %To check if epoch has changed
         maxEpochs;      %Maximum number of epochs
         
-        useConvection = false;      %Include a convection term to the pde? Uses convection term in coarse model in
-                                   %training/prediction
+        %Include a convection term to the pde? Uses convection term in coarse 
+        %model in training/prediction
+        useConvection = false;
         useConvectionData = false;
     end
     
     
     properties(SetAccess = private)
         %% finescale data specifications
-        conductivityLengthScaleDist = 'delta';      %delta for fixed length scale, lognormal for rand
-        conductivityDistributionParams = {-1 [.01 .01] 1};
-        advectionDistributionParams = [10, 15];   %mu and sigma for advection field coefficients
+        %delta for fixed length scale, lognormal for rand
+        conductivityLengthScaleDist = 'delta';
+        
         %{volumeFraction, correlationLength, sigma_f2}
         %for log normal length scale, the
         %length scale parameters are log normal mu and
         %sigma
+        conductivityDistributionParams = {-1 [.01 .01] 1};
+        %mu and sigma for advection field coefficients
+        advectionDistributionParams = [10, 15];
+        
         %Coefficients giving boundary conditions, specify as string
         boundaryConditions = '[0 800 1200 -2000]';
         boundaryConditionVariance = [0 0 0 0];
         
         %% Coarse model specifications
         coarseScaleDomain;
-        coarseGridVectorX = (1/8)*ones(1, 8);
-        coarseGridVectorY = (1/8)*ones(1, 8);
+        coarseGridVectorX = (1/2)*ones(1, 2);
+        coarseGridVectorY = (1/2)*ones(1, 2);
         
-        %Design matrices. Cell index gives data point, row index coarse cell, and column index
-        %feature function
+        %Design matrices. Cell index gives data point, row index coarse cell, 
+        %and column index feature function
         designMatrix
         originalDesignMatrix    %design matrix without any locality mode
         testDesignMatrix    %design matrices on independent test set
@@ -851,7 +874,8 @@ classdef ROM_SPDE
             %Find optimal theta_c and sigma
             dim_theta = numel(obj.theta_c.theta);
             
-            %% Solve self-consistently: compute optimal sigma2, then theta, then sigma2 again and so on
+            %% Solve self-consistently: compute optimal sigma2, then theta, 
+            %then sigma2 again and so on
             %Start from previous best estimate
             theta = obj.theta_c.theta;
             I = speye(dim_theta);
@@ -3194,7 +3218,7 @@ classdef ROM_SPDE
                 imagesc(reshape(sqrt(diag(obj.theta_c.Sigma)),...
                     obj.coarseScaleDomain.nElX, obj.coarseScaleDomain.nElY), 'Parent', sb)
             end
-            title('\sigma_k')
+            title('$\sigma_k$')
             colorbar
             grid off;
             axis tight;

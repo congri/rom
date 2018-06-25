@@ -3,8 +3,6 @@ function [K] = get_glob_stiff2(mesh, k)
 
 K = sparse(mesh.Equations(:,1), mesh.Equations(:,2), k(mesh.kIndex));
 
-%Remove this!!!
-K = single(full(K));
 
 end
 
