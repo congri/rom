@@ -4,179 +4,179 @@ classdef ROM_SPDE
     properties  %public
         %% Finescale data specifications
         %Finescale system size
-        nElFX = 256;
-        nElFY = 256;
+        nElFX = 256
+        nElFY = 256
         %Finescale conductivities, binary material
-        lowerConductivity = 1;
-        upperConductivity = 2;
+        lowerConductivity = 1
+        upperConductivity = 2
         %Conductivity field distribution type
-        conductivityDistribution = 'squaredExponential';
-        %Boundary condition functions; 
+        conductivityDistribution = 'squaredExponential'
+        %Boundary condition functions
         %evaluate those on boundaries to get boundary conditions
-        boundaryTemperature;
-        boundaryHeatFlux;
-        bcArrayTrain;   %boundary condition cell array for training data
-        bcArrayTest;    %boundary condition cell array for test data
+        boundaryTemperature
+        boundaryHeatFlux
+        bcArrayTrain   %boundary condition cell array for training data
+        bcArrayTest    %boundary condition cell array for test data
         
-        naturalNodes;
+        naturalNodes
         %Directory where finescale data is stored; specify basename here
-        fineScaleDataPath = '~/matlab/data/fineData/';
+        fineScaleDataPath = '~/matlab/data/fineData/'
         %matfile handle
-        trainingDataMatfile;
-        testDataMatfile;
+        trainingDataMatfile
+        testDataMatfile
         %Finescale Domain object
-        fineScaleDomain;
+        fineScaleDomain
         %Array holding fine scale data output; possibly large
-        fineScaleDataOutput;
+        fineScaleDataOutput
         %number of samples per generated matfile
-        nSets = [4096 4096];
+        nSets = [4096 4096]
         %Output data characteristics
-        outputVariance;
-        outputMean;
-        meanOutputVariance;
-        E;                  %Mapping from fine to coarse cell index
-        neighborDictionary; %Gives neighbors of macrocells
+        outputVariance
+        outputMean
+        meanOutputVariance
+        E                   %Mapping from fine to coarse cell index
+        neighborDictionary %Gives neighbors of macrocells
         %% Model training parameters
-        nStart = 1;             %first training data sample in file
-        nTrain = 16;            %number of samples used for training
-        mode = 'none';          %useNeighbor, useLocalNeighbor, useDiagNeighbor,
+        nStart = 1              %first training data sample in file
+        nTrain = 16             %number of samples used for training
+        mode = 'none'           %useNeighbor, useLocalNeighbor, useDiagNeighbor,
                                 %useLocalDiagNeighbor, useLocal, global
                                 %global: take whole microstructure as feature 
                                 %function input, not only local window (only 
                                 %recommended for pooling)
         %E-step inference method. variationalInference or monteCarlo
-        inferenceMethod = 'variationalInference';
+        inferenceMethod = 'variationalInference'
         
         %% Sequential addition of linear filters
         linFilt
         
         %Use autoencoder information? Do not forget to pre-train autoencoder!
-        useAutoEnc = false;
+        useAutoEnc = false
         %Principal components of the whole microstructure used as features 
-        globalPcaComponents = 3;
+        globalPcaComponents = 3
         %Principal components of single macro-cell used as features
-        localPcaComponents = 7;
-        pcaSamples = 4096;
-        secondOrderTerms;
-        mix_S = 0;              %To slow down convergence of S
-        mix_theta = 0;
-        mix_sigma = 0;
-        fixSigmaInit = 0;       %Fix sigma in initial iterations
+        localPcaComponents = 7
+        pcaSamples = 4096
+        secondOrderTerms
+        mix_S = 0             %To slow down convergence of S
+        mix_theta = 0
+        mix_sigma = 0
+        fixSigmaInit = 0       %Fix sigma in initial iterations
         
         %% Prior specifications
-        sigmaPriorType = 'none';    %none, delta, expSigSq
-        sigmaPriorHyperparam = 1;
-        thetaPriorType = 'RVM';
-        thetaPriorHyperparam = [0 1e-30];
+        sigmaPriorType = 'none'    %none, delta, expSigSq
+        sigmaPriorHyperparam = 1
+        thetaPriorType = 'RVM'
+        thetaPriorHyperparam = [0 1e-30]
         
         %% Model parameters
-        theta_c;
-        theta_cf;
-        free_W = false;
+        theta_c
+        theta_cf
+        free_W = false
         %Cell array containing local feature function handles
-        featureFunctions;
+        featureFunctions
         %cell array with handles to global feature functions
-        globalFeatureFunctions;
+        globalFeatureFunctions
         %Cell array containing local convection feature function handles
-        convectionFeatureFunctions;
+        convectionFeatureFunctions
         %cell array with handles to global convection feature functions
-        globalConvectionFeatureFunctions;
+        globalConvectionFeatureFunctions
         kernelHandles
         %transformation of finescale conductivity to real axis
-        conductivityTransformation;
-        latentDim = 0;              %If autoencoder is used
-        sumPhiTPhi;             %Design matrix precomputation
+        conductivityTransformation
+        latentDim = 0              %If autoencoder is used
+        sumPhiTPhi             %Design matrix precomputation
         %How many pixels around macro-cell 
         %should be considered in local features?
-        padding = 0;
+        padding = 0
         
         %% Feature function rescaling parameters
         %'standardize' for zero mean and unit variance of features, 'rescale' 
         %to have all between 0 and 1, 'normalize' to have unit variance only
         %(and same mean as before)
-        featureScaling = 'normalize';
-        featureFunctionMean;
-        featureFunctionSqMean;
-        featureFunctionMin;
-        featureFunctionMax;
-        loadDesignMatrix = false;
+        featureScaling = 'normalize'
+        featureFunctionMean
+        featureFunctionSqMean
+        featureFunctionMin
+        featureFunctionMax
+        loadDesignMatrix = false
         %Use linear combination of kernels in feature function space
-        useKernels = false;
-        kernelBandwidth = 2;    %only used if no rule of thumb is taken
+        useKernels = false
+        kernelBandwidth = 2    %only used if no rule of thumb is taken
         %'fixed' for fixed kernel bandwidth, 'silverman' for
         %silverman's rule of thumb 'scott' for scott's rule of thumb,
         %see wikipedia on multivariate kernel density estimation
         bandwidthSelection = 'silverman'
-        kernelType = 'squaredExponential';
+        kernelType = 'squaredExponential'
         
         %% Prediction parameters
-        nSamples_p_c = 1000;
+        nSamples_p_c = 1000
         %Use Laplace approx around MAP for prediction?
-        useLaplaceApproximation = true;
-        testSamples = [1:1024];       %pick out specific test samples here
-        trainingSamples;   %pick out specific training samples here
+        useLaplaceApproximation = true
+        testSamples = 1:1024       %pick out specific test samples here
+        trainingSamples   %pick out specific training samples here
         
         %% Prediction outputs
-        predMeanArray;
-        predVarArray;
-        meanPredMeanOutput;                %mean predicted mean of output field
+        predMeanArray
+        predVarArray
+        meanPredMeanOutput                %mean predicted mean of output field
         %mean squared distance of predicted mean to true solution
-        meanSquaredDistance;
-        meanSquaredDistanceField;
-        meanSquaredDistanceError;          %Monte Carlo error
-        meanLogLikelihood;
-        meanLogPerplexity;
-        meanPerplexity;
-        meanMahalanobisError;
-        meanEffCond;
+        meanSquaredDistance
+        meanSquaredDistanceField
+        meanSquaredDistanceError          %Monte Carlo error
+        meanLogLikelihood
+        meanLogPerplexity
+        meanPerplexity
+        meanMahalanobisError
+        meanEffCond
         
         %% Finescale data- only load this to memory when needed!
         lambdak
         xk
         
         %% Computational quantities
-        varExpect_p_cf_exp_mean;
-        XMean;                  %Expected value of X under q
-        XSqMean;                %<X^2>_q
-        mean_TfTcT;
-        mean_TcTcT;
-        thetaArray;
-        thetaHyperparamArray;
-        sigmaArray;
+        varExpect_p_cf_exp_mean
+        XMean                  %Expected value of X under q
+        XSqMean                %<X^2>_q
+        mean_TfTcT
+        mean_TcTcT
+        thetaArray
+        thetaHyperparamArray
+        sigmaArray
         
-        EM_iterations = 1;
-        epoch = 0;      %how often every data point has been seen
-        epoch_old = 0;  %To check if epoch has changed
-        maxEpochs;      %Maximum number of epochs
+        EM_iterations = 1
+        epoch = 0      %how often every data point has been seen
+        epoch_old = 0  %To check if epoch has changed
+        maxEpochs      %Maximum number of epochs
         
         %Include a convection term to the pde? Uses convection term in coarse 
         %model in training/prediction
-        useConvection = false;
-        useConvectionData = false;
+        useConvection = false
+        useConvectionData = false
     end
     
     
     properties(SetAccess = private)
         %% finescale data specifications
         %delta for fixed length scale, lognormal for rand
-        conductivityLengthScaleDist = 'delta';
+        conductivityLengthScaleDist = 'delta'
         
         %{volumeFraction, correlationLength, sigma_f2}
         %for log normal length scale, the
         %length scale parameters are log normal mu and
         %sigma
-        conductivityDistributionParams = {-1 [.01 .01] 1};
+        conductivityDistributionParams = {-1 [.01 .01] 1}
         %mu and sigma for advection field coefficients
-        advectionDistributionParams = [10, 15];
+        advectionDistributionParams = [10, 15]
         
         %Coefficients giving boundary conditions, specify as string
-        boundaryConditions = '[0 800 1200 -2000]';
-        boundaryConditionVariance = [0 0 0 0];
+        boundaryConditions = '[0 800 1200 -2000]'
+        boundaryConditionVariance = [0 0 0 0]
         
         %% Coarse model specifications
-        coarseScaleDomain;
-        coarseGridVectorX = (1/2)*ones(1, 2);
-        coarseGridVectorY = (1/2)*ones(1, 2);
+        coarseScaleDomain
+        coarseGridVectorX = (1/2)*ones(1, 2)
+        coarseGridVectorY = (1/2)*ones(1, 2)
         
         %Design matrices. Cell index gives data point, row index coarse cell, 
         %and column index feature function
@@ -205,7 +205,7 @@ classdef ROM_SPDE
             obj = obj.genBoundaryConditionFunctions;
             obj.naturalNodes = [2:(2*obj.nElFX + 2*obj.nElFY)];
             
-            %Set up coarseScaleDomain; must be done after boundary conditions are set up
+            %Set up coarseScaleDomain; must be done after b.c.'s are set up
             obj = obj.genCoarseDomain;
             
             %prealloc
@@ -228,12 +228,14 @@ classdef ROM_SPDE
                 obj.conductivityTransformation.limits = [1e-6 1e6];
             elseif strcmp(obj.conductivityTransformation.type, 'logit')
                 obj.conductivityTransformation.limits =...
-                    [(1 - 1e-2)*obj.lowerConductivity (1 + 1e-2)*obj.upperConductivity];
+                    [(1 - 1e-2)*obj.lowerConductivity,...
+                    (1 + 1e-2)*obj.upperConductivity];
             else
                 obj.conductivityTransformation.limits = [1e-8 1e8];
             end
             conductivityTransformation = obj.conductivityTransformation;
-            save('./data/conductivityTransformation', 'conductivityTransformation');
+            save('./data/conductivityTransformation',...
+                'conductivityTransformation');
             
             obj.linFilt.totalUpdates = 0;
             if ~strcmp(mode, 'genData')
@@ -242,11 +244,13 @@ classdef ROM_SPDE
                 %Set up feature function handles
                 %obj = obj.setFeatureFunctions;
                 %Prealloc
-                obj.varExpect_p_cf_exp_mean = zeros(obj.fineScaleDomain.nNodes, 1);
+                obj.varExpect_p_cf_exp_mean =...
+                    zeros(obj.fineScaleDomain.nNodes, 1);
             end
             
             %Check
-            if(strcmp(obj.thetaPriorType, 'sharedRVM') && ~strcmp(obj.mode, 'useLocal'))
+            if(strcmp(obj.thetaPriorType, 'sharedRVM') &&...
+                    ~strcmp(obj.mode, 'useLocal'))
                 error('sharedRVM prior only allowed for useLocal mode')
             end
         end
@@ -265,7 +269,7 @@ classdef ROM_SPDE
             end
             
             %for boundary condition functions
-            if(isempty(obj.boundaryTemperature) || isempty(obj.boundaryHeatFlux))
+            if(isempty(obj.boundaryTemperature)|| isempty(obj.boundaryHeatFlux))
                 obj = obj.genBoundaryConditionFunctions;
             end
             
@@ -275,8 +279,9 @@ classdef ROM_SPDE
             addpath('./heatFEM')    %to find Domain class
             obj.fineScaleDomain = Domain(obj.nElFX, obj.nElFY);
             obj.fineScaleDomain.useConvection = obj.useConvectionData;
-            obj.fineScaleDomain = setBoundaries(obj.fineScaleDomain, obj.naturalNodes,...
-                obj.boundaryTemperature, obj.boundaryHeatFlux);       %Only fix lower left corner as essential node
+            %Only fix lower left corner as essential node
+            obj.fineScaleDomain = setBoundaries(obj.fineScaleDomain,...
+                obj.naturalNodes,obj.boundaryTemperature, obj.boundaryHeatFlux);
             disp('done')
             domain_generating_time = toc
             
@@ -286,14 +291,15 @@ classdef ROM_SPDE
             
             %Generate finescale conductivity samples and solve FEM
             for i = 1:numel(obj.nSets)
-                filename = strcat(obj.fineScaleDataPath, 'set', num2str(i), '-samples=', num2str(obj.nSets(i)));
+                filename = strcat(obj.fineScaleDataPath, 'set', num2str(i),...
+                    '-samples=', num2str(obj.nSets(i)));
                 obj.solveFEM(i, filename);
             end
             
             %save params
             fineScaleDomain = obj.fineScaleDomain;
-            save(strcat(obj.fineScaleDataPath, 'fineScaleDomain.mat'), 'fineScaleDomain');
-            
+            save(strcat(obj.fineScaleDataPath, 'fineScaleDomain.mat'),...
+                'fineScaleDomain');
             disp('done')
         end
         
@@ -303,7 +309,8 @@ classdef ROM_SPDE
                 error('No string specified for boundary conditions')
             end
             bc = str2num(obj.boundaryConditions);
-            obj.boundaryTemperature = @(x) bc(1) + bc(2)*x(1) + bc(3)*x(2) + bc(4)*x(1)*x(2);
+            obj.boundaryTemperature =...
+                @(x) bc(1) + bc(2)*x(1) + bc(3)*x(2) + bc(4)*x(1)*x(2);
             obj.boundaryHeatFlux{1} = @(x) -(bc(3) + bc(4)*x);      %lower bound
             obj.boundaryHeatFlux{2} = @(y) (bc(2) + bc(4)*y);       %right bound
             obj.boundaryHeatFlux{3} = @(x) (bc(3) + bc(4)*x);       %upper bound
@@ -322,12 +329,13 @@ classdef ROM_SPDE
                 cond{1} = zeros(obj.fineScaleDomain.nEl, 1);
                 cond = repmat(cond, 1, obj.nSets(nSet));
                 for i = 1:obj.nSets(nSet)
-                    cond{i} = (obj.upperConductivity - obj.lowerConductivity)*...
-                        rand(obj.fineScaleDomain.nEl, 1) + obj.lowerConductivity;
+                    cond{i}= (obj.upperConductivity - obj.lowerConductivity)*...
+                        rand(obj.fineScaleDomain.nEl, 1)+ obj.lowerConductivity;
                 end
             elseif strcmp(obj.conductivityDistribution, 'gaussian')
                 %log conductivity gaussian distributed
-                x = normrnd(obj.conductivityDistributionParams{1}, obj.conductivityDistributionParams{2},...
+                x = normrnd(obj.conductivityDistributionParams{1},...
+                    obj.conductivityDistributionParams{2},...
                     obj.fineScaleDomain.nEl, obj.nSets(nSet));
                 cond{1} = zeros(obj.fineScaleDomain.nEl, 1);
                 cond = repmat(cond, 1, obj.nSets(nSet));
@@ -340,18 +348,22 @@ classdef ROM_SPDE
                 cond = repmat(cond, 1, obj.nSets(nSet));
                 for i = 1:obj.nSets(nSet)
                     r = rand(obj.fineScaleDomain.nEl, 1);
-                    cond{i} = obj.lowerConductivity*ones(obj.fineScaleDomain.nEl, 1);
-                    cond{i}(r < obj.conductivityDistributionParams{1}) = obj.upperConductivity;
+                    cond{i} =...
+                        obj.lowerConductivity*ones(obj.fineScaleDomain.nEl, 1);
+                    cond{i}(r < obj.conductivityDistributionParams{1}) =...
+                        obj.upperConductivity;
                 end
-            elseif(strcmp(obj.conductivityDistribution, 'squaredExponential') || ...
-                    strcmp(obj.conductivityDistribution, 'ornsteinUhlenbeck') || ...
-                    strcmp(obj.conductivityDistribution, 'sincCov') || ...
-                    strcmp(obj.conductivityDistribution, 'sincSqCov') || ...
-                    strcmp(obj.conductivityDistribution, 'matern'))
-                %ATTENTION: so far, only isotropic distributions (length scales) possible
+            elseif(strcmp(obj.conductivityDistribution, 'squaredExponential')...
+                 || strcmp(obj.conductivityDistribution, 'ornsteinUhlenbeck')...
+                 || strcmp(obj.conductivityDistribution, 'sincCov') ...
+                 || strcmp(obj.conductivityDistribution, 'sincSqCov')...
+                 || strcmp(obj.conductivityDistribution, 'matern'))
+                %ATTENTION: only isotrop. distributions (length scales) possible
                 %Compute coordinates of element centers
-                x = .5*(obj.fineScaleDomain.cum_lElX(1:(end - 1)) + obj.fineScaleDomain.cum_lElX(2:end));
-                y = .5*(obj.fineScaleDomain.cum_lElY(1:(end - 1)) + obj.fineScaleDomain.cum_lElY(2:end));
+                x = .5*(obj.fineScaleDomain.cum_lElX(1:(end - 1)) +...
+                    obj.fineScaleDomain.cum_lElX(2:end));
+                y = .5*(obj.fineScaleDomain.cum_lElY(1:(end - 1)) +...
+                    obj.fineScaleDomain.cum_lElY(2:end));
                 [X, Y] = meshgrid(x, y);
                 %directly clear potentially large arrays
                 clear y;
@@ -360,7 +372,8 @@ classdef ROM_SPDE
                 
                 addpath('./computation')        %to find parPoolInit
                 parPoolInit(obj.nSets(nSet));
-                %Store conductivity fields in cell array to avoid broadcasting the whole data
+                %Store conductivity fields in cell array to avoid 
+                %broadcasting the whole data
                 cond{1} = zeros(obj.fineScaleDomain.nEl, 1);
                 cond = repmat(cond, 1, obj.nSets(nSet));
                 
@@ -371,28 +384,32 @@ classdef ROM_SPDE
                         %one fixed length scale for all samples
                         l = obj.conductivityDistributionParams{2};
                     elseif strcmp(obj.conductivityLengthScaleDist, 'lognormal')
-                        %First and second parameters are mu and sigma of lognormal dist
+                        %First and second parameters are mu and sigma 
+                        %of lognormal dist
                         l = lognrnd(obj.conductivityDistributionParams{2}(1),...
                             obj.conductivityDistributionParams{2}(2));
                         l = [l l];
                     else
                         error('Unknown length scale distribution')
                     end
-                    p{i} = genBochnerSamples(l, obj.conductivityDistributionParams{3},...
+                    p{i} = genBochnerSamples(l,...
+                        obj.conductivityDistributionParams{3},...
                         nBochnerBasis, obj.conductivityDistribution);
                 end
                 nEl = obj.fineScaleDomain.nEl;
                 upCond = obj.upperConductivity;
                 loCond = obj.lowerConductivity;
-                %set volume fraction parameter < 0 to have uniformly random volume fraction
+                %set volume fraction parameter < 0 to have
+                %uniformly random volume fraction
                 if(obj.conductivityDistributionParams{1} >= 0)
-                    cutoff = norminv(1 - obj.conductivityDistributionParams{1},...
+                    cutoff=norminv(1 - obj.conductivityDistributionParams{1},...
                         0, obj.conductivityDistributionParams{3});
                 else
                     cutoff = zeros(obj.nSets(nSet), 1);
                     for i = 1:(obj.nSets(nSet))
                         phiRand = rand;
-                        cutoff(i) = norminv(1 - phiRand, 0, obj.conductivityDistributionParams{3});
+                        cutoff(i) = norminv(1 - phiRand, 0,...
+                            obj.conductivityDistributionParams{3});
                     end
                 end
                 volfrac = obj.conductivityDistributionParams{1};
@@ -401,9 +418,11 @@ classdef ROM_SPDE
                     for j = 1:nEl
                         ps = p{i}(x(:, j));
                         if(volfrac >= 0)
-                            cond{i}(j) = upCond*(ps > cutoff) + loCond*(ps <= cutoff);
+                            cond{i}(j) =...
+                                upCond*(ps > cutoff) + loCond*(ps <= cutoff);
                         else
-                            cond{i}(j) = upCond*(ps > cutoff(i)) + loCond*(ps <= cutoff(i));
+                            cond{i}(j) = upCond*(ps > cutoff(i)) +...
+                                loCond*(ps <= cutoff(i));
                         end
                     end
                 end
@@ -417,7 +436,8 @@ classdef ROM_SPDE
         function obj = solveFEM(obj, nSet, savepath)
             
             cond = obj.generateConductivityField(nSet);
-            globalVariationTest = false; %Every microstructure has a common macro-cell
+            %Every microstructure has a common macro-cell
+            globalVariationTest = false;
             if globalVariationTest
                 obj = obj.getCoarseElement;
                 %Conductivity of 10th window is the same in all samples
@@ -451,8 +471,10 @@ classdef ROM_SPDE
             parPoolInit(obj.nSets(nSet));
             if useConv
                 %Compute coordinates of element centers
-                x = .5*(obj.fineScaleDomain.cum_lElX(1:(end - 1)) + obj.fineScaleDomain.cum_lElX(2:end));
-                y = .5*(obj.fineScaleDomain.cum_lElY(1:(end - 1)) + obj.fineScaleDomain.cum_lElY(2:end));
+                x = .5*(obj.fineScaleDomain.cum_lElX(1:(end - 1)) +...
+                    obj.fineScaleDomain.cum_lElX(2:end));
+                y = .5*(obj.fineScaleDomain.cum_lElY(1:(end - 1)) +...
+                    obj.fineScaleDomain.cum_lElY(2:end));
                 [X, Y] = meshgrid(x, y);
                 %directly clear potentially large arrays
                 clear y;
@@ -472,13 +494,19 @@ classdef ROM_SPDE
                 end
                 
                 if(any(bcVariance))
-                    bcTemperature = @(x) bc{i}(1) + bc{i}(2)*x(1) + bc{i}(3)*x(2) + bc{i}(4)*x(1)*x(2);
-                    bcHeatFlux{i}{1} = @(x) -(bc{i}(3) + bc{i}(4)*x);      %lower bound
-                    bcHeatFlux{i}{2} = @(y) (bc{i}(2) + bc{i}(4)*y);       %right bound
-                    bcHeatFlux{i}{3} = @(x) (bc{i}(3) + bc{i}(4)*x);       %upper bound
-                    bcHeatFlux{i}{4} = @(y) -(bc{i}(2) + bc{i}(4)*y);      %left bound
+                    bcTemperature = @(x) bc{i}(1) + bc{i}(2)*x(1) +...
+                        bc{i}(3)*x(2) + bc{i}(4)*x(1)*x(2);
+                    %lower bound
+                    bcHeatFlux{i}{1} = @(x) -(bc{i}(3) + bc{i}(4)*x);
+                    %right bound
+                    bcHeatFlux{i}{2} = @(y) (bc{i}(2) + bc{i}(4)*y);
+                    %upper bound
+                    bcHeatFlux{i}{3} = @(x) (bc{i}(3) + bc{i}(4)*x);
+                    %left bound
+                    bcHeatFlux{i}{4} = @(y) -(bc{i}(2) + bc{i}(4)*y);
                     
-                    domainTemp = domain.setBoundaries(naturalNodes, bcTemperature, bcHeatFlux{i});
+                    domainTemp = domain.setBoundaries(...
+                        naturalNodes, bcTemperature, bcHeatFlux{i});
                     bcHeatFlux = [];
                 else
                     domainTemp = domain;
@@ -495,7 +523,8 @@ classdef ROM_SPDE
                     convectionCoeffs = pi*(randi(adp(1), 1, adp(2)) - adp(1)/2)
                     convFieldArray = zeros(2, nElf);
                     for e = 1:nElf
-                        convFieldArray(:, e) = convectionField(x(:, e), convectionCoeffs);
+                        convFieldArray(:, e) =...
+                            convectionField(x(:, e), convectionCoeffs);
                     end
                     FEMout = heat2d(domainTemp, D{i}, convFieldArray);
                     convField{i} = convFieldArray;
@@ -503,8 +532,10 @@ classdef ROM_SPDE
 %                     FEMout = heat2d(domainTemp, D{i});
                     FEMout = heat2d(domainTemp, cond{i});
                 end
-                %Store fine temperatures as a vector Tf. Use reshape(Tf(:, i), domain.nElX + 1, domain.nElY + 1)
-                %and then transpose result to reconvert it to original temperature field
+                %Store fine temperatures as a vector Tf. 
+                %Use reshape(Tf(:, i), domain.nElX + 1, domain.nElY + 1)
+                %and then transpose result to reconvert it to
+                %original temperature field
                 Ttemp = FEMout.Tff';
                 Tf(:, i) = Ttemp(:);
             end
@@ -519,15 +550,18 @@ classdef ROM_SPDE
                 if exist('convField')
                     if(any(bcVariance))
                         %partial loading only for -v7.3
-                        save(strcat(savepath, ''), 'cond', 'Tf', 'convField', 'bc', '-v7.3')
+                        save(strcat(savepath, ''),...
+                            'cond', 'Tf', 'convField', 'bc', '-v7.3')
                     else
-                        save(strcat(savepath, ''), 'cond', 'Tf', 'convField', '-v7.3')
+                        save(strcat(savepath, ''),...
+                            'cond', 'Tf', 'convField', '-v7.3')
                     end
                 else
+                    %partial loading only for -v7.3
                     if(any(bcVariance))
-                        save(strcat(savepath, ''), 'cond', 'Tf', 'bc', '-v7.3')    %partial loading only for -v7.3
+                        save(strcat(savepath, ''), 'cond', 'Tf', 'bc', '-v7.3')
                     else
-                        save(strcat(savepath, ''), 'cond', 'Tf', '-v7.3')    %partial loading only for -v7.3
+                        save(strcat(savepath, ''), 'cond', 'Tf', '-v7.3')
                     end
                 end
                 disp('done')
