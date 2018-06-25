@@ -1,30 +1,30 @@
-function [F] = get_glob_force(domain, k)
+function [F] = get_glob_force(mesh, k)
 %Assemble global force vector
 
-neq = max(domain.nodalCoordinates(3,:));
+neq = max(mesh.nodalCoordinates(3,:));
 F = zeros(neq,1);
 
-for e = 1:domain.nEl
+for e = 1:mesh.nEl
 %     f = get_loc_force(e, domain, k);
 %     f = get_loc_force_v2(e, domain, k);
     
     
     Tbflag = false;
     for i = 1:4
-        globNode = domain.globalNodeNumber(e, i);
-        if(any(globNode == domain.essentialNodes))
+        globNode = mesh.globalNodeNumber(e, i);
+        if(any(globNode == mesh.essentialNodes))
             if ~Tbflag
                 Tb = zeros(4, 1);
             end
-            Tb(i) = domain.essentialTemperatures(globNode);
+            Tb(i) = mesh.essentialTemperatures(globNode);
             Tbflag = true;
         end
     end
 
     for ln = 1:4
-        eqn = domain.lm(e, ln);
+        eqn = mesh.lm(e, ln);
         if(eqn ~= 0)
-            F(eqn) = F(eqn) + domain.f_tot(ln, e);
+            F(eqn) = F(eqn) + mesh.f_tot(ln, e);
             if Tbflag
                 df = - k(:, :, e)*Tb;
                 F(eqn) = F(eqn) + df(ln);

@@ -24,7 +24,8 @@ delete('./data/*')  %delete old data
 
 %initialize reduced order model object
 romObj = ROM_SPDE('train')
-tempArray = zeros(romObj.fineScaleDomain.nNodes, romObj.nTrain); %prealloc for p_cf inference
+%prealloc for p_cf inference
+tempArray = zeros(romObj.fineScaleDomain.nNodes, romObj.nTrain);
 %% Load training data
 % romObj = romObj.loadTrainingData;
 %Get model and training parameters

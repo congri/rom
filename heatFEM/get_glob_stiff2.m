@@ -1,7 +1,10 @@
-function [K] = get_glob_stiff2(domain, k)
+function [K] = get_glob_stiff2(mesh, k)
 %Gives global stiffness matrix K
 
-K = sparse(domain.Equations(:,1), domain.Equations(:,2), k(domain.kIndex));
+K = sparse(mesh.Equations(:,1), mesh.Equations(:,2), k(mesh.kIndex));
+
+%Remove this!!!
+K = single(full(K));
 
 end
 

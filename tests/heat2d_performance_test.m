@@ -1,15 +1,15 @@
 % performance test for heat2d
-% clear;
+clear;
 addpath('./heatFEM');
 addpath('./FEMgradient');
 
 % set up domain object
-nRes = 8;
+nRes = 256;
 gridVectorX = (1/nRes)*ones(1, nRes);
 gridVectorY = (1/nRes)*ones(1, nRes);
 
-domain = Domain(nRes, nRes, gridVectorX, gridVectorY);
-domain.useConvection = false;
+mesh = Domain(nRes, nRes, gridVectorX, gridVectorY);
+mesh.useConvection = false;
 
 %Set up boundary condition functions
 bc = [100 -200 150 -250];
@@ -19,42 +19,58 @@ boundaryHeatFlux{2} = @(y) (bc(2) + bc(4)*y);       %right bound
 boundaryHeatFlux{3} = @(x) (bc(3) + bc(4)*x);       %upper bound
 boundaryHeatFlux{4} = @(y) -(bc(2) + bc(4)*y);      %left bound
 
-domain = domain.setBoundaries([2:(2*nRes + 2*nRes)], boundaryTemperature,...
+mesh = mesh.setBoundaries([2:(2*nRes + 2*nRes)], boundaryTemperature,...
     boundaryHeatFlux);
 
-iterations = 10000;
-% tic;
-% for it = 1:iterations
-%     out = heat2d(domain, D);
-% end
-% t = toc;
-% 
-% time_per_iteration = t/iterations
+%shrink mesh object for memory efficiency
+mesh.boundaryNodes = [];
+mesh.naturalNodes = [];
+mesh.boundaryElements = [];
+mesh.naturalBoundaries = [];
+mesh.boundaryType = [];
+mesh.lx = [];
+mesh.ly = [];
+mesh.lElX = [];
+mesh.lElY = [];
+mesh.cum_lElX = [];
+mesh.cum_lElY = [];
+mesh.AEl = [];
+mesh.nEq = [];
+mesh.lc = [];
+mesh.Bvec =[];
+mesh.useConvection = [];
+mesh.essentialBoundary = [];
+mesh.LocalNode = [];
+mesh.fs = [];
+mesh.fh = [];
 
+iterations = 5;
 
 tic;
 D = ones(nRes^2, 1);
 for it = 1:iterations
-    out = heat2d_v2(domain, D);
+    it
+    heat2d_v2(mesh, D);
+    t_it = toc
 end
 t = toc;
 
-time_per_iteration_v2 = t/iterations
+time_per_iteration = t/iterations
 
-% analytical solution
-[X, Y] = meshgrid(linspace(0, 1, nRes + 1));
-T_true = 0*X;
-for i = 1:numel(X)
-    x = [X(i), Y(i)];
-    T_true(i) = boundaryTemperature(x);
-end
-
-figure
-subplot(1,2,1)
-imagesc(out.Tff)
-colorbar
-subplot(1,2,2)
-imagesc(T_true)
-colorbar
+% % analytical solution
+% [X, Y] = meshgrid(linspace(0, 1, nRes + 1));
+% T_true = 0*X;
+% for i = 1:numel(X)
+%     x = [X(i), Y(i)];
+%     T_true(i) = boundaryTemperature(x);
+% end
+% 
+% figure
+% subplot(1,2,1)
+% imagesc(out.Tff)
+% colorbar
+% subplot(1,2,2)
+% imagesc(T_true)
+% colorbar
 
 

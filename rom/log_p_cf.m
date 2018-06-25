@@ -1,4 +1,5 @@
-function [log_p, d_log_p, Tc] = log_p_cf(Tf_i_minus_mu, domainc, Xi, theta_cf, condTransOpts)
+function [log_p, d_log_p, Tc] =...
+    log_p_cf(Tf_i_minus_mu, domainc, Xi, theta_cf, condTransOpts)
 %Coarse-to-fine map
 %ignore constant prefactor
 %log_p = -.5*logdet(S, 'chol') - .5*(Tf - mu)'*(S\(Tf - mu));

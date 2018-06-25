@@ -152,8 +152,8 @@ classdef ROM_SPDE
         
         %% Coarse model specifications
         coarseScaleDomain;
-        coarseGridVectorX = (1/4)*ones(1, 4);
-        coarseGridVectorY = (1/4)*ones(1, 4);
+        coarseGridVectorX = (1/8)*ones(1, 8);
+        coarseGridVectorY = (1/8)*ones(1, 8);
         
         %Design matrices. Cell index gives data point, row index coarse cell, and column index
         %feature function
