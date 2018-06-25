@@ -287,7 +287,8 @@ while true
     plotTheta = feature('ShowFigureWindows');
     if plotTheta
         if ~exist('figureTheta')
-            figureTheta = figure;
+            figureTheta =...
+                figure('units','normalized','outerposition',[0 0 .5 1]);
         end
         romObj = romObj.plotTheta(figureTheta);
     end
