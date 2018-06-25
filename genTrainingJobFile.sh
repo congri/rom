@@ -11,8 +11,8 @@ HICOND=2
 PRIORTYPE=RVM
 HYPERPARAM1=[]	#prior hyperparameter
 HYPERPARAM2=[]
-NCX=\[.25\ .25\ .25\ .25\]
-NCY=\[.25\ .25\ .25\ .25\]
+NCX=\[.5\ .5\]
+NCY=\[.5\ .5\]
 BC="[0 800 1200 -2000]"
 BC2=\[0\ 800\ 1200\ -2000\]
 
@@ -26,7 +26,7 @@ fi
 echo N_cores=
 echo $NCORES
 
-NAMEBASE="consecutiveRVM"
+NAMEBASE="consecutiveRVM_normerror"
 DATESTR=`date +%m-%d-%H-%M-%N`	#datestring for jobfolder name
 PROJECTDIR="/home/constantin/matlab/projects/rom"
 JOBNAME="${NAMEBASE}_randStart_nTrain=${NTRAIN}_Nc=${NCX}_${NCY}"
@@ -69,15 +69,15 @@ sed -i \"8s/.*/        nElFY = $NF;/\" ./ROM_SPDE.m
 sed -i \"10s/.*/        lowerConductivity = $LOCOND;/\" ./ROM_SPDE.m
 sed -i \"11s/.*/        upperConductivity = $HICOND;/\" ./ROM_SPDE.m
 sed -i \"13s/.*/        conductivityDistribution = '${COVARIANCE}';/\" ./ROM_SPDE.m
-sed -i \"39s/.*/        nStart = $NSTART;             %%first training data sample in file/\" ./ROM_SPDE.m
-sed -i \"40s/.*/        nTrain = $NTRAIN;            %%number of samples used for training/\" ./ROM_SPDE.m
-sed -i \"62s/.*/        thetaPriorType = '$PRIORTYPE';/\" ./ROM_SPDE.m
-sed -i \"63s/.*/        thetaPriorHyperparam = [$HYPERPARAM1 $HYPERPARAM2];/\" ./ROM_SPDE.m
-sed -i \"98s/.*/        testSamples = [${TESTSAMPLE_LO}:${TESTSAMPLE_UP}];       %%pick out specific test samples here/\" ./ROM_SPDE.m
-sed -i \"140s/.*/        conductivityDistributionParams = {$VOLFRAC [$CORRLENGTH1 $CORRLENGTH2] 1};/\" ./ROM_SPDE.m
-sed -i \"147s/.*/        boundaryConditions = '$BC';/\" ./ROM_SPDE.m
-sed -i \"152s/.*/        coarseGridVectorX = $NCX;/\" ./ROM_SPDE.m
-sed -i \"153s/.*/        coarseGridVectorY = $NCY;/\" ./ROM_SPDE.m
+sed -i \"40s/.*/        nStart = $NSTART;             %%first training data sample in file/\" ./ROM_SPDE.m
+sed -i \"41s/.*/        nTrain = $NTRAIN;            %%number of samples used for training/\" ./ROM_SPDE.m
+sed -i \"69s/.*/        thetaPriorType = '$PRIORTYPE';/\" ./ROM_SPDE.m
+sed -i \"70s/.*/        thetaPriorHyperparam = [$HYPERPARAM1 $HYPERPARAM2];/\" ./ROM_SPDE.m
+sed -i \"116s/.*/        testSamples = [${TESTSAMPLE_LO}:${TESTSAMPLE_UP}];       %%pick out specific test samples here/\" ./ROM_SPDE.m
+sed -i \"170s/.*/        conductivityDistributionParams = {$VOLFRAC [$CORRLENGTH1 $CORRLENGTH2] 1};/\" ./ROM_SPDE.m
+sed -i \"175s/.*/        boundaryConditions = '$BC';/\" ./ROM_SPDE.m
+sed -i \"180s/.*/        coarseGridVectorX = $NCX;/\" ./ROM_SPDE.m
+sed -i \"181s/.*/        coarseGridVectorY = $NCY;/\" ./ROM_SPDE.m
 
 
 #Run Matlab
@@ -85,6 +85,6 @@ sed -i \"153s/.*/        coarseGridVectorY = $NCY;/\" ./ROM_SPDE.m
 
 chmod +x job_file.sh
 #directly submit job file
-qsub job_file.sh
-#./job_file.sh	#to test in shell
+#qsub job_file.sh
+./job_file.sh	#to test in shell
 
