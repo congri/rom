@@ -121,6 +121,8 @@ classdef ROM_SPDE
         predVarArray
         meanPredMeanOutput                %mean predicted mean of output field
         %mean squared distance of predicted mean to true solution
+        squaredDistance
+        normError
         meanSquaredDistance
         meanSquaredDistanceField
         meanSquaredDistanceError          %Monte Carlo error
@@ -1450,7 +1452,7 @@ classdef ROM_SPDE
             %             t_c = obj.theta_c;
             natNodes = true(obj.fineScaleDomain.nNodes, 1);
             natNodes(obj.fineScaleDomain.essentialNodes) = false;
-            nNatNodes = sum(natNodes)
+            nNatNodes = sum(natNodes);
             addpath('./heatFEM');
             parfor j = 1:nTest
                 if bcVar
@@ -1495,6 +1497,9 @@ classdef ROM_SPDE
             obj.meanMahalanobisError = mean(cell2mat(meanMahaErrTemp));
             obj.meanSquaredDistanceField = mean(cell2mat(sqDist), 2);
             obj.meanSquaredDistance = mean(cell2mat(meanSqDistTemp));
+            obj.squaredDistance = meanSqDistTemp;
+            norm_data = sqrt(sum(Tf.^2));
+            obj.normError = cell2mat(meanSqDistTemp)./norm_data;
             meanSqDistSq = mean(cell2mat(meanSqDistTemp).^2);
             obj.meanSquaredDistanceError = sqrt((meanSqDistSq - obj.meanSquaredDistance^2)/nTest);
             obj.meanLogLikelihood = mean(cell2mat(logLikelihood))/nNatNodes;

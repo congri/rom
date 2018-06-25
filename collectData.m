@@ -4,7 +4,7 @@ if ~exist('./data/', 'dir')
     mkdir('./data/');
 end
 %Remove old data in first step, if there exists some
-if(romObj.EM_iterations == 1)
+if(rom.EM_iterations == 1)
     delete('./data/MCMCstepWidth', './data/sigma', './data/S', './data/mu',...
         './data/theta', './data/Wmat', './data/w', './data/E', './data/neighborDictionary', './noPriorSigma.mat')
 %     rmdir('./data', 's')
@@ -36,7 +36,7 @@ end
 saveW = true;
 if saveW
     filename = './data/Wmat';
-    [rowW, colW, valW] = find(romObj.theta_cf.W);
+    [rowW, colW, valW] = find(rom.theta_cf.W);
     WArray = [rowW, colW, valW]';
     onlyFinal = true;
     if onlyFinal
@@ -49,20 +49,20 @@ end
 
 %lambda
 filename = './data/thetaPriorHyperparam';
-thetaPriorHyperparam = romObj.thetaPriorHyperparam';
+thetaPriorHyperparam = rom.thetaPriorHyperparam';
 save(filename, 'thetaPriorHyperparam', '-ascii', '-append');
 
 %theta
 filename = './data/theta';
-theta = romObj.theta_c.theta';
+theta = rom.theta_c.theta';
 save(filename, 'theta', '-ascii', '-append');
 
 %sigma
 filename = './data/sigma';
-if romObj.theta_c.full_Sigma
-    sigma = romObj.theta_c.Sigma(:)';
+if rom.theta_c.full_Sigma
+    sigma = rom.theta_c.Sigma(:)';
 else
-    sigma = full(diag(romObj.theta_c.Sigma))';
+    sigma = full(diag(rom.theta_c.Sigma))';
 end
 save(filename, 'sigma', '-ascii', '-append');
 
@@ -70,7 +70,7 @@ save(filename, 'sigma', '-ascii', '-append');
 saveS = true;
 if saveS
     filename = './data/S';
-    S = romObj.theta_cf.S';
+    S = rom.theta_cf.S';
     onlyFinal = true;
     if onlyFinal
         save(filename, 'S', '-ascii');
@@ -82,7 +82,7 @@ end
 %mu
 saveMu = true;
 if saveMu
-    mu = romObj.theta_cf.mu';
+    mu = rom.theta_cf.mu';
     filename = './data/mu';
     onlyFinal = true;
     if onlyFinal
@@ -96,7 +96,7 @@ end
 %neighbor dictionary
 saveNeighborDictionary = true;
 if saveNeighborDictionary
-    nbdict = romObj.neighborDictionary;
+    nbdict = rom.neighborDictionary;
     filename = './data/neighborDictionary';
     save(filename, 'nbdict', '-ascii');
     clear nbdict;
