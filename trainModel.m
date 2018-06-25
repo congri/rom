@@ -36,7 +36,7 @@ ppool = parPoolInit(rom.nTrain);
 pend = 0;       %for sequential qi-updates
 
 %Compute design matrices
-rom = rom.computeDesignMatrix('train', false);
+rom.computeDesignMatrix('train', false);
 if(size(rom.designMatrix{1}, 2) ~= size(rom.theta_c.theta))
     warning('Wrong dimension of theta_c. Setting it to 0 with correct dimension.')
     rom.theta_c.theta = zeros(size(rom.designMatrix{1}, 2), 1);
@@ -277,12 +277,12 @@ while true
 
     %M-step: determine optimal parameters given the sample set
     tic
-    rom = rom.M_step;
+    rom.M_step;
     M_step_time = toc
     rom.dispCurrentParams;
     iterations = rom.EM_iterations
     epochs = rom.epoch
-    rom = rom.linearFilterUpdate;
+    rom.linearFilterUpdate;
     
     plotTheta = feature('ShowFigureWindows');
     if plotTheta
@@ -290,7 +290,7 @@ while true
             figureTheta =...
                 figure('units','normalized','outerposition',[0 0 .5 1]);
         end
-        rom = rom.plotTheta(figureTheta);
+        rom.plotTheta(figureTheta);
     end
     
     if(~rom.conductivityTransformation.anisotropy)
@@ -319,7 +319,7 @@ clear tempArray;
 runtime = toc
 
 
-rom = rom.predict;
+rom.predict;
 
 predMetrics.meanSqDist = rom.meanSquaredDistance;
 predMetrics.squaredDistance = rom.squaredDistance;

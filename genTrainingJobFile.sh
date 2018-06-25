@@ -3,7 +3,7 @@ LENGTHSCALEDIST=delta	#'lognormal' or'delta'
 COVARIANCE=squaredExponential
 CORRLENGTH1=0.01		#lognormal mu
 CORRLENGTH2=0.01		#lognormal sigma
-NTRAIN=32
+NTRAIN=64
 NSTART=rand
 VOLFRAC=-1	#Theoretical volume fraction; -1 for uniform random volume fraction
 LOCOND=1
@@ -11,8 +11,8 @@ HICOND=2
 PRIORTYPE=RVM
 HYPERPARAM1=[]	#prior hyperparameter
 HYPERPARAM2=[]
-NCX=\[.5\ .5\]
-NCY=\[.5\ .5\]
+NCX=\[.25\ .25\ .25\ .25\]
+NCY=\[.25\ .25\ .25\ .25\]
 BC="[0 800 1200 -2000]"
 BC2=\[0\ 800\ 1200\ -2000\]
 
@@ -85,6 +85,6 @@ sed -i \"181s/.*/        coarseGridVectorY = $NCY;/\" ./ROM_SPDE.m
 
 chmod +x job_file.sh
 #directly submit job file
-#qsub job_file.sh
-./job_file.sh	#to test in shell
+qsub job_file.sh
+#./job_file.sh	#to test in shell
 
