@@ -78,7 +78,8 @@ while true
             nY = rom.coarseMesh.nElY;
             bc = rom.trainingDataMatfile.bc;
             j = rom.trainingSamples(i);
-            bcT = @(x) bc{j}(1) + bc{j}(2)*x(1) + bc{j}(3)*x(2) + bc{j}(4)*x(1)*x(2);
+            bcT = @(x)...
+                bc{j}(1) + bc{j}(2)*x(1) + bc{j}(3)*x(2) + bc{j}(4)*x(1)*x(2);
             bcQ{1} = @(x) -(bc{j}(3) + bc{j}(4)*x);      %lower bound
             bcQ{2} = @(y) (bc{j}(2) + bc{j}(4)*y);       %right bound
             bcQ{3} = @(x) (bc{j}(3) + bc{j}(4)*x);       %upper bound
@@ -86,11 +87,13 @@ while true
             cd(i) = rom.coarseMesh;
             cd(i) = cd(i).setBoundaries([2:(2*nX + 2*nY)], bcT, bcQ);
             cd_i = cd(i);
-            log_qi{i} = @(Xi) log_q_i(Xi, Tf_i_minus_mu, tcf, tc, PhiMat, cd_i, ct);
+            log_qi{i} = @(Xi)...
+                log_q_i(Xi, Tf_i_minus_mu, tcf, tc, PhiMat, cd_i, ct);
         else
             %Every coarse model has the same boundary conditions
             cd = rom.coarseMesh;
-            log_qi{i} = @(Xi) log_q_i(Xi, Tf_i_minus_mu, tcf, tc, PhiMat, cd, ct);
+            log_qi{i} = @(Xi)...
+                log_q_i(Xi, Tf_i_minus_mu, tcf, tc, PhiMat, cd, ct);
         end
         
         
@@ -117,22 +120,28 @@ while true
         disp('test sampling...')
         parfor i = 1:rom.nTrain
             %find maximum of qi for thermalization
-            %start value has some randomness to drive transitions between local optima
+            %start value has some randomness to drive transitions
+            %between local optima
             X_start{i} = normrnd(MCMC(i).Xi_start, .01);
             Xmax{i} = max_qi(log_qi{i}, X_start{i});
             
             %sample from every q_i
             outStepWidth(i) = MCMCsampler(log_qi{i}, Xmax{i}, MCMCstepWidth(i));
-            while (outStepWidth(i).acceptance < .5 || outStepWidth(i).acceptance > .9)
-                outStepWidth(i) = MCMCsampler(log_qi{i}, Xmax{i}, MCMCstepWidth(i));
+            while (outStepWidth(i).acceptance < .5 ||...
+                    outStepWidth(i).acceptance > .9)
+                outStepWidth(i) =...
+                    MCMCsampler(log_qi{i}, Xmax{i}, MCMCstepWidth(i));
                 MCMCstepWidth(i).Xi_start = outStepWidth(i).samples(:, end);
                 if strcmp(MCMCstepWidth(i).method, 'MALA')
-                    MCMCstepWidth(i).MALA.stepWidth = (1/.7)*(outStepWidth(i).acceptance +...
+                    MCMCstepWidth(i).MALA.stepWidth = ...
+                        (1/.7)*(outStepWidth(i).acceptance +...
                         (1 - outStepWidth(i).acceptance)*.1)*...
                         MCMCstepWidth(i).MALA.stepWidth;
                 elseif strcmp(MCMCstepWidth(i).method, 'randomWalk')
-                    MCMCstepWidth(i).randomWalk.proposalCov = (1/.7)*(outStepWidth(i).acceptance +...
-                        (1 - outStepWidth(i).acceptance)*.1)*MCMCstepWidth(i).randomWalk.proposalCov;
+                    MCMCstepWidth(i).randomWalk.proposalCov =...
+                        (1/.7)*(outStepWidth(i).acceptance +...
+                        (1 - outStepWidth(i).acceptance)*.1)...
+                        *MCMCstepWidth(i).randomWalk.proposalCov;
                 else
                     error('Unknown MCMC method')
                 end
@@ -141,7 +150,8 @@ while true
             if strcmp(MCMCstepWidth(i).method, 'MALA')
                 MCMC(i).MALA.stepWidth = MCMCstepWidth(i).MALA.stepWidth;
             elseif strcmp(MCMCstepWidth(i).method, 'randomWalk')
-                MCMC(i).randomWalk.proposalCov = MCMCstepWidth(i).randomWalk.proposalCov;
+                MCMC(i).randomWalk.proposalCov =...
+                    MCMCstepWidth(i).randomWalk.proposalCov;
             else
                 error('Unknown MCMC method')
             end
@@ -164,14 +174,17 @@ while true
             %avoid very low acceptances
             while out(i).acceptance < .1
                 out(i) = MCMCsampler(log_qi{i}, Xmax{i}, MCMC(i));
-                %if there is a second loop iteration, take last sample as initial position
+                %if there is a second loop iteration, 
+                %take last sample as initial position
                 MCMC(i).Xi_start = out(i).samples(:,end);
                 if strcmp(MCMC(i).method, 'MALA')
                     MCMC(i).MALA.stepWidth = (1/.9)*(out(i).acceptance +...
                         (1 - out(i).acceptance)*.1)*MCMC(i).MALA.stepWidth;
                 elseif strcmp(MCMC(i).method, 'randomWalk')
-                    MCMC(i).randomWalk.proposalCov = .2*MCMC(i).randomWalk.proposalCov;
-                    MCMC(i).randomWalk.proposalCov = (1/.7)*(out(i).acceptance + (1 -...
+                    MCMC(i).randomWalk.proposalCov =...
+                        .2*MCMC(i).randomWalk.proposalCov;
+                    MCMC(i).randomWalk.proposalCov =...
+                        (1/.7)*(out(i).acceptance + (1 -...
                         out(i).acceptance)*.1)*MCMC(i).randomWalk.proposalCov;
                 else
                     error('Unknown MCMC method')
@@ -181,20 +194,24 @@ while true
             
             %Refine step width
             if strcmp(MCMC(i).method, 'MALA')
-                MCMC(i).MALA.stepWidth = (1/.7)*out(i).acceptance*MCMC(i).MALA.stepWidth;
+                MCMC(i).MALA.stepWidth =...
+                    (1/.7)*out(i).acceptance*MCMC(i).MALA.stepWidth;
             elseif strcmp(MCMC(i).method, 'randomWalk')
-                MCMC(i).randomWalk.proposalCov = (1/.7)*out(i).acceptance*MCMC(i).randomWalk.proposalCov;
+                MCMC(i).randomWalk.proposalCov = ...
+                    (1/.7)*out(i).acceptance*MCMC(i).randomWalk.proposalCov;
             else
             end
             
             rom.XMean(:, i) = mean(out(i).samples, 2);
             
             %for S
-            %Tc_samples(:,:,i) contains coarse nodal temperature samples (1 sample == 1 column) for full order data
+            %Tc_samples(:,:,i) contains coarse nodal temperature samples
+            %(1 sample == 1 column) for full order data
             %sample i
-            Tc_samples(:, :, i) = reshape(cell2mat(out(i).data), rom.coarseMesh.nNodes, MCMC(i).nSamples);
+            Tc_samples(:, :, i) = reshape(cell2mat(out(i).data),...
+                rom.coarseMesh.nNodes, MCMC(i).nSamples);
             %only valid for diagonal S here!
-            tempArray(:, i) = mean((repmat(Tf_i_minus_mu, 1, MCMC(i).nSamples)...
+            tempArray(:, i)= mean((repmat(Tf_i_minus_mu, 1, MCMC(i).nSamples)...
                 - rom.theta_cf.W*Tc_samples(:, :, i)).^2, 2);
             
         end
@@ -227,7 +244,8 @@ while true
         tic
         ticBytes(gcp)
         parfor i = pstart:pend
-            [varDistParams{i}, varDistParamsVec{i}] = efficientStochOpt(varDistParamsVec{i},...
+            [varDistParams{i}, varDistParamsVec{i}] =...
+                efficientStochOpt(varDistParamsVec{i},...
                 log_qi{i}, variationalDist, sw, dim);
         end
         tocBytes(gcp)
@@ -240,26 +258,31 @@ while true
             
             Tf_i_minus_mu = rom.fineScaleDataOutput(:, i) - rom.theta_cf.mu;
             if(any(rom.boundaryConditionVariance))
-                p_cf_expHandle{i} = @(X) sqMisfit(X, rom.conductivityTransformation,...
+                p_cf_expHandle{i} = @(X) sqMisfit(X,...
+                    rom.conductivityTransformation,...
                     cd(i), Tf_i_minus_mu, rom.theta_cf);
             else
-                p_cf_expHandle{i} = @(X) sqMisfit(X, rom.conductivityTransformation,...
+                p_cf_expHandle{i} = @(X) sqMisfit(X,...
+                    rom.conductivityTransformation,...
                     cd, Tf_i_minus_mu, rom.theta_cf);
             end
             %Expectations under variational distributions
             if rom.free_W
-                [p_cf_exp, Tc_i, TcTcT_i] = mcInference(p_cf_expHandle{i}, variationalDist, varDistParams{i});
+                [p_cf_exp, Tc_i, TcTcT_i] = mcInference(p_cf_expHandle{i},...
+                    variationalDist, varDistParams{i});
                 Tc(:, i) = Tc_i;
                 TcTcT(:, :, i) = TcTcT_i;
             else
-                p_cf_exp = mcInference(p_cf_expHandle{i}, variationalDist, varDistParams{i});
+                p_cf_exp = mcInference(...
+                    p_cf_expHandle{i}, variationalDist, varDistParams{i});
             end
             tempArray(:, i) = p_cf_exp;
         end
         if rom.free_W
             rom.mean_TfTcT = 0;
             for i = 1:rom.nTrain
-                rom.mean_TfTcT = (1/i)*((i - 1)*rom.mean_TfTcT + rom.fineScaleDataOutput(:, i)*Tc(:, i)');
+                rom.mean_TfTcT = (1/i)*((i - 1)*rom.mean_TfTcT +...
+                    rom.fineScaleDataOutput(:, i)*Tc(:, i)');
             end
             rom.mean_TcTcT = mean(TcTcT, 3);
         end
@@ -291,7 +314,8 @@ while true
     
     if(~rom.conductivityTransformation.anisotropy)
         nFeatures = size(rom.designMatrix{1}, 2);
-        Lambda_eff1_mode = conductivityBackTransform(rom.designMatrix{1}(1:rom.coarseMesh.nEl, 1:nFeatures)...
+        Lambda_eff1_mode = conductivityBackTransform(...
+            rom.designMatrix{1}(1:rom.coarseMesh.nEl, 1:nFeatures)...
             *rom.theta_c.theta(1:nFeatures), rom.conductivityTransformation)
     end
     
