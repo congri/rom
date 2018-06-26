@@ -24,8 +24,8 @@ classdef ROM_SPDE < handle
         %matfile handle
         trainingDataMatfile
         testDataMatfile
-        %Finescale Domain object
-        fineScaleDomain
+        %Finescale Mesh object
+        fineMesh
         %Array holding fine scale data output; possibly large
         fineScaleDataOutput
         %number of samples per generated matfile
@@ -176,7 +176,7 @@ classdef ROM_SPDE < handle
         boundaryConditionVariance = [0 0 0 0]
         
         %% Coarse model specifications
-        coarseScaleDomain
+        coarseMesh
         coarseGridVectorX = (1/2)*ones(1, 2)
         coarseGridVectorY = (1/2)*ones(1, 2)
         
@@ -207,16 +207,16 @@ classdef ROM_SPDE < handle
             self.genBoundaryConditionFunctions;
             self.naturalNodes = [2:(2*self.nElFX + 2*self.nElFY)];
             
-            %Set up coarseScaleDomain; must be done after b.c.'s are set up
-            self.genCoarseDomain;
+            %Set up coarseMesh; must be done after b.c.'s are set up
+            self.genCoarseMesh;
             
             %prealloc
             if self.useConvection
-                self.XMean = zeros(3*self.coarseScaleDomain.nEl, self.nTrain);
-                self.XSqMean = ones(3*self.coarseScaleDomain.nEl, self.nTrain);
+                self.XMean = zeros(3*self.coarseMesh.nEl, self.nTrain);
+                self.XSqMean = ones(3*self.coarseMesh.nEl, self.nTrain);
             else
-                self.XMean = zeros(self.coarseScaleDomain.nEl, self.nTrain);
-                self.XSqMean = ones(self.coarseScaleDomain.nEl, self.nTrain);
+                self.XMean = zeros(self.coarseMesh.nEl, self.nTrain);
+                self.XSqMean = ones(self.coarseMesh.nEl, self.nTrain);
             end
             %Set up default value for test samples
 %             obj.testSamples = 1:obj.nSets(2);
@@ -247,7 +247,7 @@ classdef ROM_SPDE < handle
                 %obj = obj.setFeatureFunctions;
                 %Prealloc
                 self.varExpect_p_cf_exp_mean =...
-                    zeros(self.fineScaleDomain.nNodes, 1);
+                    zeros(self.fineMesh.nNodes, 1);
             end
             
             %Check
@@ -280,10 +280,10 @@ classdef ROM_SPDE < handle
             tic
             disp('Generate finescale domain...')
             addpath('./heatFEM')    %to find Domain class
-            self.fineScaleDomain = Domain(self.nElFX, self.nElFY);
-            self.fineScaleDomain.useConvection = self.useConvectionData;
+            self.fineMesh = Domain(self.nElFX, self.nElFY);
+            self.fineMesh.useConvection = self.useConvectionData;
             %Only fix lower left corner as essential node
-            self.fineScaleDomain = setBoundaries(self.fineScaleDomain,...
+            self.fineMesh = setBoundaries(self.fineMesh,...
                 self.naturalNodes, self.boundaryTemperature,...
                 self.boundaryHeatFlux);
             disp('done')
@@ -301,9 +301,9 @@ classdef ROM_SPDE < handle
             end
             
             %save params
-            fineScaleDomain = self.fineScaleDomain;
-            save(strcat(self.fineScaleDataPath, 'fineScaleDomain.mat'),...
-                'fineScaleDomain');
+            fineMesh = self.fineMesh;
+            save(strcat(self.fineScaleDataPath, 'fineMesh.mat'),...
+                'fineMesh');
             disp('done')
         end
         
@@ -330,32 +330,32 @@ classdef ROM_SPDE < handle
             tic
             if strcmp(self.conductivityDistribution, 'uniform')
                 %conductivity uniformly distributed between lo and up
-                cond{1} = zeros(self.fineScaleDomain.nEl, 1);
+                cond{1} = zeros(self.fineMesh.nEl, 1);
                 cond = repmat(cond, 1, self.nSets(nSet));
                 for i = 1:self.nSets(nSet)
                     cond{i} = (self.upperConductivity -...
                         self.lowerConductivity)*...
-                        rand(self.fineScaleDomain.nEl, 1) +...
+                        rand(self.fineMesh.nEl, 1) +...
                         self.lowerConductivity;
                 end
             elseif strcmp(self.conductivityDistribution, 'gaussian')
                 %log conductivity gaussian distributed
                 x = normrnd(self.conductivityDistributionParams{1},...
                     self.conductivityDistributionParams{2},...
-                    self.fineScaleDomain.nEl, self.nSets(nSet));
-                cond{1} = zeros(self.fineScaleDomain.nEl, 1);
+                    self.fineMesh.nEl, self.nSets(nSet));
+                cond{1} = zeros(self.fineMesh.nEl, 1);
                 cond = repmat(cond, 1, self.nSets(nSet));
                 for i = 1:self.nSets(nSet)
                     cond{i} = exp(x(:, i));
                 end
             elseif strcmp(self.conductivityDistribution, 'binary')
                 %binary distribution of conductivity (Bernoulli)
-                cond{1} = zeros(self.fineScaleDomain.nEl, 1);
+                cond{1} = zeros(self.fineMesh.nEl, 1);
                 cond = repmat(cond, 1, self.nSets(nSet));
                 for i = 1:self.nSets(nSet)
-                    r = rand(self.fineScaleDomain.nEl, 1);
+                    r = rand(self.fineMesh.nEl, 1);
                     cond{i} = self.lowerConductivity*...
-                        ones(self.fineScaleDomain.nEl, 1);
+                        ones(self.fineMesh.nEl, 1);
                     cond{i}(r < self.conductivityDistributionParams{1}) =...
                         self.upperConductivity;
                 end
@@ -366,10 +366,10 @@ classdef ROM_SPDE < handle
                  || strcmp(self.conductivityDistribution, 'matern'))
                 %ATTENTION: only isotrop. distributions (length scales) possible
                 %Compute coordinates of element centers
-                x = .5*(self.fineScaleDomain.cum_lElX(1:(end - 1)) +...
-                    self.fineScaleDomain.cum_lElX(2:end));
-                y = .5*(self.fineScaleDomain.cum_lElY(1:(end - 1)) +...
-                    self.fineScaleDomain.cum_lElY(2:end));
+                x = .5*(self.fineMesh.cum_lElX(1:(end - 1)) +...
+                    self.fineMesh.cum_lElX(2:end));
+                y = .5*(self.fineMesh.cum_lElY(1:(end - 1)) +...
+                    self.fineMesh.cum_lElY(2:end));
                 [X, Y] = meshgrid(x, y);
                 %directly clear potentially large arrays
                 clear y;
@@ -380,7 +380,7 @@ classdef ROM_SPDE < handle
                 parPoolInit(self.nSets(nSet));
                 %Store conductivity fields in cell array to avoid 
                 %broadcasting the whole data
-                cond{1} = zeros(self.fineScaleDomain.nEl, 1);
+                cond{1} = zeros(self.fineMesh.nEl, 1);
                 cond = repmat(cond, 1, self.nSets(nSet));
                 
                 addpath('./genConductivity')        %to find genBochnerSamples
@@ -403,7 +403,7 @@ classdef ROM_SPDE < handle
                         self.conductivityDistributionParams{3},...
                         nBochnerBasis, self.conductivityDistribution);
                 end
-                nEl = self.fineScaleDomain.nEl;
+                nEl = self.fineMesh.nEl;
                 upCond = self.upperConductivity;
                 loCond = self.lowerConductivity;
                 %set volume fraction parameter < 0 to have
@@ -459,11 +459,11 @@ classdef ROM_SPDE < handle
             %Solve finite element model
             disp('Solving finescale problem...')
             tic
-            Tf = zeros(self.fineScaleDomain.nNodes, self.nSets(nSet));
-            D{1} = zeros(2, 2, self.fineScaleDomain.nEl);
+            Tf = zeros(self.fineMesh.nNodes, self.nSets(nSet));
+            D{1} = zeros(2, 2, self.fineMesh.nEl);
             D = repmat(D, self.nSets(nSet), 1);
             %To avoid broadcasting overhead
-            domain = self.fineScaleDomain;
+            domain = self.fineMesh;
             useConv = self.useConvectionData;
             bcMean = str2num(self.boundaryConditions);
             bcVariance = self.boundaryConditionVariance;
@@ -479,10 +479,10 @@ classdef ROM_SPDE < handle
             parPoolInit(self.nSets(nSet));
             if useConv
                 %Compute coordinates of element centers
-                x = .5*(self.fineScaleDomain.cum_lElX(1:(end - 1)) +...
-                    self.fineScaleDomain.cum_lElX(2:end));
-                y = .5*(self.fineScaleDomain.cum_lElY(1:(end - 1)) +...
-                    self.fineScaleDomain.cum_lElY(2:end));
+                x = .5*(self.fineMesh.cum_lElX(1:(end - 1)) +...
+                    self.fineMesh.cum_lElX(2:end));
+                y = .5*(self.fineMesh.cum_lElY(1:(end - 1)) +...
+                    self.fineMesh.cum_lElY(2:end));
                 [X, Y] = meshgrid(x, y);
                 %directly clear potentially large arrays
                 clear y;
@@ -491,7 +491,7 @@ classdef ROM_SPDE < handle
             else
                 x = []; %unneeded?
             end
-            nElf = self.fineScaleDomain.nEl;
+            nElf = self.fineMesh.nEl;
             adp = self.advectionDistributionParams;
             addpath('./rom');
             ticBytes(gcp)
@@ -653,11 +653,12 @@ classdef ROM_SPDE < handle
         function loadTrainingData(self)
             %load data params; warning for variable FD can be ignored
             try
-                load(strcat(self.fineScaleDataPath, 'fineScaleDomain.mat'));
-                self.fineScaleDomain = fineScaleDomain;
+                load(strcat(self.fineScaleDataPath, 'fineMesh.mat'));
+                self.fineMesh = fineMesh;
             catch
-                temp = load(strcat(self.fineScaleDataPath, 'romObj.mat'));
-                self.fineScaleDomain = temp.obj.fineScaleDomain;
+                load(strcat(self.fineScaleDataPath,...
+                    'fineScaleDomain.mat'));
+                self.fineMesh = fineScaleDomain;
             end
             %for finescale domain class
             addpath('./heatFEM')
@@ -668,12 +669,12 @@ classdef ROM_SPDE < handle
             end
             
             %there is no cum_lEl (cumulated finite element length) in old files
-            if(~numel(self.fineScaleDomain.cum_lElX) ||...
-                    ~numel(self.fineScaleDomain.cum_lElX))
-                self.fineScaleDomain.cum_lElX =...
-                    linspace(0, 1, self.fineScaleDomain.nElX + 1);
-                self.fineScaleDomain.cum_lElY =...
-                    linspace(0, 1, self.fineScaleDomain.nElY + 1);
+            if(~numel(self.fineMesh.cum_lElX) ||...
+                    ~numel(self.fineMesh.cum_lElX))
+                self.fineMesh.cum_lElX =...
+                    linspace(0, 1, self.fineMesh.nElX + 1);
+                self.fineMesh.cum_lElY =...
+                    linspace(0, 1, self.fineMesh.nElY + 1);
             end
             
             %load finescale temperatures partially
@@ -681,28 +682,28 @@ classdef ROM_SPDE < handle
                 self.nStart:(self.nStart + self.nTrain - 1));
         end
         
-        function genCoarseDomain(self)
+        function genCoarseMesh(self)
             %Generate coarse domain object
             nX = length(self.coarseGridVectorX);
             nY = length(self.coarseGridVectorY);
             addpath('./heatFEM')        %to find Domain class
-            self.coarseScaleDomain =...
+            self.coarseMesh =...
                 Domain(nX, nY, self.coarseGridVectorX, self.coarseGridVectorY);
-            self.coarseScaleDomain.useConvection = self.useConvection;
+            self.coarseMesh.useConvection = self.useConvection;
             %ATTENTION: natural nodes have to be set manually
             %and consistently in coarse and fine scale domain!!
-            self.coarseScaleDomain.compute_grad = true;
-            self.coarseScaleDomain =...
-                setBoundaries(self.coarseScaleDomain, [2:(2*nX + 2*nY)],...
+            self.coarseMesh.compute_grad = true;
+            self.coarseMesh =...
+                setBoundaries(self.coarseMesh, [2:(2*nX + 2*nY)],...
                 self.boundaryTemperature, self.boundaryHeatFlux);
             
             %Legacy, for predictions
             if ~exist('./data/', 'dir')
                 mkdir('./data/');
             end
-            filename = './data/coarseScaleDomain.mat';
-            coarseScaleDomain = self.coarseScaleDomain;
-            save(filename, 'coarseScaleDomain');
+            filename = './data/coarseMesh.mat';
+            coarseMesh = self.coarseMesh;
+            save(filename, 'coarseMesh');
         end
         
         function estimateDataVariance(self)
@@ -736,9 +737,9 @@ classdef ROM_SPDE < handle
             toc
             
             %Mean log likelihood
-            Tf_true_var(self.fineScaleDomain.essentialNodes) = NaN;
-            nNatNodes = self.fineScaleDomain.nNodes -...
-                numel(self.fineScaleDomain.essentialNodes);
+            Tf_true_var(self.fineMesh.essentialNodes) = NaN;
+            nNatNodes = self.fineMesh.nNodes -...
+                numel(self.fineMesh.essentialNodes);
             Lm = -.5*log(2*pi) - .5 - .5*(1/nNatNodes)*...
                 sum(log(Tf_true_var), 'omitnan');
             sv = true;
@@ -756,8 +757,8 @@ classdef ROM_SPDE < handle
         
         function [meanLogLikelihood, err]= estimateLogL(self, nTrainingData, Tf)
             
-            natNodes = true(self.fineScaleDomain.nNodes, 1);
-            natNodes(self.fineScaleDomain.essentialNodes) = false;
+            natNodes = true(self.fineMesh.nNodes, 1);
+            natNodes(self.fineMesh.essentialNodes) = false;
             nNatNodes = sum(natNodes);
             Tf = Tf(natNodes, :);
             meanLogLikelihood = 0;
@@ -805,21 +806,21 @@ classdef ROM_SPDE < handle
             theta_cfOptim.S = 1;
             theta_cfOptim.sumLogS = 0;
             theta_cfOptim.Sinv = 1;
-            theta_cfOptim.Sinv_vec = ones(self.fineScaleDomain.nNodes, 1);
+            theta_cfOptim.Sinv_vec = ones(self.fineMesh.nNodes, 1);
             theta_cfOptim.W = self.theta_cf.W;
             theta_cfOptim.WTSinv = self.theta_cf.WTSinv;
             
             options = optimoptions(@fminunc,'Display','iter',...
                 'Algorithm', 'trust-region', 'SpecifyObjectiveGradient', true);
-            Xinit = 0*ones(self.coarseScaleDomain.nEl, 1);
-            Xopt = zeros(self.coarseScaleDomain.nEl, nTrain);
+            Xinit = 0*ones(self.coarseMesh.nEl, 1);
+            Xopt = zeros(self.coarseMesh.nEl, nTrain);
             LambdaOpt = Xopt;
             s2 = zeros(1, nTrain);
             j = 1;
             addpath('./tests/detOptP_cf')
             for i = nStart:(nStart + nTrain -1)
                 Tf = self.trainingDataMatfile.Tf(:, i);
-                objFun = @(X) objective(X, Tf, self.coarseScaleDomain,...
+                objFun = @(X) objective(X, Tf, self.coarseMesh,...
                     self.conductivityTransformation, theta_cfOptim);
                 [XoptTemp, fvalTemp] = fminunc(objFun, Xinit, options);
                 LambdaOptTemp = conductivityBackTransform(XoptTemp,...
@@ -829,7 +830,7 @@ classdef ROM_SPDE < handle
                 
                 %s2 is the squared distance of truth to optimal 
                 %coarse averaged over all nodes
-                s2(j) = fvalTemp/self.fineScaleDomain.nNodes
+                s2(j) = fvalTemp/self.fineMesh.nNodes
                 j = j + 1;
             end
         end
@@ -838,9 +839,9 @@ classdef ROM_SPDE < handle
             %Load trained model parameters from disk to workspace
             
             
-            if exist(strcat('./data/coarseScaleDomain.mat'), 'file')
-                load(strcat('./data/coarseScaleDomain.mat'));
-                self.coarseScaleDomain = coarseScaleDomain;
+            if exist(strcat('./data/coarseMesh.mat'), 'file')
+                load(strcat('./data/coarseMesh.mat'));
+                self.coarseMesh = coarseMesh;
             else
                 warning(strcat('No coarse domain file found.',...
                     'Take b.c.s from finescale data and regenerate.',...
@@ -854,7 +855,7 @@ classdef ROM_SPDE < handle
             self.theta_c.theta = dlmread('./data/theta');
             self.theta_c.theta = self.theta_c.theta(end, :)';
             self.theta_c.Sigma = dlmread('./data/sigma');
-            if(numel(self.theta_c.Sigma) == self.coarseScaleDomain.nEl)
+            if(numel(self.theta_c.Sigma) == self.coarseMesh.nEl)
                 self.theta_c.Sigma = diag(self.theta_c.Sigma(end, :));
             else
                 self.theta_c.Sigma = diag(self.theta_c.Sigma(end, :));
@@ -888,15 +889,15 @@ classdef ROM_SPDE < handle
             end
             disp('done')
             
-            if(isempty(self.coarseScaleDomain) || isempty(self.fineScaleDomain))
+            if(isempty(self.coarseMesh) || isempty(self.fineMesh))
                 disp('Loading fine and coarse domain objects...')
                 addpath('./heatFEM')        %to find Domain class
                 try
-                    load(strcat(self.fineScaleDataPath, 'fineScaleDomain.mat'));
-                    self.fineScaleDomain = fineScaleDomain;
+                    load(strcat(self.fineScaleDataPath, 'fineMesh.mat'));
+                    self.fineMesh = fineMesh;
                 catch
                     temp = load(strcat(self.fineScaleDataPath, 'romObj.mat'));
-                    self.fineScaleDomain = temp.obj.fineScaleDomain;
+                    self.fineMesh = temp.obj.fineMesh;
                 end
                 disp('done')
             end
@@ -908,29 +909,29 @@ classdef ROM_SPDE < handle
             lowerBoundS = eps;
             self.theta_cf.S = (1 - self.mix_S)*self.varExpect_p_cf_exp_mean...
                 + self.mix_S*self.theta_cf.S +...
-                lowerBoundS*ones(self.fineScaleDomain.nNodes, 1);
+                lowerBoundS*ones(self.fineMesh.nNodes, 1);
 
             if self.free_W
-                self.mean_TcTcT(self.coarseScaleDomain.essentialNodes, :) = [];
-                self.mean_TcTcT(:, self.coarseScaleDomain.essentialNodes) = [];
-                if isempty(self.fineScaleDomain.essentialNodes)
+                self.mean_TcTcT(self.coarseMesh.essentialNodes, :) = [];
+                self.mean_TcTcT(:, self.coarseMesh.essentialNodes) = [];
+                if isempty(self.fineMesh.essentialNodes)
                     warning(strcat('No essential nodes stored in', ...
-                    ' fineScaleDomain. Setting first node to be essential.'))
-                    self.fineScaleDomain.essentialNodes = 1;
+                    ' fineMesh. Setting first node to be essential.'))
+                    self.fineMesh.essentialNodes = 1;
                 end
-                self.mean_TfTcT(self.fineScaleDomain.essentialNodes, :) = [];
-                self.mean_TfTcT(:, self.coarseScaleDomain.essentialNodes) = [];
+                self.mean_TfTcT(self.fineMesh.essentialNodes, :) = [];
+                self.mean_TfTcT(:, self.coarseMesh.essentialNodes) = [];
                 W_temp = self.mean_TfTcT/self.mean_TcTcT;
                 
-                natNodesFine = 1:self.fineScaleDomain.nNodes;
-                natNodesFine(self.fineScaleDomain.essentialNodes) = [];
-                natNodesCoarse = 1:self.coarseScaleDomain.nNodes;
-                natNodesCoarse(self.coarseScaleDomain.essentialNodes) = [];
+                natNodesFine = 1:self.fineMesh.nNodes;
+                natNodesFine(self.fineMesh.essentialNodes) = [];
+                natNodesCoarse = 1:self.coarseMesh.nNodes;
+                natNodesCoarse(self.coarseMesh.essentialNodes) = [];
                 self.theta_cf.W(natNodesFine, natNodesCoarse) = W_temp;
             end
             
-            self.theta_cf.Sinv = sparse(1:self.fineScaleDomain.nNodes,...
-                1:self.fineScaleDomain.nNodes, 1./self.theta_cf.S);
+            self.theta_cf.Sinv = sparse(1:self.fineMesh.nNodes,...
+                1:self.fineMesh.nNodes, 1./self.theta_cf.S);
             self.theta_cf.Sinv_vec = 1./self.theta_cf.S;
             %Precomputation for efficiency
             self.theta_cf.WTSinv = self.theta_cf.W'*self.theta_cf.Sinv;
@@ -970,9 +971,9 @@ classdef ROM_SPDE < handle
             sumPhiTSigmaInvPhi = 0;
             sumPhiTSigmaInvPhiOriginal = 0;
             if self.useConvection
-                PhiThetaMat = zeros(3*self.coarseScaleDomain.nEl, self.nTrain);
+                PhiThetaMat = zeros(3*self.coarseMesh.nEl, self.nTrain);
             else
-                PhiThetaMat = zeros(self.coarseScaleDomain.nEl, self.nTrain);
+                PhiThetaMat = zeros(self.coarseMesh.nEl, self.nTrain);
             end
             
             for n = 1:self.nTrain
@@ -1000,7 +1001,7 @@ classdef ROM_SPDE < handle
                     end
 %                     lambda_start = [obj.thetaPriorHyperparam (1:100)']
 %                     obj.thetaPriorHyperparam = 1e4*ones(dim_theta, 1);
-					nElc = self.coarseScaleDomain.nEl;
+					nElc = self.coarseMesh.nEl;
 					nFeatures = dim_theta/nElc; %for shared RVM
                 end
                 while(~converged)
@@ -1128,10 +1129,10 @@ classdef ROM_SPDE < handle
                 
                 if self.useConvection
                     PhiThetaMat =...
-                        zeros(3*self.coarseScaleDomain.nEl, self.nTrain);
+                        zeros(3*self.coarseMesh.nEl, self.nTrain);
                 else
                     PhiThetaMat =...
-                        zeros(self.coarseScaleDomain.nEl, self.nTrain);
+                        zeros(self.coarseMesh.nEl, self.nTrain);
                 end
                 for n = 1:self.nTrain
                     PhiThetaMat(:, n) = self.designMatrix{n}*theta;
@@ -1143,8 +1144,8 @@ classdef ROM_SPDE < handle
                 end
                 if strcmp(sigma_prior_type, 'none')
                     if self.useConvection
-                        Sigma = sparse(1:3*self.coarseScaleDomain.nEl,...
-                            1:3*self.coarseScaleDomain.nEl,...
+                        Sigma = sparse(1:3*self.coarseMesh.nEl,...
+                            1:3*self.coarseMesh.nEl,...
                         mean(self.XSqMean - 2*(PhiThetaMat.*self.XMean) +...
                         PhiThetaMat.^2, 2));
                     else
@@ -1166,8 +1167,8 @@ classdef ROM_SPDE < handle
                                 (sumPhiThetaPhiTThetaT/self.nTrain) -...
                                 (sumPhiThetaXT + sumPhiThetaXT')/self.nTrain;
                         else
-                            Sigma = sparse(1:self.coarseScaleDomain.nEl,...
-                                1:self.coarseScaleDomain.nEl,...
+                            Sigma = sparse(1:self.coarseMesh.nEl,...
+                                1:self.coarseMesh.nEl,...
                                 mean(self.XSqMean -...
                                 2*(PhiThetaMat.*self.XMean)+PhiThetaMat.^2, 2));
                         end
@@ -1202,8 +1203,8 @@ classdef ROM_SPDE < handle
                         mean(self.XSqMean - 2*(PhiThetaMat.*self.XMean) +...
                         PhiThetaMat.^2, 2) + .25*self.nTrain^2));
                     
-                    Sigma = sparse(1:self.coarseScaleDomain.nEl,...
-                        1:self.coarseScaleDomain.nEl, sigmaSqVec);
+                    Sigma = sparse(1:self.coarseMesh.nEl,...
+                        1:self.coarseMesh.nEl, sigmaSqVec);
                     Sigma(Sigma < 0) = eps; %for numerical stability
                     sumPhiTSigmaInvXmean = 0;
                     %Only valid for diagonal Sigma
@@ -1312,7 +1313,7 @@ classdef ROM_SPDE < handle
                 end
                 %Recompute theta_c and sigma
                 self.theta_c = optTheta_c(self.theta_c, self.nTrain,...
-                    self.coarseScaleDomain.nEl, self.XSqMean, ...
+                    self.coarseMesh.nEl, self.XSqMean, ...
                     self.designMatrix, self.XMean, self.sigmaPriorType,...
                     self.sigmaPriorHyperparam);
             end
@@ -1325,14 +1326,14 @@ classdef ROM_SPDE < handle
             
             %p_cf
             %precision of variances s_n^2
-            lambda_log_s2 = .5*self.nTrain*ones(1, self.fineScaleDomain.nNodes);
+            lambda_log_s2 = .5*self.nTrain*ones(1, self.fineMesh.nNodes);
             
             %p_c
             %precision of variances sigma_k^2
             if self.useConvection
-                lambda_log_sigma2 = .5*ones(1, 3*self.coarseScaleDomain.nEl);
+                lambda_log_sigma2 = .5*ones(1, 3*self.coarseMesh.nEl);
             else
-                lambda_log_sigma2 = .5*ones(1, self.coarseScaleDomain.nEl);
+                lambda_log_sigma2 = .5*ones(1, self.coarseMesh.nEl);
             end
             
             %precision on the theta_c's
@@ -1384,7 +1385,7 @@ classdef ROM_SPDE < handle
                 %Predict on different boundary conditions
                 self.setBoundaryConditions(boundaryConditions);
                 
-                %Set up coarseScaleDomain;
+                %Set up coarseMesh;
                 %must be done after boundary conditions are set up
                 self.genCoarseDomain;
             end
@@ -1423,11 +1424,11 @@ classdef ROM_SPDE < handle
             end
             
             %short hand notation/ avoiding broadcast overhead
-            nElc = self.coarseScaleDomain.nEl;
+            nElc = self.coarseMesh.nEl;
             nSamples = self.nSamples_p_c;
             useConv = self.useConvection;
 %             bcVar = any(obj.boundaryConditionVariance);
-            nFineNodes = self.fineScaleDomain.nNodes;
+            nFineNodes = self.fineMesh.nNodes;
             
             if useConv
                 Xsamples = zeros(3*nElc, nSamples, nTest);
@@ -1494,15 +1495,15 @@ classdef ROM_SPDE < handle
             
             %% Run coarse model and sample from p_cf
             disp('Solving coarse model and sample from p_cf...')
-            TfMeanArray{1} = zeros(self.fineScaleDomain.nNodes, 1);
+            TfMeanArray{1} = zeros(self.fineMesh.nNodes, 1);
             TfMeanArray = repmat(TfMeanArray, nTest, 1);
             TfVarArray = TfMeanArray;
             Tf_sq_mean = TfMeanArray;
             
             if(bcVar)
                 %Set coarse domain for data with different boundary conditions
-                nX = self.coarseScaleDomain.nElX;
-                nY = self.coarseScaleDomain.nElY;
+                nX = self.coarseMesh.nElX;
+                nY = self.coarseMesh.nElY;
                 if strcmp(mode, 'self')
                     bc = self.trainingDataMatfile.bc;
                 else
@@ -1520,17 +1521,17 @@ classdef ROM_SPDE < handle
                     bcQ{2} = @(y) (bc{i}(2) + bc{i}(4)*y);       %right bound
                     bcQ{3} = @(x) (bc{i}(3) + bc{i}(4)*x);       %upper bound
                     bcQ{4} = @(y) -(bc{i}(2) + bc{i}(4)*y);      %left bound
-                    cd(i) = self.coarseScaleDomain;
+                    cd(i) = self.coarseMesh;
                     cd(i) = cd(i).setBoundaries([2:(2*nX + 2*nY)], bcT, bcQ);
                 end
             else
-                cd = self.coarseScaleDomain;
+                cd = self.coarseMesh;
             end
             t_cf = self.theta_cf;
             lapAp = self.useLaplaceApproximation;
             %             t_c = obj.theta_c;
-            natNodes = true(self.fineScaleDomain.nNodes, 1);
-            natNodes(self.fineScaleDomain.essentialNodes) = false;
+            natNodes = true(self.fineMesh.nNodes, 1);
+            natNodes(self.fineMesh.essentialNodes) = false;
             nNatNodes = sum(natNodes);
             addpath('./heatFEM');
             parfor j = 1:nTest
@@ -1641,7 +1642,7 @@ classdef ROM_SPDE < handle
                     ax = gca;
                     ax.FontSize = 30;
                     im(j) = imagesc(reshape(cond(:, i),...
-                        self.fineScaleDomain.nElX, self.fineScaleDomain.nElY));
+                        self.fineMesh.nElX, self.fineMesh.nElY));
                     xticks([0 64 128 192 256]);
                     yticks([0 64 128 192 256]);
 %                     zticks(100:100:800)
@@ -1672,7 +1673,7 @@ classdef ROM_SPDE < handle
                 %Predict on different boundary conditions
                 self.setBoundaryConditions(boundaryConditions);
                 
-                %Set up coarseScaleDomain;
+                %Set up coarseMesh;
                 %must be done after boundary conditions are set up
                 self.genCoarseDomain;
             end
@@ -1709,7 +1710,7 @@ classdef ROM_SPDE < handle
             end
             
             %short hand notation/ avoiding broadcast overhead
-            nElc = self.coarseScaleDomain.nEl;
+            nElc = self.coarseMesh.nEl;
             nSamplesLambda_c = self.nSamples_p_c;
             
             XsamplesTemp = zeros(nElc, nSamplesLambda_c);
@@ -1747,15 +1748,15 @@ classdef ROM_SPDE < handle
             
             %% Run coarse model and sample from p_cf
             disp('Solving coarse model and sample from p_cf...')
-            TfMean{1} = zeros(self.fineScaleDomain.nNodes, nTest);
+            TfMean{1} = zeros(self.fineMesh.nNodes, nTest);
             TfMean = repmat(TfMean, nSamplesTheta, 1);
             TfVar = TfMean;
             Tf_sq_mean = TfMean;
             
             if(bcVar)
                 %Set coarse domain for data with different boundary conditions
-                nX = self.coarseScaleDomain.nElX;
-                nY = self.coarseScaleDomain.nElY;
+                nX = self.coarseMesh.nElX;
+                nY = self.coarseMesh.nElY;
                 if strcmp(mode, 'self')
                     bc = self.trainingDataMatfile.bc;
                 else
@@ -1773,15 +1774,15 @@ classdef ROM_SPDE < handle
                     bcQ{2} = @(y) (bc{i}(2) + bc{i}(4)*y);       %right bound
                     bcQ{3} = @(x) (bc{i}(3) + bc{i}(4)*x);       %upper bound
                     bcQ{4} = @(y) -(bc{i}(2) + bc{i}(4)*y);      %left bound
-                    cd(n) = self.coarseScaleDomain;
+                    cd(n) = self.coarseMesh;
                     cd(n) = cd(n).setBoundaries([2:(2*nX + 2*nY)], bcT, bcQ);
                 end
             else
-                cd = self.coarseScaleDomain;
+                cd = self.coarseMesh;
             end
             t_cf = self.theta_cf;
-            natNodes = true(self.fineScaleDomain.nNodes, 1);
-            natNodes(self.fineScaleDomain.essentialNodes) = false;
+            natNodes = true(self.fineMesh.nNodes, 1);
+            natNodes(self.fineMesh.essentialNodes) = false;
             addpath('./heatFEM');
             parfor t = 1:nSamplesTheta
                 for n = 1:nTest
@@ -1827,24 +1828,24 @@ classdef ROM_SPDE < handle
         %% Design matrix functions
         function getCoarseElement(self)
             debug = false;
-            self.E = zeros(self.fineScaleDomain.nEl, 1);
+            self.E = zeros(self.fineMesh.nEl, 1);
             e = 1;  %element number
-            for row_fine = 1:self.fineScaleDomain.nElY
+            for row_fine = 1:self.fineMesh.nElY
                 %coordinate of lower boundary of fine element
-                y_coord = self.fineScaleDomain.cum_lElY(row_fine);
-                row_coarse = sum(y_coord >= self.coarseScaleDomain.cum_lElY);
-                for col_fine = 1:self.fineScaleDomain.nElX
+                y_coord = self.fineMesh.cum_lElY(row_fine);
+                row_coarse = sum(y_coord >= self.coarseMesh.cum_lElY);
+                for col_fine = 1:self.fineMesh.nElX
                     %coordinate of left boundary of fine element
-                    x_coord = self.fineScaleDomain.cum_lElX(col_fine);
-                    col_coarse= sum(x_coord >= self.coarseScaleDomain.cum_lElX);
+                    x_coord = self.fineMesh.cum_lElX(col_fine);
+                    col_coarse= sum(x_coord >= self.coarseMesh.cum_lElX);
                     self.E(e) = (row_coarse - 1)*...
-                        self.coarseScaleDomain.nElX + col_coarse;
+                        self.coarseMesh.nElX + col_coarse;
                     e = e + 1;
                 end
             end
             
-            self.E = reshape(self.E, self.fineScaleDomain.nElX,...
-                self.fineScaleDomain.nElY);
+            self.E = reshape(self.E, self.fineMesh.nElX,...
+                self.fineMesh.nElY);
             if debug
                 figure
                 imagesc(self.E)
@@ -1902,7 +1903,7 @@ classdef ROM_SPDE < handle
             EHold = self.E;  %this is for parfor efficiency
             
             %prealloc
-            lambdak = cell(nData, self.coarseScaleDomain.nEl);
+            lambdak = cell(nData, self.coarseMesh.nEl);
             if(nargout > 1)
                 xk = lambdak;
                 if(nargout > 2)
@@ -1916,21 +1917,21 @@ classdef ROM_SPDE < handle
                 %Get conductivity fields in coarse cell windows
                 %Might be wrong for non-square fine scale domains
                 conductivityMat = reshape(conductivity(:, s),...
-                    self.fineScaleDomain.nElX,...
-                    self.fineScaleDomain.nElY);
+                    self.fineMesh.nElX,...
+                    self.fineMesh.nElY);
                 if(nargout > 2)
                     if ~isempty(convectionField)
                         convectionFieldMatX =...
                             reshape(convectionField{s}(1, :),...
-                            self.fineScaleDomain.nElX,...
-                            self.fineScaleDomain.nElY);
+                            self.fineMesh.nElX,...
+                            self.fineMesh.nElY);
                         convectionFieldMatY =...
                             reshape(convectionField{s}(2, :),...
-                            self.fineScaleDomain.nElX,...
-                            self.fineScaleDomain.nElY);
+                            self.fineMesh.nElX,...
+                            self.fineMesh.nElY);
                     end
                 end
-                for e = 1:self.coarseScaleDomain.nEl
+                for e = 1:self.coarseMesh.nEl
                     indexMat = (EHold == e);
                     if self.padding
                         indexMat = padIndexMat(indexMat, self.padding);
@@ -1985,17 +1986,17 @@ classdef ROM_SPDE < handle
             if isSquare
                 %We take all kernels together from all macro-cells
                 %prealloc
-                self.kernelMatrix{1} = zeros(self.coarseScaleDomain.nEl,...
-                    self.coarseScaleDomain.nEl*self.nTrain);
+                self.kernelMatrix{1} = zeros(self.coarseMesh.nEl,...
+                    self.coarseMesh.nEl*self.nTrain);
                 self.kernelMatrix = repmat(self.kernelMatrix, self.nTrain, 1);
                 
                 %Fill kernelMatrix - can this be done more efficiently?
                 if strcmp(mode, 'train')
                     for n = 1:self.nTrain
-                        for k = 1:self.coarseScaleDomain.nEl
+                        for k = 1:self.coarseMesh.nEl
                             f = 1;
                             for nn = 1:self.nTrain
-                                for kk = 1:self.coarseScaleDomain.nEl
+                                for kk = 1:self.coarseMesh.nEl
                                     %kernelDiff is a row vector
                                     kernelDiff = self.designMatrix{n}(k, :) -...
                                         self.designMatrix{nn}(kk, :);
@@ -2011,10 +2012,10 @@ classdef ROM_SPDE < handle
                         ' Make sure to load correct training design matrix!'))
                     load('./persistentData/trainDesignMatrix.mat');
                     for n = 1:numel(self.designMatrix)
-                        for k = 1:self.coarseScaleDomain.nEl
+                        for k = 1:self.coarseMesh.nEl
                             f = 1;
                             for nn = 1:self.nTrain
-                                for kk = 1:self.coarseScaleDomain.nEl
+                                for kk = 1:self.coarseMesh.nEl
                                     %kernelDiff is a row vector
                                     kernelDiff = self.designMatrix{n}(k, :) -...
                                         designMatrix{nn}(kk, :);
@@ -2032,10 +2033,10 @@ classdef ROM_SPDE < handle
                 error('Non-square meshes not yet available')
             end
             if(strcmp(mode, 'train') && length(self.theta_c.theta) ~=...
-                    self.coarseScaleDomain.nEl*self.nTrain)
+                    self.coarseMesh.nEl*self.nTrain)
                 disp('Setting dimension of theta_c right, initializing at 0')
                 self.theta_c.theta =...
-                    zeros(self.coarseScaleDomain.nEl*self.nTrain, 1);
+                    zeros(self.coarseMesh.nEl*self.nTrain, 1);
             end
         end
 
@@ -2119,11 +2120,11 @@ classdef ROM_SPDE < handle
                 parPoolInit(nData);
                 if self.useConvection
                     PhiCell{1} = ...
-                        zeros(3*self.coarseScaleDomain.nEl, 3*nTotalFeatures);
+                        zeros(3*self.coarseMesh.nEl, 3*nTotalFeatures);
                     [lambdak, xk, ak] = ...
                         self.get_coarseElementConductivities(mode);
                 else
-                    PhiCell{1} = zeros(self.coarseScaleDomain.nEl,...
+                    PhiCell{1} = zeros(self.coarseMesh.nEl,...
                         nFeatureFunctions + nGlobalFeatureFunctions);
                     [lambdak, xk] = self.get_coarseElementConductivities(mode);
                     ak = [];
@@ -2159,15 +2160,15 @@ classdef ROM_SPDE < handle
                         clear ba;
                     end
                     latentMu = reshape(latentMu, self.latentDim,...
-                        self.coarseScaleDomain.nEl, nData);
+                        self.coarseMesh.nEl, nData);
                 else
                     latentMu = [];
                 end
                 
                 %avoid broadcasting overhead
-                nElc = self.coarseScaleDomain.nEl;
-                nElXf = self.fineScaleDomain.nElX;
-                nElYf = self.fineScaleDomain.nElY;
+                nElc = self.coarseMesh.nEl;
+                nElXf = self.fineMesh.nElX;
+                nElYf = self.fineMesh.nElY;
                 uae = self.useAutoEnc;
                 ld = self.latentDim;
                 uc = self.useConvection;
@@ -2236,7 +2237,7 @@ classdef ROM_SPDE < handle
                 
                 if debug
                     for n = 1:nData
-                        for k = 1:self.coarseScaleDomain.nEl
+                        for k = 1:self.coarseMesh.nEl
                             decodedDataTest = ba.decode(latentMu(:, k, n));
                             subplot(1,3,1)
                             imagesc(reshape(decodedDataTest, 64, 64))
@@ -2316,7 +2317,7 @@ classdef ROM_SPDE < handle
                             %Scott's rule of thumb
                             if strcmp(self.mode, 'none')
                                 self.kernelBandwidth =...
-                                    (self.nTrain*self.coarseScaleDomain.nEl)...
+                                    (self.nTrain*self.coarseMesh.nEl)...
                                     ^(-1/(nFeatures + 4))*featureFunctionStd;
                             elseif strcmp(self.mode, 'useLocal')
                                 self.kernelBandwidth = ...
@@ -2429,7 +2430,7 @@ classdef ROM_SPDE < handle
             if nSecondOrderTerms
                 disp('Using second order terms of feature functions...')
             end
-            PhiCell{1} = zeros(self.coarseScaleDomain.nEl,...
+            PhiCell{1} = zeros(self.coarseMesh.nEl,...
                 nSecondOrderTerms + nFeatureFunctions);
             if strcmp(mode, 'train')
                 nData = self.nTrain;
@@ -2725,7 +2726,7 @@ classdef ROM_SPDE < handle
             %nc/nf: coarse/fine elements in x/y direction
             disp('Including nearest neighbor feature function information...')
             nFeatureFunctionsTotal = size(designMatrix{1}, 2);
-            PhiCell{1} = zeros(self.coarseScaleDomain.nEl,...
+            PhiCell{1} = zeros(self.coarseMesh.nEl,...
                 5*nFeatureFunctionsTotal);
             nData = numel(designMatrix);
             PhiCell = repmat(PhiCell, nData, 1);
@@ -2737,34 +2738,34 @@ classdef ROM_SPDE < handle
                 
                 %Only assign nonzero values to design matrix for neighboring
                 %elements if neighbor in respective direction exists
-                for k = 1:self.coarseScaleDomain.nEl
-                    if(mod(k, self.coarseScaleDomain.nElX) ~= 0)
+                for k = 1:self.coarseMesh.nEl
+                    if(mod(k, self.coarseMesh.nElX) ~= 0)
                         %right neighbor of coarse element exists
                         PhiCell{n}(k, (nFeatureFunctionsTotal + 1):...
                             (2*nFeatureFunctionsTotal)) =...
                             designMatrix{n}(k + 1, :);
                     end
                     
-                    if(k <= self.coarseScaleDomain.nElX*...
-                            (self.coarseScaleDomain.nElY - 1))
+                    if(k <= self.coarseMesh.nElX*...
+                            (self.coarseMesh.nElY - 1))
                         %upper neighbor of coarse element exists
                         PhiCell{n}(k, (2*nFeatureFunctionsTotal + 1):...
                             (3*nFeatureFunctionsTotal)) =...
-                            designMatrix{n}(k + self.coarseScaleDomain.nElX, :);
+                            designMatrix{n}(k + self.coarseMesh.nElX, :);
                     end
                     
-                    if(mod(k - 1, self.coarseScaleDomain.nElX) ~= 0)
+                    if(mod(k - 1, self.coarseMesh.nElX) ~= 0)
                         %left neighbor of coarse element exists
                         PhiCell{n}(k, (3*nFeatureFunctionsTotal + 1):...
                             (4*nFeatureFunctionsTotal)) =...
                             designMatrix{n}(k - 1, :);
                     end
                     
-                    if(k > self.coarseScaleDomain.nElX)
+                    if(k > self.coarseMesh.nElX)
                         %lower neighbor of coarse element exists
                         PhiCell{n}(k, (4*nFeatureFunctionsTotal + 1):...
                             (5*nFeatureFunctionsTotal)) =...
-                            designMatrix{n}(k - self.coarseScaleDomain.nElX, :);
+                            designMatrix{n}(k - self.coarseMesh.nElX, :);
                     end
                 end
             end
@@ -2785,7 +2786,7 @@ classdef ROM_SPDE < handle
             disp('Incl. n.n. feature func. information sep. for each cell...')
             nFeatureFunctionsTotal = size(designMatrix{1}, 2);
             PhiCell{1} =...
-                zeros(self.coarseScaleDomain.nEl, 5*nFeatureFunctionsTotal);
+                zeros(self.coarseMesh.nEl, 5*nFeatureFunctionsTotal);
             nData = numel(designMatrix);
             PhiCell = repmat(PhiCell, nData, 1);
             
@@ -2793,7 +2794,7 @@ classdef ROM_SPDE < handle
                 %Only assign nonzero values to design matrix for neighboring
                 %elements if neighbor in respective direction exists
                 k = 0;
-                for i = 1:self.coarseScaleDomain.nEl
+                for i = 1:self.coarseMesh.nEl
                     PhiCell{n}(i, (k*nFeatureFunctionsTotal + 1):((k + 1)*...
                         nFeatureFunctionsTotal)) = designMatrix{n}(i, :);
                     self.neighborDictionary((k*nFeatureFunctionsTotal + 1):...
@@ -2806,7 +2807,7 @@ classdef ROM_SPDE < handle
                         ((k + 1)*nFeatureFunctionsTotal), 3) = ...
                         0; %center element
                     k = k + 1;
-                    if(mod(i, self.coarseScaleDomain.nElX) ~= 0)
+                    if(mod(i, self.coarseMesh.nElX) ~= 0)
                         %right neighbor of coarse element exists
                         PhiCell{n}(i, (k*nFeatureFunctionsTotal + 1):...
                             ((k + 1)*nFeatureFunctionsTotal)) =...
@@ -2823,12 +2824,12 @@ classdef ROM_SPDE < handle
                         k = k + 1;
                     end
                     
-                    if(i <= self.coarseScaleDomain.nElX*...
-                            (self.coarseScaleDomain.nElY - 1))
+                    if(i <= self.coarseMesh.nElX*...
+                            (self.coarseMesh.nElY - 1))
                         %upper neighbor of coarse element exists
                         PhiCell{n}(i, (k*nFeatureFunctionsTotal + 1):...
                             ((k + 1)*nFeatureFunctionsTotal)) =...
-                            designMatrix{n}(i + self.coarseScaleDomain.nElX, :);
+                            designMatrix{n}(i + self.coarseMesh.nElX, :);
                         self.neighborDictionary((k*nFeatureFunctionsTotal+1):...
                             ((k + 1)*nFeatureFunctionsTotal), 1) = ...
                             (1:nFeatureFunctionsTotal)'; %feature index
@@ -2841,7 +2842,7 @@ classdef ROM_SPDE < handle
                         k = k + 1;
                     end
                     
-                    if(mod(i - 1, self.coarseScaleDomain.nElX) ~= 0)
+                    if(mod(i - 1, self.coarseMesh.nElX) ~= 0)
                         %left neighbor of coarse element exists
                         PhiCell{n}(i, (k*nFeatureFunctionsTotal + 1):...
                             ((k + 1)*nFeatureFunctionsTotal)) =...
@@ -2858,11 +2859,11 @@ classdef ROM_SPDE < handle
                         k = k + 1;
                     end
                     
-                    if(i > self.coarseScaleDomain.nElX)
+                    if(i > self.coarseMesh.nElX)
                         %lower neighbor of coarse element exists
                         PhiCell{n}(i, (k*nFeatureFunctionsTotal + 1):((k+ 1)*...
                             nFeatureFunctionsTotal)) =...
-                            designMatrix{n}(i - self.coarseScaleDomain.nElX, :);
+                            designMatrix{n}(i - self.coarseMesh.nElX, :);
                         self.neighborDictionary((k*nFeatureFunctionsTotal+1):...
                             ((k + 1)*nFeatureFunctionsTotal), 1) = ...
                             (1:nFeatureFunctionsTotal)'; %feature index
@@ -2892,7 +2893,7 @@ classdef ROM_SPDE < handle
             %nc/nf: coarse/fine elements in x/y direction
             disp('Incl. nearest and diagonal neighbor feature function info...')
             nFeatureFunctionsTotal = size(designMatrix{1}, 2);
-            PhiCell{1} = zeros(self.coarseScaleDomain.nEl,...
+            PhiCell{1} = zeros(self.coarseMesh.nEl,...
                 9*nFeatureFunctionsTotal);
             nData = numel(designMatrix);
             PhiCell = repmat(PhiCell, nData, 1);
@@ -2904,62 +2905,62 @@ classdef ROM_SPDE < handle
                 
                 %Only assign nonzero values to design matrix for neighboring 
                 %elements if neighbor in respective direction exists
-                for i = 1:self.coarseScaleDomain.nEl
-                    if(mod(i, self.coarseScaleDomain.nElX) ~= 0)
+                for i = 1:self.coarseMesh.nEl
+                    if(mod(i, self.coarseMesh.nElX) ~= 0)
                         %right neighbor of coarse element exists
                         PhiCell{n}(i, (nFeatureFunctionsTotal + 1):...
                             (2*nFeatureFunctionsTotal)) = ...
                             designMatrix{n}(i + 1, :);
-                        if(i <= self.coarseScaleDomain.nElX*...
-                                (self.coarseScaleDomain.nElY - 1))
+                        if(i <= self.coarseMesh.nElX*...
+                                (self.coarseMesh.nElY - 1))
                             %upper right neighbor of coarse element exists
                             PhiCell{n}(i, (2*nFeatureFunctionsTotal + 1):...
                                 (3*nFeatureFunctionsTotal)) =...
                                 designMatrix{n}(i +...
-                                self.coarseScaleDomain.nElX + 1, :);
+                                self.coarseMesh.nElX + 1, :);
                         end
                     end
                     
-                    if(i <= self.coarseScaleDomain.nElX*...
-                            (self.coarseScaleDomain.nElY - 1))
+                    if(i <= self.coarseMesh.nElX*...
+                            (self.coarseMesh.nElY - 1))
                         %upper neighbor of coarse element exists
                         PhiCell{n}(i, (3*nFeatureFunctionsTotal + 1):...
                             (4*nFeatureFunctionsTotal)) =...
-                            designMatrix{n}(i + self.coarseScaleDomain.nElX, :);
-                        if(mod(i - 1, self.coarseScaleDomain.nElX) ~= 0)
+                            designMatrix{n}(i + self.coarseMesh.nElX, :);
+                        if(mod(i - 1, self.coarseMesh.nElX) ~= 0)
                             %upper left neighbor exists
                             PhiCell{n}(i, (4*nFeatureFunctionsTotal + 1):...
                                 (5*nFeatureFunctionsTotal)) =...
                             designMatrix{n}(i + ...
-                            self.coarseScaleDomain.nElX - 1, :);
+                            self.coarseMesh.nElX - 1, :);
                         end
                     end
                     
-                    if(mod(i - 1, self.coarseScaleDomain.nElX) ~= 0)
+                    if(mod(i - 1, self.coarseMesh.nElX) ~= 0)
                         %left neighbor of coarse element exists
                         PhiCell{n}(i, (5*nFeatureFunctionsTotal + 1):...
                             (6*nFeatureFunctionsTotal)) =...
                             designMatrix{n}(i - 1, :);
-                        if(i > self.coarseScaleDomain.nElX)
+                        if(i > self.coarseMesh.nElX)
                             %lower left neighbor exists
                             PhiCell{n}(i, (6*nFeatureFunctionsTotal + 1):...
                                 (7*nFeatureFunctionsTotal)) =...
                             designMatrix{n}(i - ...
-                            self.coarseScaleDomain.nElX - 1, :);
+                            self.coarseMesh.nElX - 1, :);
                         end
                     end
                     
-                    if(i > self.coarseScaleDomain.nElX)
+                    if(i > self.coarseMesh.nElX)
                         %lower neighbor of coarse element exists
                         PhiCell{n}(i, (7*nFeatureFunctionsTotal + 1):...
                             (8*nFeatureFunctionsTotal)) =...
-                            designMatrix{n}(i - self.coarseScaleDomain.nElX, :);
-                        if(mod(i, self.coarseScaleDomain.nElX) ~= 0)
+                            designMatrix{n}(i - self.coarseMesh.nElX, :);
+                        if(mod(i, self.coarseMesh.nElX) ~= 0)
                             %lower right neighbor exists
                             PhiCell{n}(i, (8*nFeatureFunctionsTotal + 1):...
                                 (9*nFeatureFunctionsTotal)) =...
                             designMatrix{n}...
-                            (i - self.coarseScaleDomain.nElX + 1, :);
+                            (i - self.coarseMesh.nElX + 1, :);
                         end
                     end
                 end
@@ -2988,7 +2989,7 @@ classdef ROM_SPDE < handle
                 %Only assign nonzero values to design matrix for neighboring 
                 %elements if neighbor in respective direction exists
                 k = 0;
-                for i = 1:self.coarseScaleDomain.nEl
+                for i = 1:self.coarseMesh.nEl
                     PhiCell{n}(i, (k*nFeatureFunctionsTotal + 1):...
                         ((k + 1)*nFeatureFunctionsTotal)) =...
                         designMatrix{n}(i, :);
@@ -3002,7 +3003,7 @@ classdef ROM_SPDE < handle
                         ((k + 1)*nFeatureFunctionsTotal), 3) = ...
                         0; %center element
                     k = k + 1;
-                    if(mod(i, self.coarseScaleDomain.nElX) ~= 0)
+                    if(mod(i, self.coarseMesh.nElX) ~= 0)
                         %right neighbor of coarse element exists
                         PhiCell{n}(i, (k*nFeatureFunctionsTotal + 1):...
                             ((k + 1)*nFeatureFunctionsTotal)) =...
@@ -3018,13 +3019,13 @@ classdef ROM_SPDE < handle
                             1; %right neighbor
                         k = k + 1;
                         
-                        if(i <= self.coarseScaleDomain.nElX*...
-                                (self.coarseScaleDomain.nElY - 1))
+                        if(i <= self.coarseMesh.nElX*...
+                                (self.coarseMesh.nElY - 1))
                             %upper right neighbor of coarse element exists
                             PhiCell{n}(i, (k*nFeatureFunctionsTotal + 1):...
                                 ((k + 1)*nFeatureFunctionsTotal)) =...
                                 designMatrix{n}(i + ...
-                                self.coarseScaleDomain.nElX + 1, :);
+                                self.coarseMesh.nElX + 1, :);
                             self.neighborDictionary((k*nFeatureFunctionsTotal...
                                 + 1):((k + 1)*nFeatureFunctionsTotal), 1) = ...
                                 (1:nFeatureFunctionsTotal)'; %feature index
@@ -3040,12 +3041,12 @@ classdef ROM_SPDE < handle
                     end
                     
                     
-                    if(i <= self.coarseScaleDomain.nElX*...
-                            (self.coarseScaleDomain.nElY - 1))
+                    if(i <= self.coarseMesh.nElX*...
+                            (self.coarseMesh.nElY - 1))
                         %upper neighbor of coarse element exists
                         PhiCell{n}(i, (k*nFeatureFunctionsTotal + 1):...
                             ((k + 1)*nFeatureFunctionsTotal)) =...
-                            designMatrix{n}(i + self.coarseScaleDomain.nElX, :);
+                            designMatrix{n}(i + self.coarseMesh.nElX, :);
                         self.neighborDictionary((k*nFeatureFunctionsTotal...
                             + 1):((k + 1)*nFeatureFunctionsTotal), 1) = ...
                             (1:nFeatureFunctionsTotal)'; %feature index
@@ -3057,12 +3058,12 @@ classdef ROM_SPDE < handle
                             2; %upper neighbor
                         k = k + 1;
                         
-                        if(mod(i - 1, self.coarseScaleDomain.nElX) ~= 0)
+                        if(mod(i - 1, self.coarseMesh.nElX) ~= 0)
                             %upper left neighbor of coarse element exists
                             PhiCell{n}(i, (k*nFeatureFunctionsTotal + 1):...
                                 ((k + 1)*nFeatureFunctionsTotal)) =...
                                 designMatrix{n}(i +...
-                                self.coarseScaleDomain.nElX - 1, :);
+                                self.coarseMesh.nElX - 1, :);
                             self.neighborDictionary((k*nFeatureFunctionsTotal...
                                 + 1):((k + 1)*nFeatureFunctionsTotal), 1) = ...
                                 (1:nFeatureFunctionsTotal)'; %feature index
@@ -3078,7 +3079,7 @@ classdef ROM_SPDE < handle
                     end
                     
                     
-                    if(mod(i - 1, self.coarseScaleDomain.nElX) ~= 0)
+                    if(mod(i - 1, self.coarseMesh.nElX) ~= 0)
                         %left neighbor of coarse element exists
                         PhiCell{n}(i, (k*nFeatureFunctionsTotal + 1):...
                             ((k + 1)*nFeatureFunctionsTotal)) =...
@@ -3094,12 +3095,12 @@ classdef ROM_SPDE < handle
                             3; %left neighbor
                         k = k + 1;
                         
-                        if(i > self.coarseScaleDomain.nElX)
+                        if(i > self.coarseMesh.nElX)
                             %lower left neighbor of coarse element exists
                             PhiCell{n}(i, (k*nFeatureFunctionsTotal + 1):...
                                 ((k + 1)*nFeatureFunctionsTotal)) =...
                                 designMatrix{n}(i - ...
-                                self.coarseScaleDomain.nElX - 1, :);
+                                self.coarseMesh.nElX - 1, :);
                             self.neighborDictionary((k*nFeatureFunctionsTotal...
                                 + 1):((k + 1)*nFeatureFunctionsTotal), 1) = ...
                                 (1:nFeatureFunctionsTotal)'; %feature index
@@ -3115,11 +3116,11 @@ classdef ROM_SPDE < handle
                     end
                     
                     
-                    if(i > self.coarseScaleDomain.nElX)
+                    if(i > self.coarseMesh.nElX)
                         %lower neighbor of coarse element exists
                         PhiCell{n}(i, (k*nFeatureFunctionsTotal+ 1):((k + 1)*...
                             nFeatureFunctionsTotal)) =...
-                            designMatrix{n}(i - self.coarseScaleDomain.nElX, :);
+                            designMatrix{n}(i - self.coarseMesh.nElX, :);
                         self.neighborDictionary((k*nFeatureFunctionsTotal...
                             + 1):((k + 1)*nFeatureFunctionsTotal), 1) = ...
                             (1:nFeatureFunctionsTotal)'; %feature index
@@ -3131,12 +3132,12 @@ classdef ROM_SPDE < handle
                             4; %lower neighbor
                         k = k + 1;
                         
-                        if(mod(i, self.coarseScaleDomain.nElX) ~= 0)
+                        if(mod(i, self.coarseMesh.nElX) ~= 0)
                             %lower right neighbor of coarse element exists
                             PhiCell{n}(i, (k*nFeatureFunctionsTotal + 1):...
                                 ((k + 1)*nFeatureFunctionsTotal)) =...
                                 designMatrix{n}(i -...
-                                self.coarseScaleDomain.nElX + 1, :);
+                                self.coarseMesh.nElX + 1, :);
                             self.neighborDictionary((k*nFeatureFunctionsTotal...
                                 + 1):((k + 1)*nFeatureFunctionsTotal), 1) = ...
                                 (1:nFeatureFunctionsTotal)'; %feature index
@@ -3170,14 +3171,14 @@ classdef ROM_SPDE < handle
             disp(strcat('Using sep. feature coeff. theta_c for each', ...
                 'macro-cell in a microstructure...'))
             nFeatureFunctionsTotal = size(designMatrix{1}, 2);
-            PhiCell{1} = zeros(self.coarseScaleDomain.nEl,...
-                self.coarseScaleDomain.nEl*nFeatureFunctionsTotal);
+            PhiCell{1} = zeros(self.coarseMesh.nEl,...
+                self.coarseMesh.nEl*nFeatureFunctionsTotal);
             nData = numel(designMatrix);
             PhiCell = repmat(PhiCell, nData, 1);
             
             %Reassemble design matrix
             for n = 1:nData
-                for i = 1:self.coarseScaleDomain.nEl
+                for i = 1:self.coarseMesh.nEl
                     PhiCell{n}(i, ((i - 1)*nFeatureFunctionsTotal + 1):...
                         (i*nFeatureFunctionsTotal)) = ...
                         designMatrix{n}(i, :);
@@ -3236,7 +3237,7 @@ classdef ROM_SPDE < handle
             for i = 1:3
                 subplot(1,3,i);
                 p(i) = imagesc(reshape(cond(:, samples(i)),...
-                    self.fineScaleDomain.nElX, self.fineScaleDomain.nElY));
+                    self.fineMesh.nElX, self.fineMesh.nElY));
                 grid off;
                 axis square;
                 xticks({});
@@ -3282,12 +3283,12 @@ classdef ROM_SPDE < handle
                 figure(f1)
                 subplot(4, 3, i);
                 p(i) = surf(reshape(Tf(:, samples(i)),...
-                    (self.fineScaleDomain.nElX + 1),...
-                    (self.fineScaleDomain.nElY + 1)));
+                    (self.fineMesh.nElX + 1),...
+                    (self.fineMesh.nElY + 1)));
                 caxis([min_Tf, max_Tf])
                 hold
                 im(i) = imagesc(reshape(cond(:, samples(i)),...
-                    self.fineScaleDomain.nElX, self.fineScaleDomain.nElY));
+                    self.fineMesh.nElX, self.fineMesh.nElY));
                 p(i).LineStyle = 'none';
                 grid on;
                 axis tight;
@@ -3319,8 +3320,8 @@ classdef ROM_SPDE < handle
                 figure(f2)
                 subplot(4, 3, i);
                 [~,p2(i)] = contourf(reshape(Tf(:, samples(i)),...
-                    (self.fineScaleDomain.nElX + 1),...
-                    (self.fineScaleDomain.nElY + 1)), 8);
+                    (self.fineMesh.nElX + 1),...
+                    (self.fineMesh.nElY + 1)), 8);
                 caxis([min_Tf, max_Tf])
                 grid off;
                 p2(i).LineStyle = 'none';
@@ -3336,15 +3337,15 @@ classdef ROM_SPDE < handle
                     f = figure;
                     subplot(1,2,1)
                     p(i) = imagesc(reshape(cond(:, samples(i)),...
-                        self.fineScaleDomain.nElX, self.fineScaleDomain.nElY));
+                        self.fineMesh.nElX, self.fineMesh.nElY));
                     grid off;
                     axis square;
                     xticks({});
                     yticks({});
                     subplot(1,2,2)
                     q(i) = surf(reshape(Tf(:, samples(i)),...
-                        (self.fineScaleDomain.nElX + 1),...
-                        (self.fineScaleDomain.nElY + 1)));
+                        (self.fineMesh.nElX + 1),...
+                        (self.fineMesh.nElY + 1)));
                     q(i).LineStyle = 'none';
                     grid on;
                     box on;
@@ -3385,7 +3386,7 @@ classdef ROM_SPDE < handle
                     load(strcat('./persistentData/', 'train',...
                         'DesignMatrix.mat'), 'designMatrix');
                     %Setting up handles to kernel functions
-                    for k = 1:self.coarseScaleDomain.nEl
+                    for k = 1:self.coarseMesh.nEl
                         for n = 1:self.nTrain
                             %phi_vec must be a row vector!!
                             kernelDiff{n, k} =...
@@ -3397,12 +3398,12 @@ classdef ROM_SPDE < handle
                 end
                 k = 1;
                 if strcmp(self.mode, 'useLocal')
-                    mink = Inf*ones(self.coarseScaleDomain.nEl, 1);
-                    maxk = -Inf*ones(self.coarseScaleDomain.nEl, 1);
-                    for i = 1:self.coarseScaleDomain.nElX
-                        for j = 1:self.coarseScaleDomain.nElY
-                            subplot(self.coarseScaleDomain.nElX,...
-                                self.coarseScaleDomain.nElY, k);
+                    mink = Inf*ones(self.coarseMesh.nEl, 1);
+                    maxk = -Inf*ones(self.coarseMesh.nEl, 1);
+                    for i = 1:self.coarseMesh.nElX
+                        for j = 1:self.coarseMesh.nElY
+                            subplot(self.coarseMesh.nElX,...
+                                self.coarseMesh.nElY, k);
                             for s = 1:self.nTrain
                                 yData(k, s) = self.XMean(k, s);
                                 for l = 1:totalFeatures
@@ -3439,7 +3440,7 @@ classdef ROM_SPDE < handle
                                             y(m) = y(m) + ...
                                                 kernelHandle{n, k}(x(m))*...
                                                 self.theta_c.theta((n - 1)*...
-                                                self.coarseScaleDomain.nEl + k);
+                                                self.coarseMesh.nEl + k);
                                         end
                                     end
                                     plot(x, y);
@@ -3481,8 +3482,8 @@ classdef ROM_SPDE < handle
                         end
                     end
                 elseif strcmp(self.mode, 'none')
-                    for i = 1:self.coarseScaleDomain.nElX
-                        for j = 1:self.coarseScaleDomain.nElY
+                    for i = 1:self.coarseMesh.nElX
+                        for j = 1:self.coarseMesh.nElY
                             for s = 1:self.nTrain
                                 if self.useKernels
                                     if(totalFeatures == 1)
@@ -3533,10 +3534,10 @@ classdef ROM_SPDE < handle
                         if(totalFeatures == 1)
                             for m = 1:length(x)
                                 for n = 1:self.nTrain
-                                    for h = 1:self.coarseScaleDomain.nEl
+                                    for h = 1:self.coarseMesh.nEl
                                         y(m) = y(m)+kernelHandle{n, h}(x(m))*...
                                             self.theta_c.theta((n - 1)*...
-                                            self.coarseScaleDomain.nEl + h);
+                                            self.coarseMesh.nEl + h);
                                     end
                                 end
                             end
@@ -3553,12 +3554,12 @@ classdef ROM_SPDE < handle
                                             zeros(1, size(designMatrix{1}, 2));
                                         phi_vec(1:2) = [X(r, c) Y(r, c)];
                                         for n = 1:self.nTrain
-                                            for h = 1:self.coarseScaleDomain.nEl
+                                            for h = 1:self.coarseMesh.nEl
                                                 Z(r, c) = Z(r, c) + ...
                                                    kernelHandle{n, h}...
                                                    (phi_vec)*...
                                                    self.theta_c.theta((n-1)*...
-                                                   self.coarseScaleDomain.nEl...
+                                                   self.coarseMesh.nEl...
                                                    + h);
                                             end
                                         end
@@ -3632,13 +3633,13 @@ classdef ROM_SPDE < handle
             sb = subplot(3,2,4, 'Parent', figHandle);
             if ~self.theta_c.full_Sigma
                 imagesc(reshape(diag(sqrt(self.theta_c.Sigma(...
-                    1:self.coarseScaleDomain.nEl,...
-                    1:self.coarseScaleDomain.nEl))),...
-                    self.coarseScaleDomain.nElX,self.coarseScaleDomain.nElY),...
+                    1:self.coarseMesh.nEl,...
+                    1:self.coarseMesh.nEl))),...
+                    self.coarseMesh.nElX,self.coarseMesh.nElY),...
                     'Parent', sb)
             else
                 imagesc(reshape(sqrt(diag(self.theta_c.Sigma)),...
-                    self.coarseScaleDomain.nElX,self.coarseScaleDomain.nElY),...
+                    self.coarseMesh.nElX,self.coarseMesh.nElY),...
                     'Parent', sb)
             end
             title('$\sigma_k$')
@@ -3659,7 +3660,7 @@ classdef ROM_SPDE < handle
                 'Err: seq. add. of lin. filters only working in useLocal mode');
             
 %             sigma2Inv_vec = (1./diag(obj.theta_c.Sigma));
-            XMeanMinusPhiThetac= zeros(self.coarseScaleDomain.nEl, self.nTrain);
+            XMeanMinusPhiThetac= zeros(self.coarseMesh.nEl, self.nTrain);
             for i = 1:self.nTrain
                 XMeanMinusPhiThetac(:, i) = self.XMean(:, i) -...
                     self.designMatrix{i}*self.theta_c.theta;
@@ -3667,9 +3668,9 @@ classdef ROM_SPDE < handle
             
             %We use different linear filters for different macro-cells k
             w{1} = 0;
-            w = repmat(w, self.coarseScaleDomain.nEl, 1);
-            E = zeros(1, self.coarseScaleDomain.nEl);
-            for m = 1:self.coarseScaleDomain.nEl
+            w = repmat(w, self.coarseMesh.nEl, 1);
+            E = zeros(1, self.coarseMesh.nEl);
+            for m = 1:self.coarseMesh.nEl
                 for i = 1:self.nTrain
 %                     w{m} = w{m} + sigma2Inv_vec(m)*...
 %                         XMeanMinusPhiThetac(m, i)*obj.xk{i, m}(:);
@@ -3693,7 +3694,7 @@ classdef ROM_SPDE < handle
             %append current w's as cell array column index
             nFeaturesBefore = size(self.featureFunctions, 2);
             nLinFiltersBefore = size(w_all, 2);
-            for m = 1:self.coarseScaleDomain.nEl
+            for m = 1:self.coarseMesh.nEl
                 w_all{m, nLinFiltersBefore + 1} = w{m};
                 self.featureFunctions{m, nFeaturesBefore + 1} =...
                     @(lambda) sum(w{m}'.*conductivityTransform(lambda(:),...
@@ -3706,9 +3707,9 @@ classdef ROM_SPDE < handle
             save(filename, 'E', '-ascii', '-append');
             
             f = figure;
-            for m = 1:self.coarseScaleDomain.nEl
-                subplot(self.coarseScaleDomain.nElX,...
-                    self.coarseScaleDomain.nElY, m);
+            for m = 1:self.coarseMesh.nEl
+                subplot(self.coarseMesh.nElX,...
+                    self.coarseMesh.nElY, m);
                 imagesc(reshape(w{m}, size(self.xk{1, m})))
                 axis square
                 grid off
@@ -3727,7 +3728,7 @@ classdef ROM_SPDE < handle
             theta_new = zeros(nTotalFeaturesAfter, 1);
             j = 1;
             for i = 1:nTotalFeaturesAfter
-                if(mod(i, nTotalFeaturesAfter/self.coarseScaleDomain.nEl) == 0)
+                if(mod(i, nTotalFeaturesAfter/self.coarseMesh.nEl) == 0)
                     theta_new(i) = 0;
                 else
                     theta_new(i) = self.theta_c.theta(j);
@@ -3740,7 +3741,7 @@ classdef ROM_SPDE < handle
         function addGlobalLinearFilterFeature(self)
             assert(strcmp(self.mode, 'useLocal'),...
                 'Err: seq. add. of lin. filters only working in useLocal mode');
-            XMeanMinusPhiThetac = zeros(self.coarseScaleDomain.nEl,self.nTrain);
+            XMeanMinusPhiThetac = zeros(self.coarseMesh.nEl,self.nTrain);
             for i = 1:self.nTrain
                 XMeanMinusPhiThetac(:, i) = self.XMean(:, i) -...
                     self.designMatrix{i}*self.theta_c.theta;
@@ -3750,9 +3751,9 @@ classdef ROM_SPDE < handle
             
             %We use different linear filters for different macro-cells k
             w{1} = 0;
-            w = repmat(w, self.coarseScaleDomain.nEl, 1);
-            EGlobal = zeros(1, self.coarseScaleDomain.nEl);
-            for m = 1:self.coarseScaleDomain.nEl
+            w = repmat(w, self.coarseMesh.nEl, 1);
+            EGlobal = zeros(1, self.coarseMesh.nEl);
+            for m = 1:self.coarseMesh.nEl
                 for i = 1:self.nTrain
                     w{m} = w{m} + XMeanMinusPhiThetac(m, i)*...
                         conductivityTransform(conductivity(:, i),...
@@ -3774,7 +3775,7 @@ classdef ROM_SPDE < handle
             %append current w's as cell array column index
             nGlobalFeaturesBefore = size(self.globalFeatureFunctions, 2);
             nGlobalLinFiltersBefore = size(w_allGlobal, 2);
-            for m = 1:self.coarseScaleDomain.nEl
+            for m = 1:self.coarseMesh.nEl
                 w_allGlobal{m, nGlobalLinFiltersBefore + 1} = w{m};
                 self.globalFeatureFunctions{m, nGlobalFeaturesBefore + 1} =...
                     @(lambda) sum(w{m}'.*...
@@ -3788,11 +3789,11 @@ classdef ROM_SPDE < handle
             save(filename, 'EGlobal', '-ascii', '-append');
             
             f = figure;
-            for m = 1:self.coarseScaleDomain.nEl
-                subplot(self.coarseScaleDomain.nElX,...
-                    self.coarseScaleDomain.nElY, m);
-                imagesc(reshape(w{m}, self.fineScaleDomain.nElX,...
-                    self.fineScaleDomain.nElY))
+            for m = 1:self.coarseMesh.nEl
+                subplot(self.coarseMesh.nElX,...
+                    self.coarseMesh.nElY, m);
+                imagesc(reshape(w{m}, self.fineMesh.nElX,...
+                    self.fineMesh.nElY))
                 axis square
                 grid off
                 xticks({})
@@ -3810,7 +3811,7 @@ classdef ROM_SPDE < handle
             theta_new = zeros(nTotalFeaturesAfter, 1);
             j = 1;
             for i = 1:nTotalFeaturesAfter
-                if(mod(i, nTotalFeaturesAfter/self.coarseScaleDomain.nEl) == 0)
+                if(mod(i, nTotalFeaturesAfter/self.coarseMesh.nEl) == 0)
                     theta_new(i) = 0;
                 else
                     theta_new(i) = self.theta_c.theta(j);
@@ -3835,8 +3836,8 @@ classdef ROM_SPDE < handle
             %comment this for inclusion of variances S of p_cf
             theta_cfTemp.S = ones(size(theta_cfTemp.S));
             
-            theta_cfTemp.Sinv = sparse(1:self.fineScaleDomain.nNodes,...
-                1:self.fineScaleDomain.nNodes, 1./theta_cfTemp.S);
+            theta_cfTemp.Sinv = sparse(1:self.fineMesh.nNodes,...
+                1:self.fineMesh.nNodes, 1./theta_cfTemp.S);
             theta_cfTemp.Sinv_vec = 1./theta_cfTemp.S;
             %precomputation to save resources
             theta_cfTemp.WTSinv = theta_cfTemp.W'*theta_cfTemp.Sinv;
@@ -3868,7 +3869,7 @@ classdef ROM_SPDE < handle
                     conductivity = conductivityBackTransform(Xsample,...
                         self.conductivityTransformation);
                     [lg_p_cf, d_log_p_cf] = log_p_cf(Tf(:, i),...
-                        self.coarseScaleDomain, conductivity,...
+                        self.coarseMesh, conductivity,...
                         theta_cfTemp, self.conductivityTransformation);
                     d_log_p_cf_mean = ((k - 1)/k)*d_log_p_cf_mean +...
                         (1/k)*d_log_p_cf;
@@ -3906,30 +3907,30 @@ classdef ROM_SPDE < handle
             log_noPriorSigma = log(noPriorSigma)
             
             disp('Sum of grad squares in x-direction:')
-            for i = 1:self.coarseScaleDomain.nElY
+            for i = 1:self.coarseMesh.nElY
                 X(i) = sum(d_log_p_cf_sqMean(((i - 1)*...
-                    self.coarseScaleDomain.nElX + 1):...
-                    (i*self.coarseScaleDomain.nElX)));
+                    self.coarseMesh.nElX + 1):...
+                    (i*self.coarseMesh.nElX)));
                 corrX(i) = sum(abs(corrX_log_p_cf(((i - 1)*...
-                    self.coarseScaleDomain.nElX + 1):...
-                    (i*self.coarseScaleDomain.nElX))));
+                    self.coarseMesh.nElX + 1):...
+                    (i*self.coarseMesh.nElX))));
                 corrpcfX(i) = sum((corrXp_cf(((i - 1)*...
-                    self.coarseScaleDomain.nElX + 1):...
-                    (i*self.coarseScaleDomain.nElX))).^2);
+                    self.coarseMesh.nElX + 1):...
+                    (i*self.coarseMesh.nElX))).^2);
             end
             
             disp('Sum of grad squares in y-direction:')
-            for i = 1:self.coarseScaleDomain.nElX
-                Y(i) = sum(d_log_p_cf_sqMean(i:self.coarseScaleDomain.nElX:...
-                    ((self.coarseScaleDomain.nElY - 1)*...
-                    self.coarseScaleDomain.nElX + i)));
+            for i = 1:self.coarseMesh.nElX
+                Y(i) = sum(d_log_p_cf_sqMean(i:self.coarseMesh.nElX:...
+                    ((self.coarseMesh.nElY - 1)*...
+                    self.coarseMesh.nElX + i)));
                 corrY(i) = sum(abs(corrX_log_p_cf(i:...
-                    self.coarseScaleDomain.nElX:...
-                    ((self.coarseScaleDomain.nElY - 1)*...
-                    self.coarseScaleDomain.nElX + i))));
-                corrpcfY(i) = sum((corrXp_cf(i:self.coarseScaleDomain.nElX:...
-                    ((self.coarseScaleDomain.nElY - 1)*...
-                    self.coarseScaleDomain.nElX + i))).^2);
+                    self.coarseMesh.nElX:...
+                    ((self.coarseMesh.nElY - 1)*...
+                    self.coarseMesh.nElX + i))));
+                corrpcfY(i) = sum((corrXp_cf(i:self.coarseMesh.nElX:...
+                    ((self.coarseMesh.nElY - 1)*...
+                    self.coarseMesh.nElX + i))).^2);
             end
         end
 
@@ -4004,9 +4005,9 @@ classdef ROM_SPDE < handle
                 averageMacroCells = true;
                 if averageMacroCells
                     iter = 1;
-                    for k = 1:self.coarseScaleDomain.nEl
+                    for k = 1:self.coarseMesh.nEl
                         lambdakArray = zeros(numel(lambdak{1, k}),...
-                            self.pcaSamples*self.coarseScaleDomain.nEl);
+                            self.pcaSamples*self.coarseMesh.nEl);
                         for n = 1:self.pcaSamples
                             lambdakArray(:, iter) = lambdak{n, k}(:);
                             iter = iter + 1;
@@ -4015,7 +4016,7 @@ classdef ROM_SPDE < handle
                     pcaComponents = pca(lambdakArray', 'NumComponents',...
                         self.localPcaComponents);
                 else
-                    for k = 1:self.coarseScaleDomain.nEl
+                    for k = 1:self.coarseMesh.nEl
                         lambdakArray = zeros(numel(lambdak{1, k}),...
                             self.pcaSamples);
                         for n = 1:self.pcaSamples
@@ -4059,7 +4060,7 @@ classdef ROM_SPDE < handle
             ct = self.conductivityTransformation;
             nElf = [self.nElFX self.nElFY];
             %constant bias
-            for k = 1:self.coarseScaleDomain.nEl
+            for k = 1:self.coarseMesh.nEl
                 nFeatures = 0;
                 phi{k, nFeatures + 1} = @(lambda) 1;
                 nFeatures = nFeatures + 1;
@@ -4358,7 +4359,7 @@ classdef ROM_SPDE < handle
             end
             
             %Global features
-            for k = 1:self.coarseScaleDomain.nEl
+            for k = 1:self.coarseMesh.nEl
                 nGlobalFeatures = 0;
 %                 phiGlobal{k, nGlobalFeatures + 1} = @(lambda) ...
 %                     connectedPathExist(lambda, 2, conductivities, 'x',...
@@ -4404,7 +4405,7 @@ classdef ROM_SPDE < handle
             end
             %PCA projection
             for n = 1:self.globalPcaComponents
-                for k = 1:self.coarseScaleDomain.nEl
+                for k = 1:self.coarseMesh.nEl
                     phiGlobal{k, nGlobalFeatures + n} = @(lambda)...
                         globalComponents(:, n)'*lambda(:);
                 end
@@ -4414,7 +4415,7 @@ classdef ROM_SPDE < handle
             if(self.localPcaComponents > 0)
                 localComponents = self.localPCA;
                 for n = 1:self.localPcaComponents
-                    for k = 1:self.coarseScaleDomain.nEl
+                    for k = 1:self.coarseMesh.nEl
                         if(ndims(localComponents) == 3)
                             %Separate PCA on every macro cell
                             phi{k, nFeatures + n} = @(lambda)...
@@ -4437,7 +4438,7 @@ classdef ROM_SPDE < handle
             
             %Convection features
             if self.useConvection
-                for k = 1:self.coarseScaleDomain.nEl
+                for k = 1:self.coarseMesh.nEl
                     phiConvection{k, 1} = @(convField)...
                         mean(mean(convField(1, :, :)));
                     phiConvection{k, 2} = @(convField)...
@@ -4459,7 +4460,7 @@ classdef ROM_SPDE < handle
                     if exist('./data/w.mat', 'file')
                         load('./data/w.mat');   %to load w_all
                         for i = 1:size(w_all, 2)
-                            for m = 1:self.coarseScaleDomain.nEl
+                            for m = 1:self.coarseMesh.nEl
                                 self.featureFunctions{m, nFeatures + 1} =...
                                     @(lambda) sum(w_all{m, i}'.*...
                                     conductivityTransform(lambda(:),...
@@ -4473,7 +4474,7 @@ classdef ROM_SPDE < handle
                         %to load w_allGlobal, i.e. global linear filters
                         load('./data/wGlobal.mat');
                         for i = 1:size(w_allGlobal, 2)
-                            for m = 1:self.coarseScaleDomain.nEl
+                            for m = 1:self.coarseMesh.nEl
                                 self.globalFeatureFunctions{...
                                     m, nGlobalFeatures + 1} = @(lambda)...
                                     sum(w_allGlobal{m, i}'.*...

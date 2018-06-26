@@ -25,7 +25,7 @@ delete('./data/*')  %delete old data
 %initialize reduced order model object
 rom = ROM_SPDE('train')
 %prealloc for p_cf inference
-tempArray = zeros(rom.fineScaleDomain.nNodes, rom.nTrain);
+tempArray = zeros(rom.fineMesh.nNodes, rom.nTrain);
 %% Load training data
 % romObj = romObj.loadTrainingData;
 %Get model and training parameters
@@ -74,8 +74,8 @@ while true
         
         if(any(rom.boundaryConditionVariance))
             %Set coarse domain for data with different boundary conditions
-            nX = rom.coarseScaleDomain.nElX;
-            nY = rom.coarseScaleDomain.nElY;
+            nX = rom.coarseMesh.nElX;
+            nY = rom.coarseMesh.nElY;
             bc = rom.trainingDataMatfile.bc;
             j = rom.trainingSamples(i);
             bcT = @(x) bc{j}(1) + bc{j}(2)*x(1) + bc{j}(3)*x(2) + bc{j}(4)*x(1)*x(2);
@@ -83,13 +83,13 @@ while true
             bcQ{2} = @(y) (bc{j}(2) + bc{j}(4)*y);       %right bound
             bcQ{3} = @(x) (bc{j}(3) + bc{j}(4)*x);       %upper bound
             bcQ{4} = @(y) -(bc{j}(2) + bc{j}(4)*y);      %left bound
-            cd(i) = rom.coarseScaleDomain;
+            cd(i) = rom.coarseMesh;
             cd(i) = cd(i).setBoundaries([2:(2*nX + 2*nY)], bcT, bcQ);
             cd_i = cd(i);
             log_qi{i} = @(Xi) log_q_i(Xi, Tf_i_minus_mu, tcf, tc, PhiMat, cd_i, ct);
         else
             %Every coarse model has the same boundary conditions
-            cd = rom.coarseScaleDomain;
+            cd = rom.coarseMesh;
             log_qi{i} = @(Xi) log_q_i(Xi, Tf_i_minus_mu, tcf, tc, PhiMat, cd, ct);
         end
         
@@ -192,7 +192,7 @@ while true
             %for S
             %Tc_samples(:,:,i) contains coarse nodal temperature samples (1 sample == 1 column) for full order data
             %sample i
-            Tc_samples(:, :, i) = reshape(cell2mat(out(i).data), rom.coarseScaleDomain.nNodes, MCMC(i).nSamples);
+            Tc_samples(:, :, i) = reshape(cell2mat(out(i).data), rom.coarseMesh.nNodes, MCMC(i).nSamples);
             %only valid for diagonal S here!
             tempArray(:, i) = mean((repmat(Tf_i_minus_mu, 1, MCMC(i).nSamples)...
                 - rom.theta_cf.W*Tc_samples(:, :, i)).^2, 2);
@@ -224,9 +224,9 @@ while true
         disp('Finding optimal variational distributions...')
         
         if rom.useConvection
-            dim = 3*rom.coarseScaleDomain.nEl;
+            dim = 3*rom.coarseMesh.nEl;
         else
-            dim = rom.coarseScaleDomain.nEl;
+            dim = rom.coarseMesh.nEl;
         end
         tic
         ticBytes(gcp)
@@ -298,12 +298,12 @@ while true
         if rom.useConvection
             nFeatures = nFeatures/3;
         end
-        Lambda_eff1_mode = conductivityBackTransform(rom.designMatrix{1}(1:rom.coarseScaleDomain.nEl, 1:nFeatures)...
+        Lambda_eff1_mode = conductivityBackTransform(rom.designMatrix{1}(1:rom.coarseMesh.nEl, 1:nFeatures)...
             *rom.theta_c.theta(1:nFeatures), rom.conductivityTransformation)
         if rom.useConvection
-            effConvX = rom.designMatrix{1}((rom.coarseScaleDomain.nEl + 1):2*rom.coarseScaleDomain.nEl, ...
+            effConvX = rom.designMatrix{1}((rom.coarseMesh.nEl + 1):2*rom.coarseMesh.nEl, ...
                 (nFeatures + 1):2*nFeatures)*rom.theta_c.theta((nFeatures + 1):(2*nFeatures));
-            effConvY = rom.designMatrix{1}((2*rom.coarseScaleDomain.nEl + 1):end, ...
+            effConvY = rom.designMatrix{1}((2*rom.coarseMesh.nEl + 1):end, ...
                 (2*nFeatures + 1):end)*rom.theta_c.theta((2*nFeatures + 1):end);
             effectiveConvection = [effConvX, effConvY]
         end
