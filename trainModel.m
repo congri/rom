@@ -84,16 +84,16 @@ while true
             bcQ{2} = @(y) (bc{j}(2) + bc{j}(4)*y);       %right bound
             bcQ{3} = @(x) (bc{j}(3) + bc{j}(4)*x);       %upper bound
             bcQ{4} = @(y) -(bc{j}(2) + bc{j}(4)*y);      %left bound
-            cd(i) = rom.coarseMesh;
-            cd(i) = cd(i).setBoundaries([2:(2*nX + 2*nY)], bcT, bcQ);
-            cd_i = cd(i);
+            cm(i) = rom.coarseMesh;
+            cm(i) = cm(i).setBoundaries([2:(2*nX + 2*nY)], bcT, bcQ);
+            cd_i = cm(i);
             log_qi{i} = @(Xi)...
                 log_q_i(Xi, Tf_i_minus_mu, tcf, tc, PhiMat, cd_i, ct);
         else
             %Every coarse model has the same boundary conditions
-            cd = rom.coarseMesh;
+            cm = rom.coarseMesh;
             log_qi{i} = @(Xi)...
-                log_q_i(Xi, Tf_i_minus_mu, tcf, tc, PhiMat, cd, ct);
+                log_q_i(Xi, Tf_i_minus_mu, tcf, tc, PhiMat, cm, ct);
         end
         
         
@@ -260,11 +260,11 @@ while true
             if(any(rom.boundaryConditionVariance))
                 p_cf_expHandle{i} = @(X) sqMisfit(X,...
                     rom.conductivityTransformation,...
-                    cd(i), Tf_i_minus_mu, rom.theta_cf);
+                    cm(i), Tf_i_minus_mu, rom.theta_cf);
             else
                 p_cf_expHandle{i} = @(X) sqMisfit(X,...
                     rom.conductivityTransformation,...
-                    cd, Tf_i_minus_mu, rom.theta_cf);
+                    cm, Tf_i_minus_mu, rom.theta_cf);
             end
             %Expectations under variational distributions
             if rom.free_W
@@ -289,7 +289,7 @@ while true
         rom.varExpect_p_cf_exp_mean = mean(tempArray, 2);
         inference_time = toc
         tic
-        %         save('./data/variationalDistributions.mat', 'vi');
+        %save('./data/variationalDistributions.mat', 'vi');
         save_time = toc
         disp('done')
     end
