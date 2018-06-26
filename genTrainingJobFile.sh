@@ -3,7 +3,7 @@ LENGTHSCALEDIST=delta	#'lognormal' or'delta'
 COVARIANCE=squaredExponential
 CORRLENGTH1=0.01		#lognormal mu
 CORRLENGTH2=0.01		#lognormal sigma
-NTRAIN=64
+NTRAIN=128
 NSTART=rand
 VOLFRAC=-1	#Theoretical volume fraction; -1 for uniform random volume fraction
 LOCOND=1
@@ -11,8 +11,8 @@ HICOND=2
 PRIORTYPE=RVM
 HYPERPARAM1=[]	#prior hyperparameter
 HYPERPARAM2=[]
-NCX=\[.25\ .25\ .25\ .25\]
-NCY=\[.25\ .25\ .25\ .25\]
+NCX=\[.125\ .125\ .125\ .125\ .125\ .125\ .125\ .125\]
+NCY=\[.125\ .125\ .125\ .125\ .125\ .125\ .125\ .125\]
 BC="[0 800 1200 -2000]"
 BC2=\[0\ 800\ 1200\ -2000\]
 
@@ -26,7 +26,7 @@ fi
 echo N_cores=
 echo $NCORES
 
-NAMEBASE="consecutiveRVM_normerror"
+NAMEBASE="consecutiveRVM_normerror_2"
 DATESTR=`date +%m-%d-%H-%M-%N`	#datestring for jobfolder name
 PROJECTDIR="/home/constantin/matlab/projects/rom"
 JOBNAME="${NAMEBASE}_randStart_nTrain=${NTRAIN}_Nc=${NCX}_${NCY}"

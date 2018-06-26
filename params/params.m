@@ -6,7 +6,7 @@ loadOldConf = false;
 %linear filter options
 rom.linFilt.type = 'local';  %local or global
 rom.linFilt.gap = 0;
-rom.linFilt.initialEpochs = 2;
+rom.linFilt.initialEpochs = 300;
 rom.linFilt.updates = 0;     %Already added linear filters
 rom.linFilt.totalUpdates = 0;
 rom.maxEpochs = (rom.linFilt.totalUpdates + 1)*rom.linFilt.gap - 2 + rom.linFilt.initialEpochs;
