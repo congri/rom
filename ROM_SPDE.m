@@ -448,10 +448,9 @@ classdef ROM_SPDE < handle
             disp('Solving finescale problem...')
             tic
             Tf = zeros(self.fineMesh.nNodes, self.nSets(nSet));
-            D{1} = zeros(2, 2, self.fineMesh.nEl);
-            D = repmat(D, self.nSets(nSet), 1);
+
             %To avoid broadcasting overhead
-            domain = self.fineMesh;
+            fineMesh = self.fineMesh;
             bcMean = str2num(self.boundaryConditions);
             bcVariance = self.boundaryConditionVariance;
             naturalNodes = self.naturalNodes;
@@ -464,9 +463,6 @@ classdef ROM_SPDE < handle
             end
             
             parPoolInit(self.nSets(nSet));
-            x = []; %unneeded?
-            nElf = self.fineMesh.nEl;
-            adp = self.advectionDistributionParams;
             addpath('./rom');
             ticBytes(gcp)
             parfor i = 1:self.nSets(nSet)
@@ -487,20 +483,16 @@ classdef ROM_SPDE < handle
                     %left bound
                     bcHeatFlux{i}{4} = @(y) -(bc{i}(2) + bc{i}(4)*y);
                     
-                    domainTemp = domain.setBoundaries(...
+                    fineMeshTemp = fineMesh.setBoundaries(...
                         naturalNodes, bcTemperature, bcHeatFlux{i});
-                    bcHeatFlux = [];
+%                     bcHeatFlux = [];
                 else
-                    domainTemp = domain;
-                    bcHeatFlux = [];
-                    bcTemperature = [];
-                end
-                
-                for j = 1:domain.nEl
-                    D{i}(:, :, j) =  cond{i}(j)*eye(2);
+                    fineMeshTemp = fineMesh;
+%                     bcHeatFlux = [];
+%                     bcTemperature = [];
                 end
 
-                FEMout = heat2d_v2(domainTemp, cond{i});
+                FEMout = heat2d_v2(fineMeshTemp, cond{i});
                 %Store fine temperatures as a vector Tf. 
                 %Use reshape(Tf(:, i), domain.nElX + 1, domain.nElY + 1)
                 %and then transpose result to reconvert it to
@@ -516,22 +508,11 @@ classdef ROM_SPDE < handle
                 disp('saving finescale data to...')
                 disp(savepath)
                 cond = cell2mat(cond);
-                if exist('convField')
-                    if(any(bcVariance))
-                        %partial loading only for -v7.3
-                        save(strcat(savepath, ''),...
-                            'cond', 'Tf', 'convField', 'bc', '-v7.3')
-                    else
-                        save(strcat(savepath, ''),...
-                            'cond', 'Tf', 'convField', '-v7.3')
-                    end
+                %partial loading only for -v7.3
+                if(any(bcVariance))
+                    save(strcat(savepath, ''), 'cond', 'Tf', 'bc', '-v7.3')
                 else
-                    %partial loading only for -v7.3
-                    if(any(bcVariance))
-                        save(strcat(savepath, ''), 'cond', 'Tf', 'bc', '-v7.3')
-                    else
-                        save(strcat(savepath, ''), 'cond', 'Tf', '-v7.3')
-                    end
+                    save(strcat(savepath, ''), 'cond', 'Tf', '-v7.3')
                 end
                 disp('done')
             end
@@ -1361,8 +1342,6 @@ classdef ROM_SPDE < handle
             nFineNodes = self.fineMesh.nNodes;
             
             Xsamples = zeros(nElc, nSamples, nTest);
-            convectionField{1} = [];
-            convectionField = repmat(convectionField, nTest, 1);
             LambdaSamples{1} = zeros(nElc, nSamples);
             LambdaSamples = repmat(LambdaSamples, nTest, 1);
             self.meanEffCond = zeros(nElc, nTest);
@@ -1770,9 +1749,9 @@ classdef ROM_SPDE < handle
             end
         end
 
-        function [lambdak, xk, ak] =...
+        function [lambdak, xk] =...
                 get_coarseElementConductivities(self, mode, samples)
-            %Cuts out conductivity/convection fields from macro-cells
+            %Cuts out conductivity fields from macro-cells
 			addpath('./rom');            
 
             %load finescale conductivity field
@@ -1780,33 +1759,12 @@ classdef ROM_SPDE < handle
                 if(nargin < 3)
                     conductivity = ...
                         self.trainingDataMatfile.cond(:, self.trainingSamples);
-                    if(nargout > 2)
-                        %Save format: (x/y-component, fineElement, sample)
-                        dataVars = whos(self.trainingDataMatfile);
-                        if ismember('convField', {dataVars.name})
-                            convectionField = ...
-                                self.trainingDataMatfile.convField(...
-                                1, self.trainingSamples);
-                        else
-                            convectionField = [];
-                        end
-                    end
                 else
                     %used for pca
                     conductivity = self.trainingDataMatfile.cond(:, samples);
                 end
             elseif strcmp(mode, 'test')
                 conductivity = self.testDataMatfile.cond(:, self.testSamples);
-                if(nargout > 2)
-                    %Save format: (x/y-component, fineElement, sample)
-                    dataVars = whos(self.testDataMatfile);
-                    if ismember('convField', {dataVars.name})
-                        convectionField = self.testDataMatfile.convField(1,...
-                            self.trainingSamples);
-                    else
-                        convectionField = [];
-                    end
-                end
             else
                 error('Either train or test mode')
             end
@@ -1834,20 +1792,7 @@ classdef ROM_SPDE < handle
                 %Get conductivity fields in coarse cell windows
                 %Might be wrong for non-square fine scale domains
                 conductivityMat = reshape(conductivity(:, s),...
-                    self.fineMesh.nElX,...
-                    self.fineMesh.nElY);
-                if(nargout > 2)
-                    if ~isempty(convectionField)
-                        convectionFieldMatX =...
-                            reshape(convectionField{s}(1, :),...
-                            self.fineMesh.nElX,...
-                            self.fineMesh.nElY);
-                        convectionFieldMatY =...
-                            reshape(convectionField{s}(2, :),...
-                            self.fineMesh.nElX,...
-                            self.fineMesh.nElY);
-                    end
-                end
+                    self.fineMesh.nElX, self.fineMesh.nElY);
                 for e = 1:self.coarseMesh.nEl
                     indexMat = (EHold == e);
                     if self.padding
@@ -1862,26 +1807,6 @@ classdef ROM_SPDE < handle
                     if(nargout > 1)
                         xk{s, e} = conductivityTransform(lambdak{s, e},...
                             self.conductivityTransformation);
-                    end
-                    
-                    if(nargout > 2)
-                        %Removing of padding as above is dangerous as 
-                        %ak's might be 0. Thus, add eps and remove it later on
-                        if ~isempty(convectionField)
-                            akX = (convectionFieldMatX + eps).*indexMat;
-                            akY = (convectionFieldMatY + eps).*indexMat;
-                            %Cut elements from matrix that do not
-                            %belong to coarse cell
-                            %Use lambdakTemp to define indices as it is never 0
-                            akX(~any(akX, 2), :) = [];
-                            akY(~any(akY, 2), :) = [];
-                            akX(:, ~any(akX, 1)) = [];
-                            akY(:, ~any(akY, 1)) = [];
-                            %stored as a two-sheets array
-                            ak{s, e} = cat(3, akX, akY);
-                        else
-                            ak{s, e} = [];
-                        end
                     end
                 end
             end
@@ -1993,19 +1918,9 @@ classdef ROM_SPDE < handle
                 conductivity = dataFile.cond(:, dataSamples);
                 %to avoid parallelization communication overhead
                 conductivity = num2cell(conductivity, 1);
-                dataVars = whos(dataFile);
-                if ismember('convField', {dataVars.name})
-                    %convField is cell array
-                    convectionField = dataFile.convField(1, dataSamples);
-%                     convectionField = num2cell(convectionField, 1:2);
-                else
-                    warning(strcat('No finescale convection field stored,', ...
-                        ' setting it to [].'))
-                    convectionField = [];
-                end
+                
                 %set feature function handles
-                [phi, phiGlobal, phiConvection, phiGlobalConvection] =...
-                    self.setFeatureFunctions;
+                [phi, phiGlobal] = self.setFeatureFunctions;
                 for j = 1:size(phi, 2)
                     if(j == 1)
                         dlmwrite('./data/features', func2str(phi{1, j}),...
@@ -2021,17 +1936,9 @@ classdef ROM_SPDE < handle
                 end
                 nFeatureFunctions = size(self.featureFunctions, 2);
                 nGlobalFeatureFunctions = size(self.globalFeatureFunctions, 2);
-                nConvectionFeatureFunctions =...
-                    size(self.convectionFeatureFunctions, 2);
-                nGlobalConvectionFeatureFunctions =...
-                    size(self.globalConvectionFeatureFunctions, 2);
-                nTotalFeatures = nFeatureFunctions+nGlobalFeatureFunctions + ...
-                    nConvectionFeatureFunctions +...
-                    nGlobalConvectionFeatureFunctions + self.latentDim;
-%                 phi = obj.featureFunctions;
-%                 phiGlobal = obj.globalFeatureFunctions;
-%                 phiConvection = obj.convectionFeatureFunctions;
-%                 phiGlobalConvection = obj.globalConvectionFeatureFunctions;
+                
+                %phi = obj.featureFunctions;
+                %phiGlobal = obj.globalFeatureFunctions;
                 %Open parallel pool
                 addpath('./computation')
                 parPoolInit(nData);
@@ -4338,9 +4245,6 @@ classdef ROM_SPDE < handle
             end
             
             self.secondOrderTerms = zeros(nFeatures, 'logical');
-%             obj.secondOrderTerms(2, 2) = true;
-%             obj.secondOrderTerms(2, 3) = true;
-%             obj.secondOrderTerms(3, 3) = true;
             assert(sum(sum(tril(self.secondOrderTerms, -1))) == 0,...
                 'Second order matrix must be upper triangular')
             

@@ -40,12 +40,10 @@ else
     end
     nSecondOrderTerms = sum(sum(rom.secondOrderTerms));
     rom.theta_c.theta = 0*ones(size(rom.featureFunctions, 2) +...
-        size(rom.globalFeatureFunctions,2) + latentDim + nSecondOrderTerms + ...
-        size(rom.convectionFeatureFunctions, 2) +...
-        size(rom.globalConvectionFeatureFunctions, 2), 1);
+        size(rom.globalFeatureFunctions,2) + latentDim + nSecondOrderTerms;
     rom.theta_c.Sigma = 1e0*speye(rom.coarseMesh.nEl);
-%     s = diag(romObj.theta_c.Sigma);
-%     romObj.theta_c.SigmaInv = sparse(diag(1./s));
+    %s = diag(rom.theta_c.Sigma);
+    %rom.theta_c.SigmaInv = sparse(diag(1./s));
     rom.theta_c.SigmaInv = inv(rom.theta_c.Sigma);
     rom.theta_c.full_Sigma = false;
 end
