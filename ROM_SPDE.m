@@ -38,7 +38,7 @@ classdef ROM_SPDE < handle
         neighborDictionary %Gives neighbors of macrocells
         %% Model training parameters
         nStart = 1              %first training data sample in file
-        nTrain = 16             %number of samples used for training
+        nTrain = 8             %number of samples used for training
         mode = 'none'           %useNeighbor, useLocalNeighbor, useDiagNeighbor,
                                 %useLocalDiagNeighbor, useLocal, global
                                 %global: take whole microstructure as feature 

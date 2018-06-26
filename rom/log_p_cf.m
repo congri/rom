@@ -1,5 +1,5 @@
 function [log_p, d_log_p, Tc] =...
-    log_p_cf(Tf_i_minus_mu, domainc, Xi, theta_cf, condTransOpts)
+    log_p_cf(Tf_i_minus_mu, domainc, Xi, theta_cf, condTransOpts, onlyGrad)
 %Coarse-to-fine map
 %ignore constant prefactor
 %log_p = -.5*logdet(S, 'chol') - .5*(Tf - mu)'*(S\(Tf - mu));
@@ -19,9 +19,14 @@ FEMout = heat2d_v2(domainc, conductivity);
 Tc = FEMout.Tff';
 Tc = Tc(:);
 Tf_i_minus_mu_minus_WTc = Tf_i_minus_mu - theta_cf.W*Tc;
-%only for diagonal S!
-log_p = -.5*(theta_cf.sumLogS + (Tf_i_minus_mu_minus_WTc)'*...
-    (theta_cf.Sinv_vec.*(Tf_i_minus_mu_minus_WTc)));
+if onlyGrad
+    %to avoid computation overhead if only d_log_p is needed
+    log_p = [];
+else
+    %only for diagonal S!
+    log_p = -.5*(theta_cf.sumLogS + (Tf_i_minus_mu_minus_WTc)'*...
+        (theta_cf.Sinv_vec.*(Tf_i_minus_mu_minus_WTc)));
+end
 
 if nargout > 1
     %Gradient of FEM equation system w.r.t. conductivities

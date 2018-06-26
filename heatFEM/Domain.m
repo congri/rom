@@ -329,7 +329,7 @@ classdef Domain
             end
         end
         
-        function N = elementShapeFunctions(domainObj, x, y, xe, Ael, component)
+        function N = elementShapeFunctions(self, x, y, xe, Ael, component)
             %Gives values of element shape functions
             %   x, y:  domain variables
             %   xe: xe(1) = x_1^e, xe(2) = x_2^e, xe(3) = y_1^e, xe(4) = y_4^e, see Fish&Belytschko p163

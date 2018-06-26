@@ -40,7 +40,7 @@ else
     end
     nSecondOrderTerms = sum(sum(rom.secondOrderTerms));
     rom.theta_c.theta = 0*ones(size(rom.featureFunctions, 2) +...
-        size(rom.globalFeatureFunctions,2) + latentDim + nSecondOrderTerms;
+        size(rom.globalFeatureFunctions, 2) + latentDim + nSecondOrderTerms, 1);
     rom.theta_c.Sigma = 1e0*speye(rom.coarseMesh.nEl);
     %s = diag(rom.theta_c.Sigma);
     %rom.theta_c.SigmaInv = sparse(diag(1./s));

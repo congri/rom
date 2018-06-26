@@ -88,12 +88,16 @@ while true
             cm(i) = cm(i).setBoundaries([2:(2*nX + 2*nY)], bcT, bcQ);
             cd_i = cm(i);
             log_qi{i} = @(Xi)...
-                log_q_i(Xi, Tf_i_minus_mu, tcf, tc, PhiMat, cd_i, ct);
+                log_q_i(Xi, Tf_i_minus_mu, tcf, tc, PhiMat, cd_i, ct, true);
+            log_qi_max{i} = @(Xi)...
+                log_q_i(Xi, Tf_i_minus_mu, tcf, tc, PhiMat, cd_i, ct, false);
         else
             %Every coarse model has the same boundary conditions
             cm = rom.coarseMesh;
             log_qi{i} = @(Xi)...
-                log_q_i(Xi, Tf_i_minus_mu, tcf, tc, PhiMat, cm, ct);
+                log_q_i(Xi, Tf_i_minus_mu, tcf, tc, PhiMat, cm, ct, true);
+            log_qi_max{i} = @(Xi)...
+                log_q_i(Xi, Tf_i_minus_mu, tcf, tc, PhiMat, cm, ct, false);
         end
         
         
@@ -102,7 +106,7 @@ while true
             %This might be not worth the overhead, i.e. it is expensive
             if(rom.EM_iterations == 2 && ~loadOldConf)
                 %Initialize VI distributions from maximum of q_i's
-                Xmax{i} = max_qi(log_qi{i}, varDistParams{i}.mu');
+                Xmax{i} = max_qi(log_qi_max{i}, varDistParams{i}.mu');
                 varDistParams{i}.mu = Xmax{i}';
             end
         end
@@ -123,7 +127,7 @@ while true
             %start value has some randomness to drive transitions
             %between local optima
             X_start{i} = normrnd(MCMC(i).Xi_start, .01);
-            Xmax{i} = max_qi(log_qi{i}, X_start{i});
+            Xmax{i} = max_qi(log_qi_max{i}, X_start{i});
             
             %sample from every q_i
             outStepWidth(i) = MCMCsampler(log_qi{i}, Xmax{i}, MCMCstepWidth(i));
@@ -243,10 +247,9 @@ while true
         dim = rom.coarseMesh.nEl;
         tic
         ticBytes(gcp)
-        parfor i = pstart:pend
-            [varDistParams{i}, varDistParamsVec{i}] =...
-                efficientStochOpt(varDistParamsVec{i},...
-                log_qi{i}, variationalDist, sw, dim);
+        for i = pstart:pend
+            [varDistParams{i}, varDistParamsVec{i}] = efficientStochOpt(...
+                varDistParamsVec{i}, log_qi{i}, variationalDist, sw, dim);
         end
         tocBytes(gcp)
         parfor_time = toc
