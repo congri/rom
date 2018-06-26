@@ -150,11 +150,6 @@ classdef ROM_SPDE < handle
         epoch = 0      %how often every data point has been seen
         epoch_old = 0  %To check if epoch has changed
         maxEpochs      %Maximum number of epochs
-        
-        %Include a convection term to the pde? Uses convection term in coarse 
-        %model in training/prediction
-        useConvection = false
-        useConvectionData = false
     end
     
     
@@ -211,15 +206,9 @@ classdef ROM_SPDE < handle
             self.genCoarseMesh;
             
             %prealloc
-            if self.useConvection
-                self.XMean = zeros(3*self.coarseMesh.nEl, self.nTrain);
-                self.XSqMean = ones(3*self.coarseMesh.nEl, self.nTrain);
-            else
-                self.XMean = zeros(self.coarseMesh.nEl, self.nTrain);
-                self.XSqMean = ones(self.coarseMesh.nEl, self.nTrain);
-            end
+            self.XMean = zeros(self.coarseMesh.nEl, self.nTrain);
+            self.XSqMean = ones(self.coarseMesh.nEl, self.nTrain);
             %Set up default value for test samples
-%             obj.testSamples = 1:obj.nSets(2);
             self.nStart = randi(self.nSets(1) - self.nTrain, 1)
             self.trainingSamples = self.nStart:(self.nStart + self.nTrain - 1);
             
@@ -281,7 +270,6 @@ classdef ROM_SPDE < handle
             disp('Generate finescale domain...')
             addpath('./heatFEM')    %to find Domain class
             self.fineMesh = Domain(self.nElFX, self.nElFY);
-            self.fineMesh.useConvection = self.useConvectionData;
             %Only fix lower left corner as essential node
             self.fineMesh = setBoundaries(self.fineMesh,...
                 self.naturalNodes, self.boundaryTemperature,...
@@ -464,7 +452,6 @@ classdef ROM_SPDE < handle
             D = repmat(D, self.nSets(nSet), 1);
             %To avoid broadcasting overhead
             domain = self.fineMesh;
-            useConv = self.useConvectionData;
             bcMean = str2num(self.boundaryConditions);
             bcVariance = self.boundaryConditionVariance;
             naturalNodes = self.naturalNodes;
@@ -477,20 +464,7 @@ classdef ROM_SPDE < handle
             end
             
             parPoolInit(self.nSets(nSet));
-            if useConv
-                %Compute coordinates of element centers
-                x = .5*(self.fineMesh.cum_lElX(1:(end - 1)) +...
-                    self.fineMesh.cum_lElX(2:end));
-                y = .5*(self.fineMesh.cum_lElY(1:(end - 1)) +...
-                    self.fineMesh.cum_lElY(2:end));
-                [X, Y] = meshgrid(x, y);
-                %directly clear potentially large arrays
-                clear y;
-                x = [X(:) Y(:)]';
-                clear X Y;
-            else
-                x = []; %unneeded?
-            end
+            x = []; %unneeded?
             nElf = self.fineMesh.nEl;
             adp = self.advectionDistributionParams;
             addpath('./rom');
@@ -525,21 +499,8 @@ classdef ROM_SPDE < handle
                 for j = 1:domain.nEl
                     D{i}(:, :, j) =  cond{i}(j)*eye(2);
                 end
-                if useConv
-                    %Random convection field
-%                     convectionCoeffs = normrnd(adp(1), adp(2), 1, 5)
-                    convectionCoeffs = pi*(randi(adp(1), 1, adp(2)) - adp(1)/2)
-                    convFieldArray = zeros(2, nElf);
-                    for e = 1:nElf
-                        convFieldArray(:, e) =...
-                            convectionField(x(:, e), convectionCoeffs);
-                    end
-                    FEMout = heat2d(domainTemp, D{i}, convFieldArray);
-                    convField{i} = convFieldArray;
-                else
-%                     FEMout = heat2d(domainTemp, D{i});
-                    FEMout = heat2d(domainTemp, cond{i});
-                end
+
+                FEMout = heat2d_v2(domainTemp, cond{i});
                 %Store fine temperatures as a vector Tf. 
                 %Use reshape(Tf(:, i), domain.nElX + 1, domain.nElY + 1)
                 %and then transpose result to reconvert it to
@@ -633,12 +594,6 @@ classdef ROM_SPDE < handle
                     num2str(self.boundaryConditionVariance), ']/');
             end
             
-            %THIS NEEDS TO BE GENERALIZED With ADVECTION PARAMETERS IN NAME!!!
-            if self.useConvectionData
-                self.fineScaleDataPath = strcat(self.fineScaleDataPath, ...
-                    'convection=' , ...
-                    num2str(self.advectionDistributionParams), '/')
-            end
             %Name of training data file
             trainFileName =...
                 strcat('set1-samples=', num2str(self.nSets(1)), '.mat');
@@ -689,7 +644,6 @@ classdef ROM_SPDE < handle
             addpath('./heatFEM')        %to find Domain class
             self.coarseMesh =...
                 Domain(nX, nY, self.coarseGridVectorX, self.coarseGridVectorY);
-            self.coarseMesh.useConvection = self.useConvection;
             %ATTENTION: natural nodes have to be set manually
             %and consistently in coarse and fine scale domain!!
             self.coarseMesh.compute_grad = true;
@@ -970,11 +924,7 @@ classdef ROM_SPDE < handle
             SigmaInvXMean = SigmaInv*self.XMean;
             sumPhiTSigmaInvPhi = 0;
             sumPhiTSigmaInvPhiOriginal = 0;
-            if self.useConvection
-                PhiThetaMat = zeros(3*self.coarseMesh.nEl, self.nTrain);
-            else
-                PhiThetaMat = zeros(self.coarseMesh.nEl, self.nTrain);
-            end
+            PhiThetaMat = zeros(self.coarseMesh.nEl, self.nTrain);
             
             for n = 1:self.nTrain
                 sumPhiTSigmaInvXmean = sumPhiTSigmaInvXmean +...
@@ -1127,13 +1077,7 @@ classdef ROM_SPDE < handle
                 end
                 theta= theta_temp;
                 
-                if self.useConvection
-                    PhiThetaMat =...
-                        zeros(3*self.coarseMesh.nEl, self.nTrain);
-                else
-                    PhiThetaMat =...
-                        zeros(self.coarseMesh.nEl, self.nTrain);
-                end
+                PhiThetaMat = zeros(self.coarseMesh.nEl, self.nTrain);
                 for n = 1:self.nTrain
                     PhiThetaMat(:, n) = self.designMatrix{n}*theta;
                 end
@@ -1143,42 +1087,33 @@ classdef ROM_SPDE < handle
                     sigma_prior_type = self.sigmaPriorType;
                 end
                 if strcmp(sigma_prior_type, 'none')
-                    if self.useConvection
-                        Sigma = sparse(1:3*self.coarseMesh.nEl,...
-                            1:3*self.coarseMesh.nEl,...
-                        mean(self.XSqMean - 2*(PhiThetaMat.*self.XMean) +...
-                        PhiThetaMat.^2, 2));
-                    else
-                        if self.theta_c.full_Sigma
-                            sumPhiThetaPhiTThetaT = 0;
-                            sumPhiThetaXT = 0;
-                            sumXXT = 0;
-                            for n = 1:self.nTrain
-                                sumPhiThetaPhiTThetaT =...
-                                    sumPhiThetaPhiTThetaT +...
-                                    PhiThetaMat(:, n)*PhiThetaMat(:, n)';
-                                sumPhiThetaXT = sumPhiThetaXT +...
-                                    PhiThetaMat(:, n)*self.XMean(:, n)';
-                                sumXXT = sumXXT +...
-                                    self.XMean(:, n)*self.XMean(:, n)';
-                            end
-                            Sigma = diag(mean(self.XSqMean, 2)) +...
-                                (sumXXT - diag(diag(sumXXT)))/self.nTrain +...
-                                (sumPhiThetaPhiTThetaT/self.nTrain) -...
-                                (sumPhiThetaXT + sumPhiThetaXT')/self.nTrain;
-                        else
-                            Sigma = sparse(1:self.coarseMesh.nEl,...
-                                1:self.coarseMesh.nEl,...
-                                mean(self.XSqMean -...
-                                2*(PhiThetaMat.*self.XMean)+PhiThetaMat.^2, 2));
+                    if self.theta_c.full_Sigma
+                        sumPhiThetaPhiTThetaT = 0;
+                        sumPhiThetaXT = 0;
+                        sumXXT = 0;
+                        for n = 1:self.nTrain
+                            sumPhiThetaPhiTThetaT = sumPhiThetaPhiTThetaT +...
+                                PhiThetaMat(:, n)*PhiThetaMat(:, n)';
+                            sumPhiThetaXT = sumPhiThetaXT +...
+                                PhiThetaMat(:, n)*self.XMean(:, n)';
+                            sumXXT= sumXXT + self.XMean(:, n)*self.XMean(:, n)';
                         end
+                        Sigma = diag(mean(self.XSqMean, 2)) +...
+                            (sumXXT - diag(diag(sumXXT)))/self.nTrain +...
+                            (sumPhiThetaPhiTThetaT/self.nTrain) -...
+                            (sumPhiThetaXT + sumPhiThetaXT')/self.nTrain;
+                    else
+                        Sigma = sparse(1:self.coarseMesh.nEl,...
+                            1:self.coarseMesh.nEl,...
+                            mean(self.XSqMean -...
+                            2*(PhiThetaMat.*self.XMean)+PhiThetaMat.^2, 2));
                     end
-%                     Sigma(Sigma < 0) = eps; %for numerical stability
+                    %Sigma(Sigma < 0) = eps; %for numerical stability
                     %Variances must be positive
                     Sigma(logical(eye(size(Sigma)))) =...
                         abs(Sigma(logical(eye(size(Sigma))))) + eps;
                     
-                
+                    
                     %sum_i Phi_i^T Sigma^-1 <X^i>_qi
                     sumPhiTSigmaInvXmean = 0;
                     %Only valid for diagonal Sigma
@@ -1330,11 +1265,7 @@ classdef ROM_SPDE < handle
             
             %p_c
             %precision of variances sigma_k^2
-            if self.useConvection
-                lambda_log_sigma2 = .5*ones(1, 3*self.coarseMesh.nEl);
-            else
-                lambda_log_sigma2 = .5*ones(1, self.coarseMesh.nEl);
-            end
+            lambda_log_sigma2 = .5*ones(1, self.coarseMesh.nEl);
             
             %precision on the theta_c's
             lambda_theta_c = zeros(length(self.theta_c.theta),...
@@ -1426,17 +1357,11 @@ classdef ROM_SPDE < handle
             %short hand notation/ avoiding broadcast overhead
             nElc = self.coarseMesh.nEl;
             nSamples = self.nSamples_p_c;
-            useConv = self.useConvection;
-%             bcVar = any(obj.boundaryConditionVariance);
+            %bcVar = any(obj.boundaryConditionVariance);
             nFineNodes = self.fineMesh.nNodes;
             
-            if useConv
-                Xsamples = zeros(3*nElc, nSamples, nTest);
-                convectionField{1} = zeros(2, nElc, nSamples);
-            else
-                Xsamples = zeros(nElc, nSamples, nTest);
-                convectionField{1} = [];
-            end
+            Xsamples = zeros(nElc, nSamples, nTest);
+            convectionField{1} = [];
             convectionField = repmat(convectionField, nTest, 1);
             LambdaSamples{1} = zeros(nElc, nSamples);
             LambdaSamples = repmat(LambdaSamples, nTest, 1);
@@ -1481,14 +1406,6 @@ classdef ROM_SPDE < handle
                         self.theta_c.theta + .5*diag(self.theta_c.Sigma));
                 else
                     self.meanEffCond(:, i) = mean(LambdaSamples{i}, 2);
-                end
-                if self.useConvection
-                    %Convection field
-                    for j = 1:nSamples
-                        convectionField{i}(:, :, j) =...
-                            [Xsamples((nElc + 1):(2*nElc), j, i)';...
-                            Xsamples((2*nElc + 1):(3*nElc), j, i)'];
-                    end
                 end
             end
             disp('done')
@@ -2118,17 +2035,10 @@ classdef ROM_SPDE < handle
                 %Open parallel pool
                 addpath('./computation')
                 parPoolInit(nData);
-                if self.useConvection
-                    PhiCell{1} = ...
-                        zeros(3*self.coarseMesh.nEl, 3*nTotalFeatures);
-                    [lambdak, xk, ak] = ...
-                        self.get_coarseElementConductivities(mode);
-                else
-                    PhiCell{1} = zeros(self.coarseMesh.nEl,...
-                        nFeatureFunctions + nGlobalFeatureFunctions);
-                    [lambdak, xk] = self.get_coarseElementConductivities(mode);
-                    ak = [];
-                end
+                PhiCell{1} = zeros(self.coarseMesh.nEl,...
+                    nFeatureFunctions + nGlobalFeatureFunctions);
+                [lambdak, xk] = self.get_coarseElementConductivities(mode);
+                ak = [];
                 PhiCell = repmat(PhiCell, nData, 1);
                 
                 if(self.linFilt.totalUpdates > 0)
@@ -2171,7 +2081,6 @@ classdef ROM_SPDE < handle
                 nElYf = self.fineMesh.nElY;
                 uae = self.useAutoEnc;
                 ld = self.latentDim;
-                uc = self.useConvection;
                 ticBytes(gcp)
                 %for cheap features, serial evaluation might be more efficient
                 parfor s = 1:nData
@@ -4437,16 +4346,7 @@ classdef ROM_SPDE < handle
             
             
             %Convection features
-            if self.useConvection
-                for k = 1:self.coarseMesh.nEl
-                    phiConvection{k, 1} = @(convField)...
-                        mean(mean(convField(1, :, :)));
-                    phiConvection{k, 2} = @(convField)...
-                        mean(mean(convField(2, :, :)));
-                end
-            else
-                phiConvection = {};
-            end
+            phiConvection = {};
             
             self.featureFunctions = phi;
             self.globalFeatureFunctions = phiGlobal;

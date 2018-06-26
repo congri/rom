@@ -23,7 +23,7 @@ rng('shuffle')  %system time seed
 delete('./data/*')  %delete old data
 
 %initialize reduced order model object
-rom = ROM_SPDE('train')
+rom = ROM_SPDE('train');
 %prealloc for p_cf inference
 tempArray = zeros(rom.fineMesh.nNodes, rom.nTrain);
 %% Load training data
@@ -38,7 +38,7 @@ pend = 0;       %for sequential qi-updates
 %Compute design matrices
 rom.computeDesignMatrix('train', false);
 if(size(rom.designMatrix{1}, 2) ~= size(rom.theta_c.theta))
-    warning('Wrong dimension of theta_c. Setting it to 0 with correct dimension.')
+    warning('Wrong dim of theta_c. Setting it to 0 with correct dim.')
     rom.theta_c.theta = zeros(size(rom.designMatrix{1}, 2), 1);
 end
 %random initialization
@@ -223,11 +223,7 @@ while true
         %This can probably be done more memory efficient
         disp('Finding optimal variational distributions...')
         
-        if rom.useConvection
-            dim = 3*rom.coarseMesh.nEl;
-        else
-            dim = rom.coarseMesh.nEl;
-        end
+        dim = rom.coarseMesh.nEl;
         tic
         ticBytes(gcp)
         parfor i = pstart:pend
@@ -295,18 +291,8 @@ while true
     
     if(~rom.conductivityTransformation.anisotropy)
         nFeatures = size(rom.designMatrix{1}, 2);
-        if rom.useConvection
-            nFeatures = nFeatures/3;
-        end
         Lambda_eff1_mode = conductivityBackTransform(rom.designMatrix{1}(1:rom.coarseMesh.nEl, 1:nFeatures)...
             *rom.theta_c.theta(1:nFeatures), rom.conductivityTransformation)
-        if rom.useConvection
-            effConvX = rom.designMatrix{1}((rom.coarseMesh.nEl + 1):2*rom.coarseMesh.nEl, ...
-                (nFeatures + 1):2*nFeatures)*rom.theta_c.theta((nFeatures + 1):(2*nFeatures));
-            effConvY = rom.designMatrix{1}((2*rom.coarseMesh.nEl + 1):end, ...
-                (2*nFeatures + 1):end)*rom.theta_c.theta((2*nFeatures + 1):end);
-            effectiveConvection = [effConvX, effConvY]
-        end
     end
     
     %collect data and write it to disk periodically to save memory

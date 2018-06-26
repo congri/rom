@@ -41,11 +41,7 @@ else
     rom.theta_c.theta = 0*ones(size(rom.featureFunctions, 2) +...
         size(rom.globalFeatureFunctions, 2) + latentDim + nSecondOrderTerms + ...
         size(rom.convectionFeatureFunctions, 2) + size(rom.globalConvectionFeatureFunctions, 2), 1);
-    if rom.useConvection
-        rom.theta_c.Sigma = 1e0*speye(3*rom.coarseMesh.nEl);
-    else
-        rom.theta_c.Sigma = 1e0*speye(rom.coarseMesh.nEl);
-    end
+    rom.theta_c.Sigma = 1e0*speye(rom.coarseMesh.nEl);
 %     s = diag(romObj.theta_c.Sigma);
 %     romObj.theta_c.SigmaInv = sparse(diag(1./s));
     rom.theta_c.SigmaInv = inv(rom.theta_c.Sigma);
@@ -114,20 +110,11 @@ else
 end
 if strcmp(variationalDist, 'diagonalGauss')
     varDistParams{1}.sigma = 1e2*ones(size(varDistParams{1}.mu));
-    if rom.useConvection
-        varDistParams{1}.sigma = ones(1, 3*rom.coarseMesh.nEl);
-        %Sharp convection field at 0 at beginning
-        varDistParams{1}.sigma((rom.coarseMesh.nEl + 1):end) = 1e-2;
-    end
 elseif strcmp(variationalDist, 'fullRankGauss')
     varDistParams{1}.Sigma = 1e0*eye(length(varDistParams{1}.mu));
     varDistParams{1}.LT = chol(varDistParams{1}.Sigma);
     varDistParams{1}.L = varDistParams{1}.LT';
     varDistParams{1}.LInv = inv(varDistParams{1}.L);
-end
-
-if rom.useConvection
-    varDistParams{1}.mu = [varDistParams{1}.mu, zeros(1, 2*rom.coarseMesh.nEl)];
 end
 
 varDistParams = repmat(varDistParams, rom.nTrain, 1);
@@ -140,12 +127,6 @@ so{1} = StochasticOptimization('adam');
 % so{1}.stepWidth = [1e-2*ones(1, romObj.coarseMesh.nEl) 1e-1*ones(1, romObj.coarseMesh.nEl^2)];
 so{1}.x = [varDistParams{1}.mu, -2*log(varDistParams{1}.sigma)];
 sw = [1e-2*ones(1, rom.coarseMesh.nEl) 1e0*ones(1, rom.coarseMesh.nEl)];
-if rom.useConvection
-    sw = [1e-2*ones(1, rom.coarseMesh.nEl) ...    %conductivity mean
-        1e-4*ones(1, 2*rom.coarseMesh.nEl) ...    %advection mean
-        1e-0*ones(1, rom.coarseMesh.nEl) ...      %conductivity sigma
-        1e-2*ones(1, 2*rom.coarseMesh.nEl)];      %advection sigma
-end
 so{1}.stepWidth = sw;
 so = repmat(so, rom.nTrain, 1);
 
